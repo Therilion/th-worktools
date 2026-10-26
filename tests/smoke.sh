@@ -59,3 +59,12 @@ out="$(cd "$TMP/repo" && "$WT" new feature/json --json)" || fail "$name: th-wt n
 expected="{\"branch\":\"feature/json\",\"path\":\"$HOME/.worktrees/acme/demo/feature-json\",\"repo\":\"acme/demo\"}"
 [ "$(printf '%s' "$out" | jq -S -c .)" = "$expected" ] || fail "$name: salida=[$out]"
 pass "$name"
+
+name="new --base release/1.2 parte de origin/release/1.2"
+git -C "$TMP/other" checkout -q -b release/1.2
+git -C "$TMP/other" commit -q --allow-empty -m "release 1.2"
+git -C "$TMP/other" push -q origin release/1.2
+(cd "$TMP/repo" && "$WT" new fix/x --base release/1.2) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/fix-x"
+[ "$(git -C "$dest" rev-parse HEAD)" = "$(git -C "$TMP/origin.git" rev-parse release/1.2)" ] || fail "$name: no parte de origin/release/1.2"
+pass "$name"
