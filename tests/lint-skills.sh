@@ -13,8 +13,8 @@ for dir in "$ROOT"/skills/*/; do
   name="$(awk '/^---$/ { n++; next } n == 1 && /^name:/ { sub(/^name:[ ]*/, ""); print; exit }' "$file")"
   [ "$name" = "$folder" ] || err "$folder: name='$name' no coincide con la carpeta"
 
-  if grep 'scripts/' "$file" | grep -v 'CLAUDE_SKILL_DIR' >/dev/null; then
-    err "$folder: ruta scripts/ sin el prefijo \${CLAUDE_SKILL_DIR"
+  if grep 'scripts/' "$file" | grep -v 'CLAUDE_SKILL_DIR:-' >/dev/null; then
+    err "$folder: ruta scripts/ sin el prefijo con fallback \${CLAUDE_SKILL_DIR:-…}"
   fi
 done
 
