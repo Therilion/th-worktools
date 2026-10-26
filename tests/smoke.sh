@@ -85,3 +85,14 @@ dest="$HOME/.worktrees/acme/demo/feature-nested"
 [ -d "$dest" ] || fail "$name: no existe $dest"
 [ "$(git -C "$dest" branch --show-current)" = "feature/nested" ] || fail "$name: rama incorrecta"
 pass "$name"
+
+name="destino existente → exit 4 y mensaje con la ruta"
+dest="$HOME/.worktrees/acme/demo/feature-exists"
+mkdir -p "$dest" && touch "$dest/marker"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" new feature/exists 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4"
+case "$err" in *"$dest"*) ;; *) fail "$name: el mensaje no menciona la ruta: [$err]" ;; esac
+[ -z "$(git -C "$TMP/repo" branch --list feature/exists)" ] || fail "$name: se creó la rama"
+[ "$(ls -A "$dest")" = "marker" ] || fail "$name: el destino cambió"
+pass "$name"

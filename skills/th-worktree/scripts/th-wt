@@ -18,6 +18,11 @@ url="$(git config --get remote.origin.url)"
 repo="$(printf '%s' "$url" | sed -E 's#^(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')"
 dest="$HOME/.worktrees/$repo/${branch//\//-}"
 
+if [ -e "$dest" ]; then
+  echo "th-wt: destination already exists: $dest" >&2
+  exit 4
+fi
+
 [ -n "$base" ] || base="$(git ls-remote --symref origin HEAD | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
 git fetch -q origin
 git worktree add -q -b "$branch" "$dest" "origin/$base"
