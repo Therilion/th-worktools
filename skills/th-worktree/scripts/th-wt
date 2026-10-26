@@ -10,3 +10,7 @@ dest="$HOME/.worktrees/$repo/${branch//\//-}"
 base="$(git ls-remote --symref origin HEAD | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
 git fetch -q origin
 git worktree add -q -b "$branch" "$dest" "origin/$base"
+
+if [ "${3:-}" = "--json" ]; then
+  jq -n --arg path "$dest" --arg branch "$branch" --arg repo "$repo" '{path: $path, branch: $branch, repo: $repo}'
+fi

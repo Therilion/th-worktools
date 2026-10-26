@@ -53,3 +53,9 @@ after="$(git -C "$TMP/repo" rev-parse HEAD)|$(git -C "$TMP/repo" branch --show-c
 [ "$before" = "$after" ] || fail "$name: antes=[$before] después=[$after]"
 rm "$TMP/repo/wip.txt"
 pass "$name"
+
+name="new --json devuelve solo path, branch y repo"
+out="$(cd "$TMP/repo" && "$WT" new feature/json --json)" || fail "$name: th-wt new falló"
+expected="{\"branch\":\"feature/json\",\"path\":\"$HOME/.worktrees/acme/demo/feature-json\",\"repo\":\"acme/demo\"}"
+[ "$(printf '%s' "$out" | jq -S -c .)" = "$expected" ] || fail "$name: salida=[$out]"
+pass "$name"
