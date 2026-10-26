@@ -17,7 +17,7 @@ Crea, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`, para
 
 | Subcomando | Qué hace |
 |---|---|
-| `new <rama> [--base <ref>]` | Worktree con una rama nueva |
+| `new <rama> [--base <rama>]` | Worktree con una rama nueva |
 | `checkout <rama>` | Worktree de una rama existente, local o remota |
 | `pr <n>` | Worktree de un PR de GitHub en `pr-reviews/pr-<n>/code` |
 | `list` | Worktrees del repo actual, con su estado |
@@ -51,3 +51,8 @@ El detalle de las decisiones está en [`docs/plan-v0.1.md`](docs/plan-v0.1.md).
 ## Ideas
 
 Ideas que quedan fuera de la versión en curso.
+
+- Derivar `<owner>/<repo>` también de remotes `ssh://`, con puerto o con barra final (hoy solo `git@host:` y `https://`).
+- Que `--base` acepte tags y SHAs (hoy es siempre `origin/<rama>`).
+- Resumen legible de `new` en la terminal, sin necesidad de `--json`.
+- Lint de skills más estricto: `description`, `disable-model-invocation` en los skills con efectos secundarios e invocaciones de scripts sin la ruta completa.
