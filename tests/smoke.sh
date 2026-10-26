@@ -247,3 +247,14 @@ git -C "$TMP/r-gl" remote set-url origin "git@gitlab.com:group/sub/repo.git"
 (cd "$TMP/r-gl" && "$WT" new feature/gl) || fail "$name: GitLab con subgrupos falló"
 [ -d "$HOME/.worktrees/group/sub/repo/feature-gl" ] || fail "$name: no existe el worktree en group/sub/repo"
 pass "$name"
+
+name="--base con expresión de revisión (main~1, main^, main@{1}) → exit 2 sin crear nada"
+for b in "main~1" "main^" "main@{1}"; do
+  rc=0
+  err="$(cd "$TMP/repo" && "$WT" new fix/badbase --base "$b" 2>&1)" || rc=$?
+  [ "$rc" = 2 ] || fail "$name: --base $b: exit=$rc, esperado 2"
+  case "$err" in *"th-wt: "*"$b"*) ;; *) fail "$name: --base $b: sin mensaje de th-wt con la base: [$err]" ;; esac
+  [ -z "$(git -C "$TMP/repo" branch --list fix/badbase)" ] || fail "$name: --base $b: se creó la rama"
+  [ ! -e "$HOME/.worktrees/acme/demo/fix-badbase" ] || fail "$name: --base $b: se creó el destino"
+done
+pass "$name"
