@@ -45,6 +45,11 @@ git rev-parse --git-dir >/dev/null 2>&1 || die 4 "not a git repository"
 url="$(git config --get remote.origin.url || true)"
 [ -n "$url" ] || die 4 "no 'origin' remote configured"
 repo="$(printf '%s' "$url" | sed -E 's#^(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')"
+case "/$repo/" in
+  *[:@]*|*//*|*/./*|*/../*) die 4 "unsupported origin URL: $url" ;;
+  /*/*/) ;;
+  *) die 4 "unsupported origin URL: $url" ;;
+esac
 dest="$HOME/.worktrees/$repo/${branch//\//-}"
 
 [ ! -e "$dest" ] || die 4 "destination already exists: $dest"

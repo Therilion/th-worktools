@@ -226,3 +226,24 @@ case "$err" in *"th-wt: "*) ;; *) fail "$name: sin mensaje de th-wt: [$err]" ;; 
 [ -z "$(git -C "$TMP/repo" branch --list conf)" ] || fail "$name: se creó la rama"
 [ ! -e "$HOME/.worktrees/acme/demo/conf" ] || fail "$name: se creó el destino"
 pass "$name"
+
+name="origin con forma no soportada → exit 4 sin crear nada; subgrupos de GitLab sí"
+# Hosts .invalid: nunca resuelven, así que el test no toca la red.
+git init -q -b main "$TMP/r-bad"
+git -C "$TMP/r-bad" commit -q --allow-empty -m init
+git -C "$TMP/r-bad" remote add origin placeholder
+for u in "git@example.invalid:../../x.git" "ssh://git@example.invalid/acme/demo.git" "https://example.invalid/acme/demo/"; do
+  git -C "$TMP/r-bad" config remote.origin.url "$u"
+  rc=0
+  err="$(cd "$TMP/r-bad" && "$WT" new feature/bad-url 2>&1)" || rc=$?
+  [ "$rc" = 4 ] || fail "$name: [$u]: exit=$rc, esperado 4"
+  case "$err" in *"th-wt: "*"$u"*) ;; *) fail "$name: [$u]: sin mensaje con la URL: [$err]" ;; esac
+  [ -z "$(git -C "$TMP/r-bad" branch --list feature/bad-url)" ] || fail "$name: [$u]: se creó la rama"
+done
+[ ! -e "$TMP/x" ] || fail "$name: se escribió fuera de ~/.worktrees"
+git config --global --add "url.$TMP/origin.git.insteadOf" "git@gitlab.com:group/sub/repo.git"
+git clone -q "$TMP/origin.git" "$TMP/r-gl"
+git -C "$TMP/r-gl" remote set-url origin "git@gitlab.com:group/sub/repo.git"
+(cd "$TMP/r-gl" && "$WT" new feature/gl) || fail "$name: GitLab con subgrupos falló"
+[ -d "$HOME/.worktrees/group/sub/repo/feature-gl" ] || fail "$name: no existe el worktree en group/sub/repo"
+pass "$name"
