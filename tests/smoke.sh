@@ -109,3 +109,20 @@ for b in feature/local-b feature/remote-b; do
 done
 [ -z "$(git -C "$TMP/repo" branch -r --list origin/feature/remote-b)" ] || fail "$name: se hizo fetch antes de validar"
 pass "$name"
+
+name="falta git o jq → exit 3 y mensaje con la dependencia"
+for dep in git jq; do
+  # PATH mínimo con las herramientas de th-wt menos la que "falta".
+  shim="$TMP/bin-sin-$dep"
+  mkdir -p "$shim"
+  for t in bash git jq awk sed; do
+    [ "$t" = "$dep" ] || ln -s "$(command -v "$t")" "$shim/$t"
+  done
+  rc=0
+  err="$(cd "$TMP/repo" && PATH="$shim" "$WT" new "feature/sin-$dep" 2>&1)" || rc=$?
+  [ "$rc" = 3 ] || fail "$name: sin $dep: exit=$rc, esperado 3"
+  case "$err" in *"$dep"*) ;; *) fail "$name: el mensaje no menciona $dep: [$err]" ;; esac
+  [ ! -e "$HOME/.worktrees/acme/demo/feature-sin-$dep" ] || fail "$name: sin $dep: se creó el destino"
+  [ -z "$(git -C "$TMP/repo" branch --list "feature/sin-$dep")" ] || fail "$name: sin $dep: se creó la rama"
+done
+pass "$name"

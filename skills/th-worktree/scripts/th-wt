@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+for dep in git jq; do
+  command -v "$dep" >/dev/null || { echo "th-wt: missing dependency: $dep" >&2; exit 3; }
+done
+
 shift
 branch="$1"
 shift
