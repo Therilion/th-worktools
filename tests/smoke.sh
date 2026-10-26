@@ -32,3 +32,15 @@ dest="$HOME/.worktrees/acme/demo/feature-login"
 [ -d "$dest" ] || fail "$name: no existe $dest"
 [ "$(git -C "$dest" branch --show-current)" = "feature/login" ] || fail "$name: rama incorrecta"
 pass "$name"
+
+name="new parte de la rama por defecto de origin, no del HEAD local"
+git clone -q "$REMOTE_URL" "$TMP/other"
+git -C "$TMP/other" commit -q --allow-empty -m "avance en origin"
+git -C "$TMP/other" push -q origin main
+git -C "$TMP/repo" checkout -q -b local-only
+git -C "$TMP/repo" commit -q --allow-empty -m "solo local"
+(cd "$TMP/repo" && "$WT" new feature/base) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-base"
+[ "$(git -C "$dest" rev-parse HEAD)" = "$(git -C "$TMP/origin.git" rev-parse main)" ] || fail "$name: no parte de origin/main"
+git -C "$TMP/repo" checkout -q main
+pass "$name"

@@ -7,4 +7,6 @@ repo="${url#git@github.com:}"
 repo="${repo%.git}"
 dest="$HOME/.worktrees/$repo/${branch//\//-}"
 
-git worktree add -q -b "$branch" "$dest"
+base="$(git ls-remote --symref origin HEAD | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
+git fetch -q origin
+git worktree add -q -b "$branch" "$dest" "origin/$base"
