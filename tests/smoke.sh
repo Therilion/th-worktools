@@ -216,3 +216,13 @@ for b in nope origin/main; do
   [ ! -e "$HOME/.worktrees/acme/demo/fix-nobase" ] || fail "$name: --base $b: se creó el destino"
 done
 pass "$name"
+
+name="conflicto de refs (conf con conf/x existente) → exit 1 con mensaje, sin crear nada"
+git -C "$TMP/repo" branch conf/x
+rc=0
+err="$(cd "$TMP/repo" && "$WT" new conf 2>&1)" || rc=$?
+[ "$rc" = 1 ] || fail "$name: exit=$rc, esperado 1"
+case "$err" in *"th-wt: "*) ;; *) fail "$name: sin mensaje de th-wt: [$err]" ;; esac
+[ -z "$(git -C "$TMP/repo" branch --list conf)" ] || fail "$name: se creó la rama"
+[ ! -e "$HOME/.worktrees/acme/demo/conf" ] || fail "$name: se creó el destino"
+pass "$name"

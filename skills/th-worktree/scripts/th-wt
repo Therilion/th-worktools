@@ -61,7 +61,7 @@ if [ -z "$base" ]; then
 fi
 git fetch -q origin
 git rev-parse --verify -q "refs/remotes/origin/$base" >/dev/null || die 4 "base branch not found on origin: $base"
-git worktree add --no-track -q -b "$branch" "$dest" "origin/$base"
+git worktree add --no-track -q -b "$branch" "$dest" "origin/$base" || die 1 "git worktree add failed"
 
 if [ "$json" = 1 ]; then
   jq -n --arg path "$dest" --arg branch "$branch" --arg repo "$repo" '{path: $path, branch: $branch, repo: $repo}'
