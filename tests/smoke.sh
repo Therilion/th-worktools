@@ -197,3 +197,8 @@ err="$(cd "$TMP/plain" && "$WT" new feature/nogit 2>&1)" || rc=$?
 [ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4"
 case "$err" in *"not a git repository"*) ;; *) fail "$name: el mensaje no habla de repo git: [$err]" ;; esac
 pass "$name"
+
+name="new crea la rama sin upstream (no sigue a origin/<base>)"
+(cd "$TMP/repo" && "$WT" new feature/notrack) || fail "$name: th-wt new falló"
+[ -z "$(git -C "$TMP/repo" config --get "branch.feature/notrack.merge" || true)" ] || fail "$name: la rama tiene upstream"
+pass "$name"
