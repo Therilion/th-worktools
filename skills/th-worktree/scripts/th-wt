@@ -65,8 +65,7 @@ if [ -z "$base" ]; then
   base="$(printf '%s\n' "$head_ref" | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
   [ -n "$base" ] || die 1 "cannot determine origin's default branch (pass --base)"
 fi
-git fetch -q origin
-git rev-parse --verify -q "refs/remotes/origin/$base" >/dev/null || die 4 "base branch not found on origin: $base"
+git fetch -q origin "+refs/heads/$base:refs/remotes/origin/$base" || die 4 "base branch not found on origin (or fetch failed): $base"
 git worktree add --no-track -q -b "$branch" "$dest" "origin/$base" || die 1 "git worktree add failed"
 
 if [ "$json" = 1 ]; then

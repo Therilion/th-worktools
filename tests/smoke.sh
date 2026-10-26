@@ -258,3 +258,11 @@ for b in "main~1" "main^" "main@{1}"; do
   [ ! -e "$HOME/.worktrees/acme/demo/fix-badbase" ] || fail "$name: --base $b: se creó el destino"
 done
 pass "$name"
+
+name="clon --single-branch: --base de otra rama existente en origin funciona"
+git clone -q --single-branch -b main "$TMP/origin.git" "$TMP/r-sb"
+git -C "$TMP/r-sb" remote set-url origin "$REMOTE_URL"
+(cd "$TMP/r-sb" && "$WT" new fix/sb --base release/1.2) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/fix-sb"
+[ "$(git -C "$dest" rev-parse HEAD)" = "$(git -C "$TMP/origin.git" rev-parse release/1.2)" ] || fail "$name: no parte de origin/release/1.2"
+pass "$name"

@@ -302,7 +302,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 1. Verificar dependencias (`git`, `jq`; `gh` solo para `pr`).
 2. Con `origin`, no hace falta `--git-common-dir`: `<owner>/<repo>` sale de `remote.origin.url`, que es la misma config en el checkout principal y en sus worktrees. `--git-common-dir` solo se usará en el fallback `_local/<directorio>`; mientras tanto, sin `origin` sale con código `4`.
 3. Derivar `<owner>/<repo>`, calcular la ruta destino y abortar (código `4`) si ya existe.
-4. `git fetch origin`.
+4. `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>` (explícito, para que funcione en clones `--single-branch` o con refspec personalizado; si falla, código `4`).
 5. Crear el worktree:
    - `new`: `git worktree add --no-track -b <rama> <ruta> origin/<base>` (`--no-track`: la rama nueva no debe seguir a `origin/<base>`, o un `git push` iría a la rama base)
    - `checkout`: `git worktree add <ruta> <rama>` (si la rama solo existe en el remoto, se crea con tracking).
