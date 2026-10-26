@@ -189,3 +189,11 @@ for b in "bad..name" "foo bar"; do
   case "$err" in *"th-wt: "*"$b"*) ;; *) fail "$name: [$b]: sin mensaje con el nombre: [$err]" ;; esac
 done
 pass "$name"
+
+name="fuera de un repo git → exit 4 con mensaje de repo"
+mkdir "$TMP/plain"
+rc=0
+err="$(cd "$TMP/plain" && "$WT" new feature/nogit 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4"
+case "$err" in *"not a git repository"*) ;; *) fail "$name: el mensaje no habla de repo git: [$err]" ;; esac
+pass "$name"
