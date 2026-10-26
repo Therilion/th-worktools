@@ -9,19 +9,22 @@ Create a git worktree for a new branch under ~/.worktrees.
 USAGE
 }
 
+die() { echo "th-wt: $2" >&2; exit "$1"; }
+bad_usage() { usage >&2; exit 2; }
+
 case "${1:-}" in
   new) ;;
   -h|--help) usage; exit 0 ;;
-  *) usage >&2; exit 2 ;;
+  *) bad_usage ;;
 esac
 
 for dep in git jq; do
-  command -v "$dep" >/dev/null || { echo "th-wt: missing dependency: $dep" >&2; exit 3; }
+  command -v "$dep" >/dev/null || die 3 "missing dependency: $dep"
 done
 
 shift
 case "${1:-}" in
-  ""|-*) usage >&2; exit 2 ;;
+  ""|-*) bad_usage ;;
 esac
 branch="$1"
 shift
@@ -29,28 +32,21 @@ base=""
 json=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --base) [ $# -ge 2 ] || { usage >&2; exit 2; }; base="$2"; shift 2 ;;
+    --base) [ $# -ge 2 ] || bad_usage; base="$2"; shift 2 ;;
     --json) json=1; shift ;;
-    *) usage >&2; exit 2 ;;
+    *) bad_usage ;;
   esac
 done
 
 url="$(git config --get remote.origin.url || true)"
-if [ -z "$url" ]; then
-  echo "th-wt: no 'origin' remote configured" >&2
-  exit 4
-fi
+[ -n "$url" ] || die 4 "no 'origin' remote configured"
 repo="$(printf '%s' "$url" | sed -E 's#^(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')"
 dest="$HOME/.worktrees/$repo/${branch//\//-}"
 
-if [ -e "$dest" ]; then
-  echo "th-wt: destination already exists: $dest" >&2
-  exit 4
-fi
+[ ! -e "$dest" ] || die 4 "destination already exists: $dest"
 
 if git show-ref --verify --quiet "refs/heads/$branch" || [ -n "$(git ls-remote --heads origin "refs/heads/$branch")" ]; then
-  echo "th-wt: branch already exists: $branch" >&2
-  exit 4
+  die 4 "branch already exists: $branch"
 fi
 
 [ -n "$base" ] || base="$(git ls-remote --symref origin HEAD | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
