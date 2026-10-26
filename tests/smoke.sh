@@ -44,3 +44,12 @@ dest="$HOME/.worktrees/acme/demo/feature-base"
 [ "$(git -C "$dest" rev-parse HEAD)" = "$(git -C "$TMP/origin.git" rev-parse main)" ] || fail "$name: no parte de origin/main"
 git -C "$TMP/repo" checkout -q main
 pass "$name"
+
+name="new deja el checkout principal igual (rama y status)"
+echo wip > "$TMP/repo/wip.txt"
+before="$(git -C "$TMP/repo" rev-parse HEAD)|$(git -C "$TMP/repo" branch --show-current)|$(git -C "$TMP/repo" status --porcelain)"
+(cd "$TMP/repo" && "$WT" new feature/untouched) || fail "$name: th-wt new falló"
+after="$(git -C "$TMP/repo" rev-parse HEAD)|$(git -C "$TMP/repo" branch --show-current)|$(git -C "$TMP/repo" status --porcelain)"
+[ "$before" = "$after" ] || fail "$name: antes=[$before] después=[$after]"
+rm "$TMP/repo/wip.txt"
+pass "$name"
