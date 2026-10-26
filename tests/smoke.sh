@@ -202,3 +202,14 @@ name="new crea la rama sin upstream (no sigue a origin/<base>)"
 (cd "$TMP/repo" && "$WT" new feature/notrack) || fail "$name: th-wt new falló"
 [ -z "$(git -C "$TMP/repo" config --get "branch.feature/notrack.merge" || true)" ] || fail "$name: la rama tiene upstream"
 pass "$name"
+
+name="--base inexistente en origin → exit 4 con mensaje, sin crear nada"
+for b in nope origin/main; do
+  rc=0
+  err="$(cd "$TMP/repo" && "$WT" new fix/nobase --base "$b" 2>&1)" || rc=$?
+  [ "$rc" = 4 ] || fail "$name: --base $b: exit=$rc, esperado 4"
+  case "$err" in *"th-wt: "*"$b"*) ;; *) fail "$name: --base $b: sin mensaje de th-wt con la base: [$err]" ;; esac
+  [ -z "$(git -C "$TMP/repo" branch --list fix/nobase)" ] || fail "$name: --base $b: se creó la rama"
+  [ ! -e "$HOME/.worktrees/acme/demo/fix-nobase" ] || fail "$name: --base $b: se creó el destino"
+done
+pass "$name"
