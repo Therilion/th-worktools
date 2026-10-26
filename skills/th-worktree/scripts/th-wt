@@ -45,11 +45,16 @@ dest="$HOME/.worktrees/$repo/${branch//\//-}"
 
 [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
 
+head_ref="$(git ls-remote --symref origin HEAD)" || die 1 "cannot read origin (unreachable or no access)"
+
 if git show-ref --verify --quiet "refs/heads/$branch" || [ -n "$(git ls-remote --heads origin "refs/heads/$branch")" ]; then
   die 4 "branch already exists: $branch"
 fi
 
-[ -n "$base" ] || base="$(git ls-remote --symref origin HEAD | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
+if [ -z "$base" ]; then
+  base="$(printf '%s\n' "$head_ref" | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
+  [ -n "$base" ] || die 1 "cannot determine origin's default branch (pass --base)"
+fi
 git fetch -q origin
 git worktree add -q -b "$branch" "$dest" "origin/$base"
 

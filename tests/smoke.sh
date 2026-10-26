@@ -162,3 +162,20 @@ rc=0
 [ -z "$(git -C "$TMP/repo" branch --list feature/bad-opt)" ] || fail "$name: se creó la rama"
 [ ! -e "$HOME/.worktrees/acme/demo/feature-bad-opt" ] || fail "$name: se creó el destino"
 pass "$name"
+
+name="origin inalcanzable o sin rama por defecto → exit 1 con mensaje, sin crear nada"
+git init -q --bare -b main "$TMP/empty.git"
+git config --global "url.$TMP/missing.git.insteadOf" "git@github.com:acme/unreach.git"
+git config --global "url.$TMP/empty.git.insteadOf" "git@github.com:acme/empty.git"
+for r in unreach empty; do
+  git init -q -b main "$TMP/r-$r"
+  git -C "$TMP/r-$r" commit -q --allow-empty -m init
+  git -C "$TMP/r-$r" remote add origin "git@github.com:acme/$r.git"
+  rc=0
+  err="$(cd "$TMP/r-$r" && "$WT" new "feature/$r" 2>&1)" || rc=$?
+  [ "$rc" = 1 ] || fail "$name: $r: exit=$rc, esperado 1"
+  case "$err" in *"th-wt: "*origin*) ;; *) fail "$name: $r: sin mensaje de th-wt sobre origin: [$err]" ;; esac
+  [ -z "$(git -C "$TMP/r-$r" branch --list "feature/$r")" ] || fail "$name: $r: se creó la rama"
+  [ ! -e "$HOME/.worktrees/acme/$r" ] || fail "$name: $r: se creó el destino"
+done
+pass "$name"
