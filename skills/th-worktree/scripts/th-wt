@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+branch="$2"
+url="$(git config --get remote.origin.url)"
+repo="${url#git@github.com:}"
+repo="${repo%.git}"
+dest="$HOME/.worktrees/$repo/${branch//\//-}"
+
+git worktree add -q -b "$branch" "$dest"
