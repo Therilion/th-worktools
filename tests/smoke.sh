@@ -179,3 +179,13 @@ for r in unreach empty; do
   [ ! -e "$HOME/.worktrees/acme/$r" ] || fail "$name: $r: se creó el destino"
 done
 pass "$name"
+
+name="nombre de rama inválido → exit 2 antes de tocar la red"
+# r-unreach tiene un origin inalcanzable: si hubiera red de por medio, saldría con 1.
+for b in "bad..name" "foo bar"; do
+  rc=0
+  err="$(cd "$TMP/r-unreach" && "$WT" new "$b" 2>&1)" || rc=$?
+  [ "$rc" = 2 ] || fail "$name: [$b]: exit=$rc, esperado 2"
+  case "$err" in *"th-wt: "*"$b"*) ;; *) fail "$name: [$b]: sin mensaje con el nombre: [$err]" ;; esac
+done
+pass "$name"

@@ -12,7 +12,7 @@ Ejecuta el script siempre con la ruta completa de la tabla: no está en el PATH 
 
 | Pedido del usuario | Comando |
 |---|---|
-| Crear rama nueva | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" new <rama> [--base <ref>] --json` |
+| Crear rama nueva | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" new <rama> [--base <rama>] --json` |
 
 Argumentos recibidos: $ARGUMENTS
 
