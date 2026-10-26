@@ -19,6 +19,7 @@ Public kit of skills (`SKILL.md` standard) and scripts for Claude Code and Antig
 - Scripts: `set -euo pipefail`, no interactive prompts, dry-run by default and `--yes` to execute. Messages go to stderr; `--json` writes a single object to stdout. Exit codes per §5 of the plan.
 - Never print the contents of `.env*` files or sensitive config; only file names. Config is parsed line by line, never with `source`.
 - Script paths in `SKILL.md`: always with `${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/<skill>}`, never bare relative paths.
+- Language: script messages (stderr, `--help`) and commit messages in English; `SKILL.md`, README, docs and test names in Spanish.
 - Skills don't share files with each other.
 - Scope: only what the current version's DoD requires. New ideas go to the "Ideas" section of the README, not to the code.
 

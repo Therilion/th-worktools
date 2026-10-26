@@ -289,7 +289,7 @@ Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git
 
 | Subcomando | Efecto | Requiere `--yes` |
 |---|---|---|
-| `new <rama> [--base <ref>]` | Rama nueva desde `<ref>` (por defecto, la rama por defecto de `origin`) | No |
+| `new <rama> [--base <rama>]` | Rama nueva desde `origin/<rama>` (por defecto, la rama por defecto de `origin`) | No |
 | `checkout <rama>` | Worktree de una rama existente, local o remota | No |
 | `pr <n>` | Worktree de un PR en `pr-reviews/pr-<n>/code` | No |
 | `list` | Worktrees del repo actual bajo la raíz, con su estado | No |
@@ -300,11 +300,11 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 ### `new` / `checkout` / `pr`
 
 1. Verificar dependencias (`git`, `jq`; `gh` solo para `pr`).
-2. Resolver el repo principal con `--git-common-dir` (funciona aunque se ejecute desde un worktree).
+2. Con `origin`, no hace falta `--git-common-dir`: `<owner>/<repo>` sale de `remote.origin.url`, que es la misma config en el checkout principal y en sus worktrees. `--git-common-dir` solo se usará en el fallback `_local/<directorio>`; mientras tanto, sin `origin` sale con código `4`.
 3. Derivar `<owner>/<repo>`, calcular la ruta destino y abortar (código `4`) si ya existe.
 4. `git fetch origin`.
 5. Crear el worktree:
-   - `new`: `git worktree add -b <rama> <ruta> origin/<base>`
+   - `new`: `git worktree add --no-track -b <rama> <ruta> origin/<base>` (`--no-track`: la rama nueva no debe seguir a `origin/<base>`, o un `git push` iría a la rama base)
    - `checkout`: `git worktree add <ruta> <rama>` (si la rama solo existe en el remoto, se crea con tracking).
    - `pr`: `git fetch origin pull/<n>/head:th/pr-<n>` y luego `git worktree add <ruta> th/pr-<n>`. Metadatos con `gh pr view <n> --json number,title,headRefName,baseRefName`.
 6. Aplicar el `.conf` del repo (`link` / `copy`, validados).
@@ -355,7 +355,7 @@ Script (ruta relativa a la carpeta de este SKILL.md, no al repo actual):
 
 | Pedido del usuario | Comando |
 |---|---|
-| Crear rama nueva | `th-wt new <rama> [--base <ref>] --json` |
+| Crear rama nueva | `th-wt new <rama> [--base <rama>] --json` |
 | Trabajar en rama existente | `th-wt checkout <rama> --json` |
 | Revisar un PR | `th-wt pr <n> --json` |
 | Ver worktrees | `th-wt list --json` |
