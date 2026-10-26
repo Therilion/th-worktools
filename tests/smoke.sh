@@ -159,6 +159,9 @@ rc=0
 rc=0
 (cd "$TMP/repo" && "$WT" new feature/bad-opt --base >/dev/null 2>&1) || rc=$?
 [ "$rc" = 2 ] || fail "$name: --base sin valor: exit=$rc, esperado 2"
+rc=0
+(cd "$TMP/repo" && "$WT" new feature/bad-opt --base "" >/dev/null 2>&1) || rc=$?
+[ "$rc" = 2 ] || fail "$name: --base vacío: exit=$rc, esperado 2"
 [ -z "$(git -C "$TMP/repo" branch --list feature/bad-opt)" ] || fail "$name: se creó la rama"
 [ ! -e "$HOME/.worktrees/acme/demo/feature-bad-opt" ] || fail "$name: se creó el destino"
 pass "$name"

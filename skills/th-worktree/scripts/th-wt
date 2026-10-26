@@ -32,7 +32,7 @@ base=""
 json=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --base) [ $# -ge 2 ] || bad_usage; base="$2"; shift 2 ;;
+    --base) { [ $# -ge 2 ] && [ -n "$2" ]; } || bad_usage; base="$2"; shift 2 ;;
     --json) json=1; shift ;;
     *) bad_usage ;;
   esac
