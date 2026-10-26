@@ -96,3 +96,16 @@ case "$err" in *"$dest"*) ;; *) fail "$name: el mensaje no menciona la ruta: [$e
 [ -z "$(git -C "$TMP/repo" branch --list feature/exists)" ] || fail "$name: se creó la rama"
 [ "$(ls -A "$dest")" = "marker" ] || fail "$name: el destino cambió"
 pass "$name"
+
+name="rama existente en local o en origin → exit 4 y mensaje con la rama"
+git -C "$TMP/repo" branch feature/local-b
+git -C "$TMP/other" push -q origin HEAD:refs/heads/feature/remote-b
+for b in feature/local-b feature/remote-b; do
+  rc=0
+  err="$(cd "$TMP/repo" && "$WT" new "$b" 2>&1)" || rc=$?
+  [ "$rc" = 4 ] || fail "$name: $b: exit=$rc, esperado 4"
+  case "$err" in *"$b"*) ;; *) fail "$name: el mensaje no menciona $b: [$err]" ;; esac
+  [ ! -e "$HOME/.worktrees/acme/demo/${b//\//-}" ] || fail "$name: $b: se creó el destino"
+done
+[ -z "$(git -C "$TMP/repo" branch -r --list origin/feature/remote-b)" ] || fail "$name: se hizo fetch antes de validar"
+pass "$name"

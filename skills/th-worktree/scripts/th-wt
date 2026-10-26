@@ -23,6 +23,11 @@ if [ -e "$dest" ]; then
   exit 4
 fi
 
+if git show-ref --verify --quiet "refs/heads/$branch" || [ -n "$(git ls-remote --heads origin "refs/heads/$branch")" ]; then
+  echo "th-wt: branch already exists: $branch" >&2
+  exit 4
+fi
+
 [ -n "$base" ] || base="$(git ls-remote --symref origin HEAD | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
 git fetch -q origin
 git worktree add -q -b "$branch" "$dest" "origin/$base"
