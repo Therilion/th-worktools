@@ -126,3 +126,14 @@ for dep in git jq; do
   [ -z "$(git -C "$TMP/repo" branch --list "feature/sin-$dep")" ] || fail "$name: sin $dep: se creó la rama"
 done
 pass "$name"
+
+name="repo sin origin → exit 4 y mensaje"
+git init -q -b main "$TMP/no-origin"
+git -C "$TMP/no-origin" commit -q --allow-empty -m init
+rc=0
+err="$(cd "$TMP/no-origin" && "$WT" new feature/x 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4"
+case "$err" in *origin*) ;; *) fail "$name: el mensaje no menciona origin: [$err]" ;; esac
+[ -z "$(git -C "$TMP/no-origin" branch --list feature/x)" ] || fail "$name: se creó la rama"
+[ "$(git -C "$TMP/no-origin" worktree list | wc -l | tr -d ' ')" = 1 ] || fail "$name: se creó un worktree"
+pass "$name"

@@ -18,7 +18,11 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-url="$(git config --get remote.origin.url)"
+url="$(git config --get remote.origin.url || true)"
+if [ -z "$url" ]; then
+  echo "th-wt: no 'origin' remote configured" >&2
+  exit 4
+fi
 repo="$(printf '%s' "$url" | sed -E 's#^(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')"
 dest="$HOME/.worktrees/$repo/${branch//\//-}"
 
