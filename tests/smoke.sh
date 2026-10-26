@@ -68,3 +68,12 @@ git -C "$TMP/other" push -q origin release/1.2
 dest="$HOME/.worktrees/acme/demo/fix-x"
 [ "$(git -C "$dest" rev-parse HEAD)" = "$(git -C "$TMP/origin.git" rev-parse release/1.2)" ] || fail "$name: no parte de origin/release/1.2"
 pass "$name"
+
+name="new con remote https://github.com/acme/demo.git usa acme/demo"
+HTTPS_URL="https://github.com/acme/demo.git"
+git config --global --add "url.$TMP/origin.git.insteadOf" "$HTTPS_URL"
+git clone -q "$TMP/origin.git" "$TMP/repo-https"
+git -C "$TMP/repo-https" remote set-url origin "$HTTPS_URL"
+(cd "$TMP/repo-https" && "$WT" new feature/https) || fail "$name: th-wt new falló"
+[ -d "$HOME/.worktrees/acme/demo/feature-https" ] || fail "$name: no existe el worktree en acme/demo"
+pass "$name"

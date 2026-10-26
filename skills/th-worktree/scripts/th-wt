@@ -15,8 +15,7 @@ while [ $# -gt 0 ]; do
 done
 
 url="$(git config --get remote.origin.url)"
-repo="${url#git@github.com:}"
-repo="${repo%.git}"
+repo="$(printf '%s' "$url" | sed -E 's#^(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')"
 dest="$HOME/.worktrees/$repo/${branch//\//-}"
 
 [ -n "$base" ] || base="$(git ls-remote --symref origin HEAD | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
