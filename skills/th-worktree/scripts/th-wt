@@ -54,6 +54,7 @@ list_rows() {
           fi
         else
           missing=true
+          dirty=null
         fi
         merged=null
         if [ -n "$default" ]; then

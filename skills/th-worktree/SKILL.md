@@ -20,7 +20,7 @@ Argumentos recibidos: $ARGUMENTS
 ## Reglas
 
 - Al terminar `new`: informar la ruta y sugerir abrir una sesión nueva del agente ahí.
-- Al terminar `list`: mostrar por cada worktree la rama, la ruta, si tiene cambios sin commitear (`dirty`) y si está contenida en la rama por defecto de `origin` (`merged`). `branch: null` es un HEAD desacoplado (rebase, bisect o checkout de un commit); `missing: true` es un directorio borrado; `merged: null` es que no se pudo saber (falta `origin/HEAD` local o la rama no tiene commits); `dirty: null` es que `git status` falló en ese directorio, así que no lo des por limpio.
+- Al terminar `list`: mostrar por cada worktree la rama, la ruta, si tiene cambios sin commitear (`dirty`) y si está contenida en la rama por defecto de `origin` (`merged`). `branch: null` es un HEAD desacoplado (rebase, bisect o checkout de un commit); `missing: true` es un directorio borrado; `merged: null` es que no se pudo saber (falta `origin/HEAD` local, apunta a una rama que ya no existe —se arregla con `git remote set-head origin -a`— o la rama no tiene commits); `dirty: null` es que no se pudo leer el estado (`git status` falló o el directorio no existe), así que no lo des por limpio.
 - `merged` usa solo datos locales: no ve merges con squash o rebase y puede estar desactualizado si no se hizo fetch. No lo presentes como confirmación de que se puede cerrar.
 - Código de salida `3`: informar qué dependencia falta y detenerse.
 - Código de salida `4`: mostrar el motivo y preguntar al usuario cómo seguir.
