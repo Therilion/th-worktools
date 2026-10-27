@@ -59,3 +59,4 @@ Ideas que quedan fuera de la versión en curso.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.
 - `th-wt new --help` y mensajes de uso que nombren el argumento erróneo.
 - Lint de skills más estricto: `description`, `disable-model-invocation` en los skills con efectos secundarios e invocaciones de scripts sin la ruta completa.
+- Registro de la base de cada worktree (en `~/.worktrees/<owner>/<repo>/`) para soportar ramas apiladas sin PR y mostrar el árbol del stack en `list`.
