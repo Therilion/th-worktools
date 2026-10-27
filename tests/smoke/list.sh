@@ -197,3 +197,13 @@ expected="{\"branch\":\"feature/x\",\"dirty\":false,\"merged\":null,\"missing\":
 out="$(cd "$TMP/nohead" && "$WT" list 2>&1)" || fail "$name: th-wt list abortó"
 case "$out" in *"containment unknown"*) ;; *) fail "$name: el texto no dice containment unknown: [$out]" ;; esac
 pass "$name"
+
+name="list marca dirty un archivo nuevo aunque status.showUntrackedFiles=no"
+(cd "$TMP/repo" && "$WT" new feature/untracked-cfg) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-untracked-cfg"
+echo nuevo > "$dest/nuevo.txt"
+git config --global status.showUntrackedFiles no
+out="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null)" || fail "$name: th-wt list --json falló"
+git config --global --unset status.showUntrackedFiles
+[ "$(printf '%s' "$out" | jq -c '.worktrees[] | select(.branch == "feature/untracked-cfg") | .dirty')" = true ] || fail "$name: dirty debería ser true: [$out]"
+pass "$name"
