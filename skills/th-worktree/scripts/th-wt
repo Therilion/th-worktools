@@ -4,8 +4,10 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage: th-wt new <branch> [--base <branch>] [--json]
+       th-wt list [--json]
 
-Create a git worktree for a new branch under ~/.worktrees.
+new   Create a git worktree for a new branch under ~/.worktrees.
+list  Show this repo's worktrees under ~/.worktrees (local data only, no network).
 USAGE
 }
 
@@ -43,7 +45,11 @@ list_rows() {
         fi
         ref="${line#branch }"
         merged=true
-        git merge-base --is-ancestor "$ref" "$default" || merged=false
+        if [ -z "$default" ]; then
+          merged=null
+        else
+          git merge-base --is-ancestor "$ref" "$default" || merged=false
+        fi
         jq -cn --arg path "$path" --arg branch "${ref#refs/heads/}" --argjson dirty "$dirty" --argjson merged "$merged" --argjson missing "$missing" \
           '{path: $path, branch: $branch, dirty: $dirty, merged: $merged, missing: $missing}' ;;
     esac
@@ -51,19 +57,25 @@ list_rows() {
 }
 
 list_worktrees() {
-  local default root rows
+  local default root rows json=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json) json=1; shift ;;
+      *) bad_usage ;;
+    esac
+  done
   resolve_repo
   # shortcut: root is compared with git's real paths without resolving symlinks, so a symlinked ~/.worktrees or $HOME lists nothing; canonicalize both sides with #8 (configurable root)
   root="$HOME/.worktrees/$repo/"
-  default="$(git symbolic-ref --short refs/remotes/origin/HEAD)"
+  default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   rows="$(list_rows "$root" "$default")"
-  if [ "${1:-}" = --json ]; then
+  if [ "$json" = 1 ]; then
     printf '%s\n' "$rows" | jq -s --arg repo "$repo" '{repo: $repo, worktrees: .}'
   elif [ -z "$rows" ]; then
     echo "no worktrees under $root" >&2
   else
     printf '%s\n' "$rows" | jq -r --arg default "$default" \
-      '"\(.branch)  \(if .missing then "missing" elif .dirty then "dirty" else "clean" end)  \(if .merged then "contained in" else "not contained in" end) \($default)  \(.path)"' >&2
+      '"\(.branch)  \(if .missing then "missing" elif .dirty then "dirty" else "clean" end)  \(if .merged == null then "containment unknown" elif .merged then "contained in \($default)" else "not contained in \($default)" end)  \(.path)"' >&2
   fi
 }
 

@@ -143,3 +143,29 @@ from_inside="$(cd "$inside" && "$WT" list --json 2>/dev/null | jq -S -c .)" || f
 [ -n "$from_main" ] || fail "$name: salida vacía desde el checkout principal"
 [ "$from_main" = "$from_inside" ] || fail "$name: principal=[$from_main] dentro=[$from_inside]"
 pass "$name"
+
+name="list sin origin/HEAD local muestra merged desconocido (null) en lugar de abortar"
+git init -q -b main "$TMP/nohead"
+git -C "$TMP/nohead" commit -q --allow-empty -m init
+git -C "$TMP/nohead" remote add origin "git@github.com:acme/nohead.git"
+dest="$HOME/.worktrees/acme/nohead/feature-x"
+git -C "$TMP/nohead" worktree add -q -b feature/x "$dest"
+rc=0
+out="$(cd "$TMP/nohead" && "$WT" list --json 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+expected="{\"branch\":\"feature/x\",\"dirty\":false,\"merged\":null,\"missing\":false,\"path\":\"$dest\"}"
+[ "$(printf '%s' "$out" | jq -S -c '.worktrees[]')" = "$expected" ] || fail "$name: json=[$out]"
+out="$(cd "$TMP/nohead" && "$WT" list 2>&1)" || fail "$name: th-wt list abortó"
+line="$(printf '%s\n' "$out" | grep -F "feature/x")" || fail "$name: no aparece la rama: [$out]"
+case "$line" in *unknown*) ;; *) fail "$name: la línea no dice unknown: [$line]" ;; esac
+pass "$name"
+
+name="list con opción o argumento desconocido → exit 2 sin salida de datos"
+for args in "--jsno" "foo" "--json --bogus"; do
+  rc=0
+  # shellcheck disable=SC2086
+  out="$(cd "$TMP/repo" && "$WT" list $args 2>/dev/null)" || rc=$?
+  [ "$rc" = 2 ] || fail "$name: [$args]: exit=$rc, esperado 2"
+  [ -z "$out" ] || fail "$name: [$args]: imprimió a stdout: [$out]"
+done
+pass "$name"
