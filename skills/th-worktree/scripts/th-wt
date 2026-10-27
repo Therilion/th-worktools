@@ -26,8 +26,21 @@ resolve_repo() {
   esac
 }
 
-case "${1:-}" in
-  new) ;;
+list_worktrees() {
+  local default path line
+  resolve_repo
+  default="$(git symbolic-ref --short refs/remotes/origin/HEAD)"
+  git worktree list --porcelain | while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) path="${line#worktree }" ;;
+      "branch "*) echo "${line#branch refs/heads/}  clean  contained in $default  $path" >&2 ;;
+    esac
+  done
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  new|list) ;;
   -h|--help) usage; exit 0 ;;
   *) bad_usage ;;
 esac
@@ -37,6 +50,10 @@ for dep in git jq; do
 done
 
 shift
+if [ "$cmd" = list ]; then
+  list_worktrees
+  exit 0
+fi
 case "${1:-}" in
   ""|-*) bad_usage ;;
 esac
