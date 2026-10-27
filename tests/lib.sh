@@ -7,7 +7,8 @@ ROOT="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WT="$ROOT/skills/th-worktree/scripts/th-wt"
 
 # cd -P: en macOS $TMPDIR cuelga de /var (symlink) y git imprime /private/var.
-TMP="$(cd -P "$(mktemp -d "${TMPDIR:-/tmp}/th.XXXXXX")" && pwd)"
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/th.XXXXXX")"
+TMP="$(cd -P "$TMP" && pwd)"
 trap 'rm -rf "$TMP"' EXIT
 
 # HOME aislado: ~/.worktrees y el gitconfig global caen dentro de $TMP.
