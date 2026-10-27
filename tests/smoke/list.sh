@@ -219,3 +219,13 @@ before="$(cksum < "$index")"
 after="$(cksum < "$index")"
 [ "$before" = "$after" ] || fail "$name: el índice cambió: antes=[$before] después=[$after]"
 pass "$name"
+
+name="list con una rama huérfana (sin commits) muestra merged desconocido (null) sin error de git"
+dest="$HOME/.worktrees/acme/demo/orph"
+git -C "$TMP/repo" worktree add -q --orphan -b orph "$dest"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" list --json 2>"$TMP/orph.err")" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+[ "$(printf '%s' "$out" | jq -c --arg p "$dest" '.worktrees[] | select(.path == $p) | .merged')" = null ] || fail "$name: merged debería ser null: [$out]"
+[ ! -s "$TMP/orph.err" ] || fail "$name: escribió a stderr: [$(cat "$TMP/orph.err")]"
+pass "$name"

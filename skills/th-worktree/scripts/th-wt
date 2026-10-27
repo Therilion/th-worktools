@@ -30,7 +30,7 @@ resolve_repo() {
 
 # One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
-  local root="$1" default="$2" path line head dirty missing ref name merged
+  local root="$1" default="$2" path line head dirty missing ref name merged rc
   git worktree list --porcelain | while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
@@ -51,11 +51,12 @@ list_rows() {
         else
           missing=true
         fi
-        merged=true
-        if [ -z "$default" ]; then
-          merged=null
-        else
-          git merge-base --is-ancestor "$ref" "$default" || merged=false
+        merged=null
+        if [ -n "$default" ]; then
+          rc=0
+          git merge-base --is-ancestor "$ref" "$default" 2>/dev/null || rc=$?
+          # 0 = ancestor, 1 = not; anything else (unborn branch, missing default) = unknown
+          case "$rc" in 0) merged=true ;; 1) merged=false ;; esac
         fi
         jq -cn --arg path "$path" --arg branch "$name" --argjson dirty "$dirty" --argjson merged "$merged" --argjson missing "$missing" \
           '{path: $path, branch: (if $branch == "" then null else $branch end), dirty: $dirty, merged: $merged, missing: $missing}' ;;
@@ -75,8 +76,6 @@ list_worktrees() {
   # shortcut: root is compared with git's real paths without resolving symlinks, so a symlinked ~/.worktrees or $HOME lists nothing; canonicalize both sides with #8 (configurable root)
   root="$HOME/.worktrees/$repo/"
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-  # origin/HEAD can outlive its target (e.g. after a branch rename plus fetch --prune)
-  git rev-parse --verify -q "$default^{commit}" >/dev/null 2>&1 || default=""
   rows="$(list_rows "$root" "$default")"
   if [ "$json" = 1 ]; then
     printf '%s\n' "$rows" | jq -s --arg repo "$repo" '{repo: $repo, worktrees: .}'
