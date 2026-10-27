@@ -27,7 +27,7 @@ resolve_repo() {
 }
 
 list_worktrees() {
-  local default path line state
+  local default path line state ref merged
   resolve_repo
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD)"
   git worktree list --porcelain | while IFS= read -r line; do
@@ -36,7 +36,10 @@ list_worktrees() {
       "branch "*)
         state=clean
         [ -z "$(git -C "$path" status --porcelain)" ] || state=dirty
-        echo "${line#branch refs/heads/}  $state  contained in $default  $path" >&2 ;;
+        ref="${line#branch }"
+        merged="contained in"
+        git merge-base --is-ancestor "$ref" "$default" || merged="not contained in"
+        echo "${ref#refs/heads/}  $state  $merged $default  $path" >&2 ;;
     esac
   done
 }

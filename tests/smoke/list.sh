@@ -41,3 +41,12 @@ line="$(printf '%s\n' "$out" | grep -F "feature/dirty-untracked")" || fail "$nam
 case "$line" in *dirty*) ;; *) fail "$name: la línea no dice dirty: [$line]" ;; esac
 case "$line" in *clean*) fail "$name: la línea dice clean: [$line]" ;; esac
 pass "$name"
+
+name="list marca not contained una rama con commits que origin/main no tiene"
+(cd "$TMP/repo" && "$WT" new feature/ahead) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-ahead"
+git -C "$dest" commit -q --allow-empty -m "trabajo propio"
+out="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló: [$out]"
+line="$(printf '%s\n' "$out" | grep -F "feature/ahead")" || fail "$name: no aparece la rama: [$out]"
+case "$line" in *"not contained in origin/main"*) ;; *) fail "$name: la línea no dice not contained in origin/main: [$line]" ;; esac
+pass "$name"
