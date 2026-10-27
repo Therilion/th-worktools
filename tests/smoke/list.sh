@@ -121,3 +121,17 @@ out="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list abortó"
 line="$(printf '%s\n' "$out" | grep -F "feature/gone")" || fail "$name: no aparece la rama: [$out]"
 case "$line" in *missing*) ;; *) fail "$name: la línea no dice missing: [$line]" ;; esac
 pass "$name"
+
+name="list sin origin o fuera de un repo git → exit 4 con mensaje"
+git init -q -b main "$TMP/no-origin"
+git -C "$TMP/no-origin" commit -q --allow-empty -m init
+rc=0
+err="$(cd "$TMP/no-origin" && "$WT" list 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: sin origin: exit=$rc, esperado 4"
+case "$err" in *"th-wt: "*origin*) ;; *) fail "$name: sin origin: el mensaje no menciona origin: [$err]" ;; esac
+mkdir "$TMP/plain"
+rc=0
+err="$(cd "$TMP/plain" && "$WT" list 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: fuera de repo: exit=$rc, esperado 4"
+case "$err" in *"not a git repository"*) ;; *) fail "$name: fuera de repo: el mensaje no habla de repo git: [$err]" ;; esac
+pass "$name"
