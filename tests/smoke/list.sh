@@ -50,3 +50,17 @@ out="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló: [$
 line="$(printf '%s\n' "$out" | grep -F "feature/ahead")" || fail "$name: no aparece la rama: [$out]"
 case "$line" in *"not contained in origin/main"*) ;; *) fail "$name: la línea no dice not contained in origin/main: [$line]" ;; esac
 pass "$name"
+
+name="list marca contained una rama ya integrada en origin/main aunque main haya avanzado"
+(cd "$TMP/repo" && "$WT" new feature/integrated) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-integrated"
+git -C "$dest" commit -q --allow-empty -m "trabajo integrado"
+git -C "$dest" push -q origin HEAD:main
+git -C "$TMP/repo" pull -q --ff-only origin main
+git -C "$TMP/repo" commit -q --allow-empty -m "main avanza"
+git -C "$TMP/repo" push -q origin main
+out="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló: [$out]"
+line="$(printf '%s\n' "$out" | grep -F "feature/integrated")" || fail "$name: no aparece la rama: [$out]"
+case "$line" in *"not contained"*) fail "$name: la línea dice not contained: [$line]" ;; esac
+case "$line" in *"contained in origin/main"*) ;; *) fail "$name: la línea no dice contained in origin/main: [$line]" ;; esac
+pass "$name"
