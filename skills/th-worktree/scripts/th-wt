@@ -75,6 +75,8 @@ list_worktrees() {
   # shortcut: root is compared with git's real paths without resolving symlinks, so a symlinked ~/.worktrees or $HOME lists nothing; canonicalize both sides with #8 (configurable root)
   root="$HOME/.worktrees/$repo/"
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  # origin/HEAD can outlive its target (e.g. after a branch rename plus fetch --prune)
+  git rev-parse --verify -q "$default^{commit}" >/dev/null 2>&1 || default=""
   rows="$(list_rows "$root" "$default")"
   if [ "$json" = 1 ]; then
     printf '%s\n' "$rows" | jq -s --arg repo "$repo" '{repo: $repo, worktrees: .}'

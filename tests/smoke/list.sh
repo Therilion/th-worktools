@@ -184,3 +184,16 @@ out="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló"
 line="$(printf '%s\n' "$out" | grep -F "$dest")" || fail "$name: no aparece la ruta: [$out]"
 case "$line" in *"(detached)"*) ;; *) fail "$name: la línea no dice (detached): [$line]" ;; esac
 pass "$name"
+
+name="list con origin/HEAD apuntando a una rama que ya no existe muestra merged desconocido (null) sin error de git"
+git -C "$TMP/nohead" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/gone
+dest="$HOME/.worktrees/acme/nohead/feature-x"
+rc=0
+out="$(cd "$TMP/nohead" && "$WT" list --json 2>"$TMP/dangling.err")" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+expected="{\"branch\":\"feature/x\",\"dirty\":false,\"merged\":null,\"missing\":false,\"path\":\"$dest\"}"
+[ "$(printf '%s' "$out" | jq -S -c '.worktrees[]')" = "$expected" ] || fail "$name: json=[$out]"
+[ ! -s "$TMP/dangling.err" ] || fail "$name: escribió a stderr: [$(cat "$TMP/dangling.err")]"
+out="$(cd "$TMP/nohead" && "$WT" list 2>&1)" || fail "$name: th-wt list abortó"
+case "$out" in *"containment unknown"*) ;; *) fail "$name: el texto no dice containment unknown: [$out]" ;; esac
+pass "$name"
