@@ -135,3 +135,11 @@ err="$(cd "$TMP/plain" && "$WT" list 2>&1)" || rc=$?
 [ "$rc" = 4 ] || fail "$name: fuera de repo: exit=$rc, esperado 4"
 case "$err" in *"not a git repository"*) ;; *) fail "$name: fuera de repo: el mensaje no habla de repo git: [$err]" ;; esac
 pass "$name"
+
+name="list ejecutado desde dentro de un worktree da el mismo resultado que desde el checkout principal"
+inside="$HOME/.worktrees/acme/demo/feature-login"
+from_main="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null | jq -S -c .)"
+from_inside="$(cd "$inside" && "$WT" list --json 2>/dev/null | jq -S -c .)" || fail "$name: th-wt list falló dentro del worktree"
+[ -n "$from_main" ] || fail "$name: salida vacía desde el checkout principal"
+[ "$from_main" = "$from_inside" ] || fail "$name: principal=[$from_main] dentro=[$from_inside]"
+pass "$name"
