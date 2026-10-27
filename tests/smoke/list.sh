@@ -64,3 +64,14 @@ line="$(printf '%s\n' "$out" | grep -F "feature/integrated")" || fail "$name: no
 case "$line" in *"not contained"*) fail "$name: la línea dice not contained: [$line]" ;; esac
 case "$line" in *"contained in origin/main"*) ;; *) fail "$name: la línea no dice contained in origin/main: [$line]" ;; esac
 pass "$name"
+
+name="list no muestra el checkout principal ni worktrees fuera de ~/.worktrees/acme/demo/"
+git -C "$TMP/repo" worktree add -q -b outside-branch "$TMP/outside"
+git -C "$TMP/repo" worktree add -q -b foreign-branch "$HOME/.worktrees/acme/other/foreign"
+git -C "$TMP/repo" worktree add -q -b sibling-branch "$HOME/.worktrees/acme/demo-2/sibling"
+out="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló: [$out]"
+case "$out" in *feature/login*) ;; *) fail "$name: no aparece feature/login: [$out]" ;; esac
+for hidden in "$TMP/repo" outside-branch foreign-branch sibling-branch; do
+  case "$out" in *"$hidden"*) fail "$name: aparece $hidden: [$out]" ;; esac
+done
+pass "$name"
