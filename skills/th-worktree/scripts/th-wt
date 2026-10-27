@@ -27,13 +27,16 @@ resolve_repo() {
 }
 
 list_worktrees() {
-  local default path line
+  local default path line state
   resolve_repo
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD)"
   git worktree list --porcelain | while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
-      "branch "*) echo "${line#branch refs/heads/}  clean  contained in $default  $path" >&2 ;;
+      "branch "*)
+        state=clean
+        [ -z "$(git -C "$path" status --porcelain)" ] || state=dirty
+        echo "${line#branch refs/heads/}  $state  contained in $default  $path" >&2 ;;
     esac
   done
 }

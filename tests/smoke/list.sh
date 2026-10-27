@@ -17,3 +17,17 @@ case "$line" in *clean*) ;; *) fail "$name: la línea no dice clean: [$line]" ;;
 case "$line" in *"contained in origin/main"*) ;; *) fail "$name: la línea no dice contained in origin/main: [$line]" ;; esac
 case "$line" in *"not contained"*) fail "$name: la línea dice not contained: [$line]" ;; esac
 pass "$name"
+
+name="list marca dirty un worktree con un archivo trackeado modificado"
+echo base > "$TMP/repo/tracked.txt"
+git -C "$TMP/repo" add tracked.txt
+git -C "$TMP/repo" commit -q -m "agrega tracked.txt"
+git -C "$TMP/repo" push -q origin main
+(cd "$TMP/repo" && "$WT" new feature/dirty-tracked) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-dirty-tracked"
+echo cambio >> "$dest/tracked.txt"
+out="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló: [$out]"
+line="$(printf '%s\n' "$out" | grep -F "feature/dirty-tracked")" || fail "$name: no aparece la rama: [$out]"
+case "$line" in *dirty*) ;; *) fail "$name: la línea no dice dirty: [$line]" ;; esac
+case "$line" in *clean*) fail "$name: la línea dice clean: [$line]" ;; esac
+pass "$name"
