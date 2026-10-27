@@ -57,7 +57,10 @@ Ideas que quedan fuera de la versión en curso.
 - Resumen legible de `new` en la terminal, sin necesidad de `--json`.
 - Evitar prompts interactivos de git en la terminal (`GIT_TERMINAL_PROMPT=0`) sin pisar el `core.sshCommand` del usuario.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.
-- `th-wt new --help` y mensajes de uso que nombren el argumento erróneo.
+- `th-wt new --help` y `th-wt list --help` (hoy salen con código 2) y mensajes de uso que nombren el argumento erróneo.
 - Lint de skills más estricto: `description`, `disable-model-invocation` en los skills con efectos secundarios e invocaciones de scripts sin la ruta completa.
 - Registro de la base de cada worktree (en `~/.worktrees/<owner>/<repo>/`) para soportar ramas apiladas sin PR y mostrar el árbol del stack en `list`.
-- `th-wt list` y symlinks: la raíz se compara con las rutas reales de git sin resolver symlinks; si `~/.worktrees` o `$HOME` son symlinks, la lista sale vacía sin aviso. Canonicalizar ambos lados al hacer la raíz configurable (#8).
+- `th-wt list` y symlinks: la raíz se compara con las rutas reales de git sin resolver symlinks; si `~/.worktrees` o `$HOME` son symlinks (o `$HOME` termina en `/`), la lista sale vacía sin aviso. Canonicalizar ambos lados al hacer la raíz configurable (#8).
+- `th-wt list`: si `git status` falla en un worktree (`.git` borrado o índice dañado), hoy se muestra como `clean`; debería ser `dirty: null`. Con `$HOME` como repo de dotfiles, git podría informar el estado de ese repo.
+- `th-wt list`: si `git worktree list` falla, el script sale con el código crudo de git (128) y sin mensaje `th-wt:`; debería salir con 1.
+- `th-wt list`: un proceso `jq` por worktree; unirlos en una sola llamada si hay decenas de worktrees.
