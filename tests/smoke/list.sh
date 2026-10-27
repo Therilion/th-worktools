@@ -229,3 +229,18 @@ out="$(cd "$TMP/repo" && "$WT" list --json 2>"$TMP/orph.err")" || rc=$?
 [ "$(printf '%s' "$out" | jq -c --arg p "$dest" '.worktrees[] | select(.path == $p) | .merged')" = null ] || fail "$name: merged debería ser null: [$out]"
 [ ! -s "$TMP/orph.err" ] || fail "$name: escribió a stderr: [$(cat "$TMP/orph.err")]"
 pass "$name"
+
+name="list con un worktree cuyo git status falla muestra dirty desconocido (null), no clean"
+(cd "$TMP/repo" && "$WT" new feature/broken-git) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-broken-git"
+rm "$dest/.git"
+rc=0
+out="$(cd "$TMP/repo" && GIT_CEILING_DIRECTORIES="$TMP" "$WT" list --json 2>/dev/null)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+entry="$(printf '%s' "$out" | jq -S -c '.worktrees[] | select(.branch == "feature/broken-git")')"
+expected="{\"branch\":\"feature/broken-git\",\"dirty\":null,\"merged\":true,\"missing\":false,\"path\":\"$dest\"}"
+[ "$entry" = "$expected" ] || fail "$name: entrada=[$entry]"
+out="$(cd "$TMP/repo" && GIT_CEILING_DIRECTORIES="$TMP" "$WT" list 2>&1)" || fail "$name: th-wt list abortó"
+line="$(printf '%s\n' "$out" | grep -F "feature/broken-git")" || fail "$name: no aparece la rama: [$out]"
+case "$line" in *"dirty unknown"*) ;; *) fail "$name: la línea no dice dirty unknown: [$line]" ;; esac
+pass "$name"

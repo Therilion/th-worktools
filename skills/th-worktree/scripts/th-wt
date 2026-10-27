@@ -30,7 +30,7 @@ resolve_repo() {
 
 # One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
-  local root="$1" default="$2" path line head dirty missing ref name merged rc
+  local root="$1" default="$2" path line head dirty missing ref name merged rc out
   git worktree list --porcelain | while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
@@ -47,7 +47,11 @@ list_rows() {
         dirty=false
         missing=false
         if [ -d "$path" ]; then
-          [ -z "$(git --no-optional-locks -C "$path" status --porcelain --untracked-files=normal)" ] || dirty=true
+          if out="$(git --no-optional-locks -C "$path" status --porcelain --untracked-files=normal 2>/dev/null)"; then
+            [ -z "$out" ] || dirty=true
+          else
+            dirty=null
+          fi
         else
           missing=true
         fi
@@ -83,7 +87,7 @@ list_worktrees() {
     echo "no worktrees under $root" >&2
   else
     printf '%s\n' "$rows" | jq -r --arg default "$default" \
-      '"\(.branch // "(detached)")  \(if .missing then "missing" elif .dirty then "dirty" else "clean" end)  \(if .merged == null then "containment unknown" elif .merged then "contained in \($default)" else "not contained in \($default)" end)  \(.path)"' >&2
+      '"\(.branch // "(detached)")  \(if .missing then "missing" elif .dirty == null then "dirty unknown" elif .dirty then "dirty" else "clean" end)  \(if .merged == null then "containment unknown" elif .merged then "contained in \($default)" else "not contained in \($default)" end)  \(.path)"' >&2
   fi
 }
 
