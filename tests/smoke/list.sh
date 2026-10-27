@@ -75,3 +75,15 @@ for hidden in "$TMP/repo" outside-branch foreign-branch sibling-branch; do
   case "$out" in *"$hidden"*) fail "$name: aparece $hidden: [$out]" ;; esac
 done
 pass "$name"
+
+name="list sin worktrees bajo la raíz dice que no hay ninguno, con exit 0"
+git init -q -b main "$TMP/lonely"
+git -C "$TMP/lonely" commit -q --allow-empty -m init
+git -C "$TMP/lonely" remote add origin "git@github.com:acme/lonely.git"
+git -C "$TMP/lonely" fetch -q "$TMP/origin.git" main:refs/remotes/origin/main
+git -C "$TMP/lonely" remote set-head origin main >/dev/null
+rc=0
+out="$(cd "$TMP/lonely" && "$WT" list 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+case "$out" in *"no worktrees"*) ;; *) fail "$name: no dice que no hay worktrees: [$out]" ;; esac
+pass "$name"
