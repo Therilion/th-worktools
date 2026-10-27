@@ -207,3 +207,15 @@ out="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null)" || fail "$name: th-wt l
 git config --global --unset status.showUntrackedFiles
 [ "$(printf '%s' "$out" | jq -c '.worktrees[] | select(.branch == "feature/untracked-cfg") | .dirty')" = true ] || fail "$name: dirty debería ser true: [$out]"
 pass "$name"
+
+name="list no modifica el índice del worktree (no toma index.lock)"
+(cd "$TMP/repo" && "$WT" new feature/no-lock) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-no-lock"
+# Mismo contenido, otro mtime: un git status normal refrescaría y reescribiría el índice.
+touch -t 202001010000 "$dest/tracked.txt"
+index="$(git -C "$dest" rev-parse --absolute-git-dir)/index"
+before="$(cksum < "$index")"
+(cd "$TMP/repo" && "$WT" list --json >/dev/null 2>&1) || fail "$name: th-wt list falló"
+after="$(cksum < "$index")"
+[ "$before" = "$after" ] || fail "$name: el índice cambió: antes=[$before] después=[$after]"
+pass "$name"

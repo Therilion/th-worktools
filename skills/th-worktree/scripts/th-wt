@@ -47,7 +47,7 @@ list_rows() {
         dirty=false
         missing=false
         if [ -d "$path" ]; then
-          [ -z "$(git -C "$path" status --porcelain --untracked-files=normal)" ] || dirty=true
+          [ -z "$(git --no-optional-locks -C "$path" status --porcelain --untracked-files=normal)" ] || dirty=true
         else
           missing=true
         fi
