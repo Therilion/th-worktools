@@ -73,7 +73,9 @@ th-worktools/
 │           ├── th-wt         # entrypoint con subcomandos
 │           └── lib.sh        # funciones del skill
 ├── tests/
-│   ├── smoke.sh              # ciclo completo en un repo temporal
+│   ├── smoke.sh              # ejecuta tests/smoke/*.sh, cada uno en un repo temporal propio
+│   ├── lib.sh                # fixture compartida (HOME aislado, origin bare, fail/pass)
+│   ├── smoke/                # un archivo por tema: new, new-errors, cli, list…
 │   └── lint-skills.sh        # validaciones estáticas de los SKILL.md
 └── .github/workflows/ci.yml
 ```
