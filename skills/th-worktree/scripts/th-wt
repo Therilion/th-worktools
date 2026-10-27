@@ -28,19 +28,24 @@ resolve_repo() {
 
 # One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
-  local root="$1" default="$2" path line dirty ref merged
+  local root="$1" default="$2" path line dirty missing ref merged
   git worktree list --porcelain | while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
       "branch "*)
         case "$path" in "$root"*) ;; *) continue ;; esac
         dirty=false
-        [ -z "$(git -C "$path" status --porcelain)" ] || dirty=true
+        missing=false
+        if [ -d "$path" ]; then
+          [ -z "$(git -C "$path" status --porcelain)" ] || dirty=true
+        else
+          missing=true
+        fi
         ref="${line#branch }"
         merged=true
         git merge-base --is-ancestor "$ref" "$default" || merged=false
-        jq -cn --arg path "$path" --arg branch "${ref#refs/heads/}" --argjson dirty "$dirty" --argjson merged "$merged" \
-          '{path: $path, branch: $branch, dirty: $dirty, merged: $merged, missing: false}' ;;
+        jq -cn --arg path "$path" --arg branch "${ref#refs/heads/}" --argjson dirty "$dirty" --argjson merged "$merged" --argjson missing "$missing" \
+          '{path: $path, branch: $branch, dirty: $dirty, merged: $merged, missing: $missing}' ;;
     esac
   done
 }
@@ -58,7 +63,7 @@ list_worktrees() {
     echo "no worktrees under $root" >&2
   else
     printf '%s\n' "$rows" | jq -r --arg default "$default" \
-      '"\(.branch)  \(if .dirty then "dirty" else "clean" end)  \(if .merged then "contained in" else "not contained in" end) \($default)  \(.path)"' >&2
+      '"\(.branch)  \(if .missing then "missing" elif .dirty then "dirty" else "clean" end)  \(if .merged then "contained in" else "not contained in" end) \($default)  \(.path)"' >&2
   fi
 }
 
