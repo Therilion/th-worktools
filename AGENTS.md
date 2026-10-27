@@ -18,6 +18,7 @@ Public kit of skills (`SKILL.md` standard) and scripts for Claude Code and Antig
 - Nothing is written to the repos where the kit is used: everything lives in the kit, in `~/.config/th-worktools/` or in `~/.worktrees/`.
 - Scripts: `set -euo pipefail`, no interactive prompts, dry-run by default and `--yes` to execute. Messages go to stderr; `--json` writes a single object to stdout. Exit codes per §5 of the plan.
 - Never print the contents of `.env*` files or sensitive config; only file names. Config is parsed line by line, never with `source`.
+- Bash 3.2 trap: never put `case … esac` inside `$( … )` (3.2 mis-parses the `)` of the patterns); move it to a function.
 - Script paths in `SKILL.md`: always with `${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/<skill>}`, never bare relative paths.
 - Language: script messages (stderr, `--help`) and commit messages in English; `SKILL.md`, README, docs and test names in Spanish.
 - Skills don't share files with each other.

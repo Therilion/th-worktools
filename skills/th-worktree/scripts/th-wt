@@ -4,16 +4,97 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage: th-wt new <branch> [--base <branch>] [--json]
+       th-wt list [--json]
 
-Create a git worktree for a new branch under ~/.worktrees.
+new   Create a git worktree for a new branch under ~/.worktrees.
+list  Show this repo's worktrees under ~/.worktrees (local data only, no network).
 USAGE
 }
 
 die() { echo "th-wt: $2" >&2; exit "$1"; }
 bad_usage() { usage >&2; exit 2; }
 
-case "${1:-}" in
-  new) ;;
+# Sets $repo (<owner>/<repo>) from remote.origin.url.
+resolve_repo() {
+  local url
+  git rev-parse --git-dir >/dev/null 2>&1 || die 4 "not a git repository"
+  url="$(git config --get remote.origin.url || true)"
+  [ -n "$url" ] || die 4 "no 'origin' remote configured"
+  repo="$(printf '%s' "$url" | sed -E 's#^(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')"
+  case "/$repo/" in
+    *[:@]*|*//*|*/./*|*/../*) die 4 "unsupported origin URL: $url" ;;
+    /*/*/) ;;
+    *) die 4 "unsupported origin URL: $url" ;;
+  esac
+}
+
+# One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
+list_rows() {
+  local root="$1" default="$2" path line head dirty missing ref name merged rc out
+  git worktree list --porcelain | while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) path="${line#worktree }" ;;
+      "HEAD "*) head="${line#HEAD }" ;;
+      "branch "*|detached)
+        case "$path" in "$root"*) ;; *) continue ;; esac
+        if [ "$line" = detached ]; then
+          ref="$head"
+          name=""
+        else
+          ref="${line#branch }"
+          name="${ref#refs/heads/}"
+        fi
+        dirty=false
+        missing=false
+        if [ -d "$path" ]; then
+          if out="$(git --no-optional-locks -C "$path" status --porcelain --untracked-files=normal 2>/dev/null)"; then
+            [ -z "$out" ] || dirty=true
+          else
+            dirty=null
+          fi
+        else
+          missing=true
+          dirty=null
+        fi
+        merged=null
+        if [ -n "$default" ]; then
+          rc=0
+          git merge-base --is-ancestor "$ref" "$default" 2>/dev/null || rc=$?
+          # 0 = ancestor, 1 = not; anything else (unborn branch, missing default) = unknown
+          case "$rc" in 0) merged=true ;; 1) merged=false ;; esac
+        fi
+        jq -cn --arg path "$path" --arg branch "$name" --argjson dirty "$dirty" --argjson merged "$merged" --argjson missing "$missing" \
+          '{path: $path, branch: (if $branch == "" then null else $branch end), dirty: $dirty, merged: $merged, missing: $missing}' ;;
+    esac
+  done
+}
+
+list_worktrees() {
+  local default root rows json=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json) json=1; shift ;;
+      *) bad_usage ;;
+    esac
+  done
+  resolve_repo
+  # shortcut: root is compared with git's real paths without resolving symlinks, so a symlinked ~/.worktrees or $HOME lists nothing; canonicalize both sides with #8 (configurable root)
+  root="$HOME/.worktrees/$repo/"
+  default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  rows="$(list_rows "$root" "$default")"
+  if [ "$json" = 1 ]; then
+    printf '%s\n' "$rows" | jq -s --arg repo "$repo" '{repo: $repo, worktrees: .}'
+  elif [ -z "$rows" ]; then
+    echo "no worktrees under $root" >&2
+  else
+    printf '%s\n' "$rows" | jq -r --arg default "$default" \
+      '"\(.branch // "(detached)")  \(if .missing then "missing" elif .dirty == null then "dirty unknown" elif .dirty then "dirty" else "clean" end)  \(if .merged == null then "containment unknown" elif .merged then "contained in \($default)" else "not contained in \($default)" end)  \(.path)"' >&2
+  fi
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  new|list) ;;
   -h|--help) usage; exit 0 ;;
   *) bad_usage ;;
 esac
@@ -23,6 +104,10 @@ for dep in git jq; do
 done
 
 shift
+if [ "$cmd" = list ]; then
+  list_worktrees "$@"
+  exit 0
+fi
 case "${1:-}" in
   ""|-*) bad_usage ;;
 esac
@@ -41,16 +126,7 @@ done
 git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch"
 [ -z "$base" ] || git check-ref-format "refs/heads/$base" || die 2 "invalid base branch: $base"
 
-git rev-parse --git-dir >/dev/null 2>&1 || die 4 "not a git repository"
-
-url="$(git config --get remote.origin.url || true)"
-[ -n "$url" ] || die 4 "no 'origin' remote configured"
-repo="$(printf '%s' "$url" | sed -E 's#^(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')"
-case "/$repo/" in
-  *[:@]*|*//*|*/./*|*/../*) die 4 "unsupported origin URL: $url" ;;
-  /*/*/) ;;
-  *) die 4 "unsupported origin URL: $url" ;;
-esac
+resolve_repo
 dest="$HOME/.worktrees/$repo/${branch//\//-}"
 
 [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
