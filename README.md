@@ -61,6 +61,9 @@ Ideas que quedan fuera de la versión en curso.
 - Lint de skills más estricto: `description`, `disable-model-invocation` en los skills con efectos secundarios e invocaciones de scripts sin la ruta completa.
 - Registro de la base de cada worktree (en `~/.worktrees/<owner>/<repo>/`) para soportar ramas apiladas sin PR y mostrar el árbol del stack en `list`.
 - `th-wt list` y symlinks: la raíz se compara con las rutas reales de git sin resolver symlinks; si `~/.worktrees` o `$HOME` son symlinks (o `$HOME` termina en `/`), la lista sale vacía sin aviso. Canonicalizar ambos lados al hacer la raíz configurable (#8).
-- `th-wt list`: si `git status` falla en un worktree (`.git` borrado o índice dañado), hoy se muestra como `clean`; debería ser `dirty: null`. Con `$HOME` como repo de dotfiles, git podría informar el estado de ese repo.
+- `th-wt list`: con `$HOME` como repo de dotfiles, un worktree sin `.git` informa el estado de ese repo (`git status` sube por los directorios padre) en lugar de `dirty: null`.
 - `th-wt list`: si `git worktree list` falla, el script sale con el código crudo de git (128) y sin mensaje `th-wt:`; debería salir con 1.
 - `th-wt list`: un proceso `jq` por worktree; unirlos en una sola llamada si hay decenas de worktrees.
+- `th-wt list` en la terminal (#11): el texto va solo a stderr, así que `th-wt list | grep` no recibe nada; mandar las filas a stdout y dejar solo los avisos en stderr.
+- `th-wt list` y mayúsculas: el prefijo de la raíz distingue mayúsculas, pero APFS no; un cambio de capitalización en la URL de `origin` oculta worktrees existentes. Resolverlo junto con los symlinks (#8).
+- `th-wt list` y archivos ignorados: `dirty` no cuenta los ignorados por git; decidir qué significa «limpio» cuando `new` copie `.env` (#7).
