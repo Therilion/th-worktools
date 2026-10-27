@@ -98,3 +98,12 @@ expected="{\"branch\":\"feature/login\",\"dirty\":false,\"merged\":true,\"missin
 out="$(cd "$TMP/lonely" && "$WT" list --json 2>/dev/null)" || fail "$name: th-wt list --json falló sin worktrees"
 [ "$(printf '%s' "$out" | jq -S -c .)" = '{"repo":"acme/lonely","worktrees":[]}' ] || fail "$name: vacío=[$out]"
 pass "$name"
+
+name="list funciona con origin inalcanzable (no usa la red)"
+mv "$TMP/origin.git" "$TMP/origin.gone"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" list --json 2>&1)" || rc=$?
+mv "$TMP/origin.gone" "$TMP/origin.git"
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+[ "$(printf '%s' "$out" | jq -r '.worktrees[] | select(.branch == "feature/login") | .branch')" = "feature/login" ] || fail "$name: no aparece feature/login: [$out]"
+pass "$name"
