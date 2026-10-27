@@ -87,3 +87,14 @@ out="$(cd "$TMP/lonely" && "$WT" list 2>&1)" || rc=$?
 [ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
 case "$out" in *"no worktrees"*) ;; *) fail "$name: no dice que no hay worktrees: [$out]" ;; esac
 pass "$name"
+
+name="list --json devuelve un único objeto con repo y worktrees ([] si no hay)"
+out="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null)" || fail "$name: th-wt list --json falló"
+printf '%s' "$out" | jq -e 'type == "object" and (keys == ["repo", "worktrees"])' >/dev/null || fail "$name: no es un objeto con repo y worktrees: [$out]"
+[ "$(printf '%s' "$out" | jq -r .repo)" = "acme/demo" ] || fail "$name: repo incorrecto: [$out]"
+entry="$(printf '%s' "$out" | jq -S -c '.worktrees[] | select(.branch == "feature/login")')"
+expected="{\"branch\":\"feature/login\",\"dirty\":false,\"merged\":true,\"missing\":false,\"path\":\"$HOME/.worktrees/acme/demo/feature-login\"}"
+[ "$entry" = "$expected" ] || fail "$name: entrada=[$entry]"
+out="$(cd "$TMP/lonely" && "$WT" list --json 2>/dev/null)" || fail "$name: th-wt list --json falló sin worktrees"
+[ "$(printf '%s' "$out" | jq -S -c .)" = '{"repo":"acme/lonely","worktrees":[]}' ] || fail "$name: vacío=[$out]"
+pass "$name"

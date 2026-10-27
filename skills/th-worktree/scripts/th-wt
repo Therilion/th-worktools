@@ -26,20 +26,21 @@ resolve_repo() {
   esac
 }
 
-# One line per worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
+# One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
-  local root="$1" default="$2" path line state ref merged
+  local root="$1" default="$2" path line dirty ref merged
   git worktree list --porcelain | while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
       "branch "*)
         case "$path" in "$root"*) ;; *) continue ;; esac
-        state=clean
-        [ -z "$(git -C "$path" status --porcelain)" ] || state=dirty
+        dirty=false
+        [ -z "$(git -C "$path" status --porcelain)" ] || dirty=true
         ref="${line#branch }"
-        merged="contained in"
-        git merge-base --is-ancestor "$ref" "$default" || merged="not contained in"
-        echo "${ref#refs/heads/}  $state  $merged $default  $path" ;;
+        merged=true
+        git merge-base --is-ancestor "$ref" "$default" || merged=false
+        jq -cn --arg path "$path" --arg branch "${ref#refs/heads/}" --argjson dirty "$dirty" --argjson merged "$merged" \
+          '{path: $path, branch: $branch, dirty: $dirty, merged: $merged, missing: false}' ;;
     esac
   done
 }
@@ -51,7 +52,14 @@ list_worktrees() {
   root="$HOME/.worktrees/$repo/"
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD)"
   rows="$(list_rows "$root" "$default")"
-  echo "${rows:-no worktrees under $root}" >&2
+  if [ "${1:-}" = --json ]; then
+    printf '%s\n' "$rows" | jq -s --arg repo "$repo" '{repo: $repo, worktrees: .}'
+  elif [ -z "$rows" ]; then
+    echo "no worktrees under $root" >&2
+  else
+    printf '%s\n' "$rows" | jq -r --arg default "$default" \
+      '"\(.branch)  \(if .dirty then "dirty" else "clean" end)  \(if .merged then "contained in" else "not contained in" end) \($default)  \(.path)"' >&2
+  fi
 }
 
 cmd="${1:-}"
@@ -67,7 +75,7 @@ done
 
 shift
 if [ "$cmd" = list ]; then
-  list_worktrees
+  list_worktrees "$@"
   exit 0
 fi
 case "${1:-}" in
