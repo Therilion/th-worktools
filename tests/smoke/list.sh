@@ -31,3 +31,13 @@ line="$(printf '%s\n' "$out" | grep -F "feature/dirty-tracked")" || fail "$name:
 case "$line" in *dirty*) ;; *) fail "$name: la línea no dice dirty: [$line]" ;; esac
 case "$line" in *clean*) fail "$name: la línea dice clean: [$line]" ;; esac
 pass "$name"
+
+name="list marca dirty un worktree con un archivo nuevo sin trackear"
+(cd "$TMP/repo" && "$WT" new feature/dirty-untracked) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-dirty-untracked"
+echo nuevo > "$dest/untracked.txt"
+out="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló: [$out]"
+line="$(printf '%s\n' "$out" | grep -F "feature/dirty-untracked")" || fail "$name: no aparece la rama: [$out]"
+case "$line" in *dirty*) ;; *) fail "$name: la línea no dice dirty: [$line]" ;; esac
+case "$line" in *clean*) fail "$name: la línea dice clean: [$line]" ;; esac
+pass "$name"
