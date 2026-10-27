@@ -20,7 +20,7 @@ Argumentos recibidos: $ARGUMENTS
 ## Reglas
 
 - Al terminar `new`: informar la ruta y sugerir abrir una sesión nueva del agente ahí.
-- Al terminar `list`: mostrar por cada worktree la rama, la ruta, si tiene cambios sin commitear (`dirty`) y si está contenida en la rama por defecto de `origin` (`merged`). `missing: true` es un directorio borrado; `merged: null` es que no se pudo saber (falta `origin/HEAD` local).
+- Al terminar `list`: mostrar por cada worktree la rama, la ruta, si tiene cambios sin commitear (`dirty`) y si está contenida en la rama por defecto de `origin` (`merged`). `branch: null` es un HEAD desacoplado (rebase, bisect o checkout de un commit); `missing: true` es un directorio borrado; `merged: null` es que no se pudo saber (falta `origin/HEAD` local).
 - `merged` usa solo datos locales: no ve merges con squash o rebase y puede estar desactualizado si no se hizo fetch. No lo presentes como confirmación de que se puede cerrar.
 - Código de salida `3`: informar qué dependencia falta y detenerse.
 - Código de salida `4`: mostrar el motivo y preguntar al usuario cómo seguir.

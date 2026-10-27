@@ -30,12 +30,20 @@ resolve_repo() {
 
 # One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
-  local root="$1" default="$2" path line dirty missing ref merged
+  local root="$1" default="$2" path line head dirty missing ref name merged
   git worktree list --porcelain | while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
-      "branch "*)
+      "HEAD "*) head="${line#HEAD }" ;;
+      "branch "*|detached)
         case "$path" in "$root"*) ;; *) continue ;; esac
+        if [ "$line" = detached ]; then
+          ref="$head"
+          name=""
+        else
+          ref="${line#branch }"
+          name="${ref#refs/heads/}"
+        fi
         dirty=false
         missing=false
         if [ -d "$path" ]; then
@@ -43,15 +51,14 @@ list_rows() {
         else
           missing=true
         fi
-        ref="${line#branch }"
         merged=true
         if [ -z "$default" ]; then
           merged=null
         else
           git merge-base --is-ancestor "$ref" "$default" || merged=false
         fi
-        jq -cn --arg path "$path" --arg branch "${ref#refs/heads/}" --argjson dirty "$dirty" --argjson merged "$merged" --argjson missing "$missing" \
-          '{path: $path, branch: $branch, dirty: $dirty, merged: $merged, missing: $missing}' ;;
+        jq -cn --arg path "$path" --arg branch "$name" --argjson dirty "$dirty" --argjson merged "$merged" --argjson missing "$missing" \
+          '{path: $path, branch: (if $branch == "" then null else $branch end), dirty: $dirty, merged: $merged, missing: $missing}' ;;
     esac
   done
 }
@@ -75,7 +82,7 @@ list_worktrees() {
     echo "no worktrees under $root" >&2
   else
     printf '%s\n' "$rows" | jq -r --arg default "$default" \
-      '"\(.branch)  \(if .missing then "missing" elif .dirty then "dirty" else "clean" end)  \(if .merged == null then "containment unknown" elif .merged then "contained in \($default)" else "not contained in \($default)" end)  \(.path)"' >&2
+      '"\(.branch // "(detached)")  \(if .missing then "missing" elif .dirty then "dirty" else "clean" end)  \(if .merged == null then "containment unknown" elif .merged then "contained in \($default)" else "not contained in \($default)" end)  \(.path)"' >&2
   fi
 }
 

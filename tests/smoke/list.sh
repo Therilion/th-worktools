@@ -169,3 +169,18 @@ for args in "--jsno" "foo" "--json --bogus"; do
   [ -z "$out" ] || fail "$name: [$args]: imprimió a stdout: [$out]"
 done
 pass "$name"
+
+name="list muestra un worktree con HEAD desacoplado con branch null y merged calculado sobre HEAD"
+dest="$HOME/.worktrees/acme/demo/detached-check"
+git -C "$TMP/repo" worktree add -q --detach "$dest" origin/main
+out="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null)" || fail "$name: th-wt list --json falló"
+entry="$(printf '%s' "$out" | jq -S -c --arg p "$dest" '.worktrees[] | select(.path == $p)')"
+expected="{\"branch\":null,\"dirty\":false,\"merged\":true,\"missing\":false,\"path\":\"$dest\"}"
+[ "$entry" = "$expected" ] || fail "$name: entrada=[$entry]"
+git -C "$dest" commit -q --allow-empty -m "commit suelto"
+out="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null)"
+[ "$(printf '%s' "$out" | jq -c --arg p "$dest" '.worktrees[] | select(.path == $p) | .merged')" = false ] || fail "$name: con un commit propio debería ser merged=false: [$out]"
+out="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló"
+line="$(printf '%s\n' "$out" | grep -F "$dest")" || fail "$name: no aparece la ruta: [$out]"
+case "$line" in *"(detached)"*) ;; *) fail "$name: la línea no dice (detached): [$line]" ;; esac
+pass "$name"
