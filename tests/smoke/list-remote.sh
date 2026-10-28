@@ -123,3 +123,63 @@ out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>/dev/null)" || fail "$name
 [ "$(printf '%s' "$out" | jq -c '.worktrees[] | select(.branch == "feature/stale") | .merged')" = true ] || fail "$name: con --remote merged debería ser true: [$out]"
 [ "$(git -C "$TMP/repo" symbolic-ref --short refs/remotes/origin/HEAD)" = origin/main ] || fail "$name: origin/HEAD no quedó apuntando a origin/main"
 pass "$name"
+
+name="list --remote sin gh → exit 3 que nombra gh; list sin --remote sigue funcionando"
+# PATH mínimo sin gh (ni el falso ni uno real): solo lo que th-wt necesita.
+mkdir -p "$TMP/nogh"
+for tool in env bash git jq sed awk cat; do ln -sf "$(command -v "$tool")" "$TMP/nogh/$tool"; done
+rc=0
+err="$(cd "$TMP/repo" && PATH="$TMP/nogh" "$WT" list --remote 2>&1)" || rc=$?
+[ "$rc" = 3 ] || fail "$name: exit=$rc, esperado 3: [$err]"
+case "$err" in *"th-wt: missing dependency: gh"*) ;; *) fail "$name: el mensaje no nombra gh: [$err]" ;; esac
+out="$(cd "$TMP/repo" && PATH="$TMP/nogh" "$WT" list --json 2>/dev/null)" || fail "$name: list sin --remote falló sin gh"
+[ "$(printf '%s' "$out" | jq -r '.repo')" = "acme/demo" ] || fail "$name: list sin --remote no devolvió el repo: [$out]"
+pass "$name"
+
+name="list --remote con gh fallando → exit 4 que dice qué falló; list sin --remote sigue funcionando"
+mkdir -p "$TMP/badgh"
+cat > "$TMP/badgh/gh" <<'GH'
+#!/usr/bin/env bash
+echo "gh: HTTP 401: Bad credentials" >&2
+exit 1
+GH
+chmod +x "$TMP/badgh/gh"
+rc=0
+err="$(cd "$TMP/repo" && PATH="$TMP/badgh:$PATH" "$WT" list --remote 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$err]"
+case "$err" in *"th-wt: gh pr list failed"*) ;; *) fail "$name: el mensaje no dice que gh pr list falló: [$err]" ;; esac
+case "$err" in *"Bad credentials"*) ;; *) fail "$name: no se muestra el error de gh: [$err]" ;; esac
+out="$(cd "$TMP/repo" && PATH="$TMP/badgh:$PATH" "$WT" list --json 2>/dev/null)" || fail "$name: list sin --remote falló con gh roto"
+[ "$(printf '%s' "$out" | jq -r '.repo')" = "acme/demo" ] || fail "$name: list sin --remote no devolvió el repo: [$out]"
+pass "$name"
+
+name="list --remote con origin inaccesible → exit 4 que dice qué falló; list sin --remote sigue funcionando"
+mv "$TMP/origin.git" "$TMP/origin.gone"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || rc=$?
+out="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null)" || { mv "$TMP/origin.gone" "$TMP/origin.git"; fail "$name: list sin --remote falló con origin inaccesible"; }
+mv "$TMP/origin.gone" "$TMP/origin.git"
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$err]"
+case "$err" in *"th-wt: cannot read origin"*) ;; *) fail "$name: el mensaje no dice que no se pudo leer origin: [$err]" ;; esac
+[ "$(printf '%s' "$out" | jq -r '.repo')" = "acme/demo" ] || fail "$name: list sin --remote no devolvió el repo: [$out]"
+pass "$name"
+
+name="list --remote sin rama por defecto en origin o con el fetch fallando → exit 4 con mensaje"
+# Caso 1: HEAD de origin apunta a una rama que no existe, así que ls-remote no informa la rama por defecto.
+git -C "$TMP/origin.git" symbolic-ref HEAD refs/heads/nonexistent
+rc1=0
+err1="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || rc1=$?
+git -C "$TMP/origin.git" symbolic-ref HEAD refs/heads/main
+# Caso 2: origin avanza y responde, pero el fetch no puede escribir origin/main (lock obsoleto).
+git -C "$HOME/.worktrees/acme/demo/feature-stale" commit -q --allow-empty -m "origin avanza otra vez"
+git -C "$HOME/.worktrees/acme/demo/feature-stale" push -q "$TMP/origin.git" HEAD:main
+lock="$TMP/repo/.git/refs/remotes/origin/main.lock"
+touch "$lock"
+rc2=0
+err2="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || rc2=$?
+rm -f "$lock"
+[ "$rc1" = 4 ] || fail "$name: sin rama por defecto: exit=$rc1, esperado 4: [$err1]"
+case "$err1" in *"th-wt: cannot determine origin's default branch"*) ;; *) fail "$name: sin rama por defecto: mensaje inesperado: [$err1]" ;; esac
+[ "$rc2" = 4 ] || fail "$name: fetch fallando: exit=$rc2, esperado 4: [$err2]"
+case "$err2" in *"th-wt: fetch of origin/main failed"*) ;; *) fail "$name: fetch fallando: mensaje inesperado: [$err2]" ;; esac
+pass "$name"
