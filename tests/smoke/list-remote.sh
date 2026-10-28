@@ -97,3 +97,29 @@ for b in feature/contained-pr feature/no-pr; do
   case "$line" in *"PR #"*) fail "$name: $b: la línea muestra un PR: [$line]" ;; esac
 done
 pass "$name"
+
+name="list --remote refleja un avance de origin/main que el clon no tenía; list sin --remote no"
+(cd "$TMP/repo" && "$WT" new feature/stale) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-stale"
+git -C "$dest" commit -q --allow-empty -m "trabajo integrado desde otro clon"
+# Push por ruta (no por el remote): origin avanza sin que se actualice refs/remotes/origin/main local.
+git -C "$dest" push -q "$TMP/origin.git" HEAD:main
+echo '[]' > "$TMP/gh.json"
+out="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló: [$out]"
+line="$(printf '%s\n' "$out" | grep -F "feature/stale")" || fail "$name: no aparece la rama: [$out]"
+case "$line" in *"not contained in origin/main"*) ;; *) fail "$name: sin --remote debería decir not contained (datos locales): [$line]" ;; esac
+out="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || fail "$name: th-wt list --remote falló: [$out]"
+line="$(printf '%s\n' "$out" | grep -F "feature/stale")" || fail "$name: no aparece la rama: [$out]"
+case "$line" in *"not contained"*) fail "$name: con --remote dice not contained: [$line]" ;; esac
+case "$line" in *"contained in origin/main"*) ;; *) fail "$name: con --remote no dice contained in origin/main: [$line]" ;; esac
+pass "$name"
+
+name="list --remote repara un origin/HEAD ausente: merged deja de ser desconocido"
+git -C "$TMP/repo" remote set-head origin -d >/dev/null
+git -C "$TMP/repo" symbolic-ref -q refs/remotes/origin/HEAD >/dev/null && fail "$name: origin/HEAD debería estar ausente antes de la prueba"
+out="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null)" || fail "$name: th-wt list --json falló"
+[ "$(printf '%s' "$out" | jq -c '.worktrees[] | select(.branch == "feature/stale") | .merged')" = null ] || fail "$name: sin --remote merged debería ser null: [$out]"
+out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>/dev/null)" || fail "$name: th-wt list --remote --json falló"
+[ "$(printf '%s' "$out" | jq -c '.worktrees[] | select(.branch == "feature/stale") | .merged')" = true ] || fail "$name: con --remote merged debería ser true: [$out]"
+[ "$(git -C "$TMP/repo" symbolic-ref --short refs/remotes/origin/HEAD)" = origin/main ] || fail "$name: origin/HEAD no quedó apuntando a origin/main"
+pass "$name"

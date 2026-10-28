@@ -81,7 +81,7 @@ list_rows() {
 }
 
 list_worktrees() {
-  local default root rows json=0 prs=null
+  local default root rows base json=0 prs=null
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1; shift ;;
@@ -92,6 +92,11 @@ list_worktrees() {
   resolve_repo
   # shortcut: root is compared with git's real paths without resolving symlinks, so a symlinked ~/.worktrees or $HOME lists nothing; canonicalize both sides with #8 (configurable root)
   root="$HOME/.worktrees/$repo/"
+  if [ -z "$prs" ]; then
+    base="$(git ls-remote --symref origin HEAD | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
+    git fetch -q origin "+refs/heads/$base:refs/remotes/origin/$base"
+    git remote set-head origin "$base" >/dev/null
+  fi
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   [ -n "$prs" ] || prs="$(gh pr list -R "$repo" --state all --limit 100 --json number,state,baseRefName,headRefName,headRefOid)"
   rows="$(list_rows "$root" "$default" "$prs")"
