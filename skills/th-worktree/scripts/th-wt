@@ -81,7 +81,7 @@ list_rows() {
 }
 
 list_worktrees() {
-  local default root rows head_ref base json=0 prs=null
+  local default root rows head_ref base pr_limit=100 json=0 prs=null
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1; shift ;;
@@ -101,8 +101,12 @@ list_worktrees() {
     git remote set-head origin "$base" >/dev/null
   fi
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-  [ -n "$prs" ] || prs="$(gh pr list -R "$repo" --state all --limit 100 --json number,state,baseRefName,headRefName,headRefOid)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
+  [ -n "$prs" ] || prs="$(gh pr list -R "$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
   rows="$(list_rows "$root" "$default" "$prs")"
+  # shortcut: PRs are matched within the latest $pr_limit only; make the limit configurable with #8
+  if [ "$(jq length <<<"$prs")" = "$pr_limit" ] && [ "$(printf '%s\n' "$rows" | jq -s 'any(.[]; .branch != null and .merged == false and .pr == null)')" = true ]; then
+    echo "th-wt: only the $pr_limit most recent PRs were checked; branches without a PR here may have an older one" >&2
+  fi
   if [ "$json" = 1 ]; then
     printf '%s\n' "$rows" | jq -s --arg repo "$repo" '{repo: $repo, worktrees: .}'
   elif [ -z "$rows" ]; then

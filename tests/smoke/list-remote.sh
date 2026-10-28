@@ -183,3 +183,38 @@ case "$err1" in *"th-wt: cannot determine origin's default branch"*) ;; *) fail 
 [ "$rc2" = 4 ] || fail "$name: fetch fallando: exit=$rc2, esperado 4: [$err2]"
 case "$err2" in *"th-wt: fetch of origin/main failed"*) ;; *) fail "$name: fetch fallando: mensaje inesperado: [$err2]" ;; esac
 pass "$name"
+
+name="list sin --remote no llama a gh y no agrega la clave pr (mismo contrato que 2a)"
+rm -f "$TMP/gh.calls"
+(cd "$TMP/repo" && "$WT" list --remote >/dev/null 2>&1) || fail "$name: control: list --remote falló"
+[ -s "$TMP/gh.calls" ] || fail "$name: control: list --remote no llamó al gh falso"
+rm -f "$TMP/gh.calls"
+out="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null)" || fail "$name: th-wt list --json falló"
+txt="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló"
+[ ! -e "$TMP/gh.calls" ] || fail "$name: list sin --remote llamó a gh: [$(cat "$TMP/gh.calls")]"
+[ "$(printf '%s' "$out" | jq -c '[.worktrees[] | has("pr")] | any')" = false ] || fail "$name: el JSON tiene la clave pr: [$out]"
+case "$txt" in *"PR #"*) fail "$name: el texto muestra un PR: [$txt]" ;; esac
+pass "$name"
+
+name="list --remote avisa por stderr si gh devuelve 100 PRs y alguna rama no aparece; solo entonces"
+oid="0123456789abcdef0123456789abcdef01234567"
+# Caso 1: 100 PRs ajenos (el tope de la consulta) → hay ramas sin PR → aviso, y stdout sigue siendo un único JSON.
+jq -n --arg oid "$oid" '[range(0; 100) | {number: (1000 + .), state: "MERGED", baseRefName: "main", headRefName: "other/\(.)", headRefOid: $oid}]' > "$TMP/gh.json"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>"$TMP/limit.err")" || rc=$?
+[ "$rc" = 0 ] || fail "$name: caso 1: exit=$rc, esperado 0: [$(cat "$TMP/limit.err")]"
+grep -qF "only the 100 most recent PRs were checked" "$TMP/limit.err" || fail "$name: caso 1: falta el aviso en stderr: [$(cat "$TMP/limit.err")]"
+printf '%s' "$out" | jq -e 'type == "object"' >/dev/null || fail "$name: caso 1: stdout no es un único objeto JSON: [$out]"
+# Caso 2: 99 PRs → no se llegó al tope → sin aviso.
+jq -n --arg oid "$oid" '[range(0; 99) | {number: (1000 + .), state: "MERGED", baseRefName: "main", headRefName: "other/\(.)", headRefOid: $oid}]' > "$TMP/gh.json"
+err="$(cd "$TMP/repo" && "$WT" list --remote 2>&1 >/dev/null)" || fail "$name: caso 2: th-wt list --remote falló"
+case "$err" in *"most recent PRs"*) fail "$name: caso 2: avisó con 99 PRs: [$err]" ;; esac
+# Caso 3: 100 PRs y todas las ramas sin contener tienen el suyo → nada que avisar.
+branches="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null | jq -c '[.worktrees[] | select(.branch != null and .merged == false) | .branch]')"
+jq -n --arg oid "$oid" --argjson b "$branches" '
+  [$b | to_entries[] | {number: (.key + 1), state: "OPEN", baseRefName: "main", headRefName: .value, headRefOid: $oid}]
+  + [range(0; 100 - ($b | length)) | {number: (1000 + .), state: "MERGED", baseRefName: "main", headRefName: "other/\(.)", headRefOid: $oid}]' > "$TMP/gh.json"
+[ "$(jq length "$TMP/gh.json")" = 100 ] || fail "$name: caso 3: la preparación no armó 100 PRs"
+err="$(cd "$TMP/repo" && "$WT" list --remote 2>&1 >/dev/null)" || fail "$name: caso 3: th-wt list --remote falló"
+case "$err" in *"most recent PRs"*) fail "$name: caso 3: avisó con todas las ramas cubiertas: [$err]" ;; esac
+pass "$name"
