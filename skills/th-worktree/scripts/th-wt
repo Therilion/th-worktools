@@ -65,7 +65,7 @@ list_rows() {
         fi
         ahead=false
         if [ "$prs" != null ] && [ -n "$name" ]; then
-          oid="$(jq -r --arg b "$name" '[.[] | select(.headRefName == $b)][0].headRefOid // empty' <<<"$prs")"
+          oid="$(jq -r --arg b "$name" '[.[] | select(.headRefName == $b)] | max_by(.number).headRefOid // empty' <<<"$prs")"
           if [ -n "$oid" ]; then
             rc=0
             git merge-base --is-ancestor "$ref" "$oid" 2>/dev/null || rc=$?
@@ -75,7 +75,7 @@ list_rows() {
         fi
         jq -cn --arg path "$path" --arg branch "$name" --argjson dirty "$dirty" --argjson merged "$merged" --argjson missing "$missing" --argjson prs "$prs" --argjson ahead "$ahead" \
           '{path: $path, branch: (if $branch == "" then null else $branch end), dirty: $dirty, merged: $merged, missing: $missing}
-           + if $prs == null then {} else {pr: ([$prs[] | select(.headRefName == $branch)][0] | if . == null then null else {number, state, base: .baseRefName, ahead: $ahead} end)} end' ;;
+           + if $prs == null then {} else {pr: ([$prs[] | select(.headRefName == $branch and $merged != true)] | max_by(.number) | if . == null then null else {number, state, base: .baseRefName, ahead: $ahead} end)} end' ;;
     esac
   done
 }

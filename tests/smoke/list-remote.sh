@@ -52,6 +52,7 @@ pass "$name"
 
 name="list --remote marca ahead desconocido (null) si el último commit del PR no existe en local"
 (cd "$TMP/repo" && "$WT" new feature/unfetched-pr) || fail "$name: th-wt new falló"
+git -C "$HOME/.worktrees/acme/demo/feature-unfetched-pr" commit -q --allow-empty -m "trabajo del PR"
 jq -n '[{number: 16, state: "MERGED", baseRefName: "main", headRefName: "feature/unfetched-pr", headRefOid: "0123456789abcdef0123456789abcdef01234567"}]' > "$TMP/gh.json"
 rc=0
 out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>"$TMP/unfetched.err")" || rc=$?
@@ -62,4 +63,37 @@ entry="$(printf '%s' "$out" | jq -S -c '.worktrees[] | select(.branch == "featur
 out="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || fail "$name: th-wt list --remote falló: [$out]"
 line="$(printf '%s\n' "$out" | grep -F "feature/unfetched-pr")" || fail "$name: no aparece la rama: [$out]"
 case "$line" in *"PR #16 MERGED (base main), PR head not fetched"*) ;; *) fail "$name: la línea no dice PR head not fetched: [$line]" ;; esac
+pass "$name"
+
+name="list --remote usa el PR más reciente cuando la rama tiene varios, sin importar el orden de gh"
+(cd "$TMP/repo" && "$WT" new feature/many-prs) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-many-prs"
+git -C "$dest" commit -q --allow-empty -m "trabajo con dos PRs"
+head="$(git -C "$dest" rev-parse HEAD)"
+jq -n --arg oid "$head" '[
+  {number: 3, state: "MERGED", baseRefName: "main", headRefName: "feature/many-prs", headRefOid: $oid},
+  {number: 7, state: "OPEN", baseRefName: "main", headRefName: "feature/many-prs", headRefOid: $oid},
+  {number: 5, state: "CLOSED", baseRefName: "main", headRefName: "feature/many-prs", headRefOid: $oid}
+]' > "$TMP/gh.json"
+out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>/dev/null)" || fail "$name: th-wt list --remote --json falló"
+entry="$(printf '%s' "$out" | jq -S -c '.worktrees[] | select(.branch == "feature/many-prs") | .pr')"
+[ "$entry" = '{"ahead":false,"base":"main","number":7,"state":"OPEN"}' ] || fail "$name: pr=[$entry]"
+pass "$name"
+
+name="list --remote deja pr en null si la rama no tiene PR, y no cruza PR para ramas ya contenidas"
+(cd "$TMP/repo" && "$WT" new feature/contained-pr) || fail "$name: th-wt new falló"
+(cd "$TMP/repo" && "$WT" new feature/no-pr) || fail "$name: th-wt new falló"
+git -C "$HOME/.worktrees/acme/demo/feature-no-pr" commit -q --allow-empty -m "trabajo sin PR"
+head="$(git -C "$HOME/.worktrees/acme/demo/feature-contained-pr" rev-parse HEAD)"
+jq -n --arg oid "$head" '[{number: 20, state: "MERGED", baseRefName: "main", headRefName: "feature/contained-pr", headRefOid: $oid}]' > "$TMP/gh.json"
+out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>/dev/null)" || fail "$name: th-wt list --remote --json falló"
+for b in feature/contained-pr feature/no-pr; do
+  entry="$(printf '%s' "$out" | jq -c --arg b "$b" '.worktrees[] | select(.branch == $b) | .pr')"
+  [ "$entry" = null ] || fail "$name: $b: pr=[$entry], esperado null"
+done
+out="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || fail "$name: th-wt list --remote falló: [$out]"
+for b in feature/contained-pr feature/no-pr; do
+  line="$(printf '%s\n' "$out" | grep -F "$b")" || fail "$name: no aparece $b: [$out]"
+  case "$line" in *"PR #"*) fail "$name: $b: la línea muestra un PR: [$line]" ;; esac
+done
 pass "$name"
