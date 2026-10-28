@@ -4,10 +4,10 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage: th-wt new <branch> [--base <branch>] [--json]
-       th-wt list [--json]
+       th-wt list [--remote] [--json]
 
 new   Create a git worktree for a new branch under ~/.worktrees.
-list  Show this repo's worktrees under ~/.worktrees (local data only, no network).
+list  Show this repo's worktrees under ~/.worktrees (local data only; --remote also queries GitHub PRs).
 USAGE
 }
 
@@ -30,7 +30,7 @@ resolve_repo() {
 
 # One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
-  local root="$1" default="$2" path line head dirty missing ref name merged rc out
+  local root="$1" default="$2" prs="$3" path line head dirty missing ref name merged rc out
   git worktree list --porcelain | while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
@@ -63,17 +63,19 @@ list_rows() {
           # 0 = ancestor, 1 = not; anything else (unborn branch, missing default) = unknown
           case "$rc" in 0) merged=true ;; 1) merged=false ;; esac
         fi
-        jq -cn --arg path "$path" --arg branch "$name" --argjson dirty "$dirty" --argjson merged "$merged" --argjson missing "$missing" \
-          '{path: $path, branch: (if $branch == "" then null else $branch end), dirty: $dirty, merged: $merged, missing: $missing}' ;;
+        jq -cn --arg path "$path" --arg branch "$name" --argjson dirty "$dirty" --argjson merged "$merged" --argjson missing "$missing" --argjson prs "$prs" \
+          '{path: $path, branch: (if $branch == "" then null else $branch end), dirty: $dirty, merged: $merged, missing: $missing}
+           + if $prs == null then {} else {pr: ([$prs[] | select(.headRefName == $branch)][0] | if . == null then null else {number, state, base: .baseRefName, ahead: false} end)} end' ;;
     esac
   done
 }
 
 list_worktrees() {
-  local default root rows json=0
+  local default root rows json=0 prs=null
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1; shift ;;
+      --remote) prs=""; shift ;;
       *) bad_usage ;;
     esac
   done
@@ -81,14 +83,15 @@ list_worktrees() {
   # shortcut: root is compared with git's real paths without resolving symlinks, so a symlinked ~/.worktrees or $HOME lists nothing; canonicalize both sides with #8 (configurable root)
   root="$HOME/.worktrees/$repo/"
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-  rows="$(list_rows "$root" "$default")"
+  [ -n "$prs" ] || prs="$(gh pr list -R "$repo" --state all --limit 100 --json number,state,baseRefName,headRefName,headRefOid)"
+  rows="$(list_rows "$root" "$default" "$prs")"
   if [ "$json" = 1 ]; then
     printf '%s\n' "$rows" | jq -s --arg repo "$repo" '{repo: $repo, worktrees: .}'
   elif [ -z "$rows" ]; then
     echo "no worktrees under $root" >&2
   else
     printf '%s\n' "$rows" | jq -r --arg default "$default" \
-      '"\(.branch // "(detached)")  \(if .missing then "missing" elif .dirty == null then "dirty unknown" elif .dirty then "dirty" else "clean" end)  \(if .merged == null then "containment unknown" elif .merged then "contained in \($default)" else "not contained in \($default)" end)  \(.path)"' >&2
+      '"\(.branch // "(detached)")  \(if .missing then "missing" elif .dirty == null then "dirty unknown" elif .dirty then "dirty" else "clean" end)  \(if .merged == null then "containment unknown" elif .merged then "contained in \($default)" else "not contained in \($default)" end)  \(if .pr then "PR #\(.pr.number) \(.pr.state) (base \(.pr.base))  " else "" end)\(.path)"' >&2
   fi
 }
 
