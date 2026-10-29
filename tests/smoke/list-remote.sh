@@ -280,3 +280,22 @@ for url in "git@github-work:acme/aliased.git" "https://user:secrettoken@github.c
   ! grep -qF "secrettoken" "$TMP/gh.calls" "$TMP/url.out" || fail "$name: $url: la credencial aparece en la salida o en la llamada a gh"
 done
 pass "$name"
+
+name="list --remote marca ahead desconocido (null) si el PR no trae su último commit"
+for b in no-oid-missing no-oid-null; do
+  (cd "$TMP/repo" && "$WT" new "feature/$b") || fail "$name: th-wt new falló"
+  git -C "$HOME/.worktrees/acme/demo/feature-$b" commit -q --allow-empty -m "trabajo de $b"
+done
+jq -n '[
+  {number: 50, state: "MERGED", baseRefName: "main", headRefName: "feature/no-oid-missing"},
+  {number: 51, state: "MERGED", baseRefName: "main", headRefName: "feature/no-oid-null", headRefOid: null}
+]' > "$TMP/gh.json"
+out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>/dev/null)" || fail "$name: th-wt list --remote --json falló"
+for b in no-oid-missing no-oid-null; do
+  ahead="$(printf '%s' "$out" | jq -c --arg b "feature/$b" '.worktrees[] | select(.branch == $b) | .pr.ahead')"
+  [ "$ahead" = null ] || fail "$name: $b: ahead=[$ahead], esperado null"
+done
+out="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || fail "$name: th-wt list --remote falló"
+line="$(printf '%s\n' "$out" | grep -F "feature/no-oid-null")" || fail "$name: no aparece la rama: [$out]"
+case "$line" in *"PR #51 MERGED (base main), PR head not fetched"*) ;; *) fail "$name: la línea no dice PR head not fetched: [$line]" ;; esac
+pass "$name"
