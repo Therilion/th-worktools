@@ -107,6 +107,7 @@ list_worktrees() {
     default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   fi
   [ "$remote" = 0 ] || prs="$(gh pr list -R "$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
+  [ "$remote" = 0 ] || jq -e 'type == "array"' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
   rows="$(list_rows "$root" "$default" "$prs")"
   # shortcut: PRs are matched within the latest $pr_limit only; make the limit configurable with #8
   if [ "$remote" = 1 ] && [ "$(jq length <<<"$prs")" = "$pr_limit" ] && [ "$(printf '%s\n' "$rows" | jq -s 'any(.[]; .branch != null and .merged == false and .pr == null)')" = true ]; then

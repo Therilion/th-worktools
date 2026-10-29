@@ -299,3 +299,16 @@ out="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || fail "$name: th-wt list -
 line="$(printf '%s\n' "$out" | grep -F "feature/no-oid-null")" || fail "$name: no aparece la rama: [$out]"
 case "$line" in *"PR #51 MERGED (base main), PR head not fetched"*) ;; *) fail "$name: la línea no dice PR head not fetched: [$line]" ;; esac
 pass "$name"
+
+name="list --remote con gh devolviendo algo que no es una lista de PRs → exit 4 con mensaje"
+rm -rf "$TMP/badjson" && mkdir -p "$TMP/badjson"
+cat > "$TMP/badjson/gh" <<'GH'
+#!/usr/bin/env bash
+echo '{"message": "not a list"}'
+GH
+chmod +x "$TMP/badjson/gh"
+rc=0
+out="$(cd "$TMP/repo" && PATH="$TMP/badjson:$PATH" "$WT" list --remote 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+case "$out" in *"th-wt: unexpected output from gh pr list"*) ;; *) fail "$name: el mensaje no dice que la salida de gh es inesperada: [$out]" ;; esac
+pass "$name"
