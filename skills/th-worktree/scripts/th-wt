@@ -14,13 +14,14 @@ USAGE
 die() { echo "th-wt: $2" >&2; exit "$1"; }
 bad_usage() { usage >&2; exit 2; }
 
-# Sets $repo (<owner>/<repo>) from remote.origin.url.
+# Sets $repo (<owner>/<repo>) and $host from remote.origin.url.
 resolve_repo() {
   local url
   git rev-parse --git-dir >/dev/null 2>&1 || die 4 "not a git repository"
   url="$(git config --get remote.origin.url || true)"
   [ -n "$url" ] || die 4 "no 'origin' remote configured"
   repo="$(printf '%s' "$url" | sed -E 's#^(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')"
+  host="$(printf '%s' "$url" | sed -E 's#^(git@|https?://)([^:/]+)[:/].*#\2#')"
   case "/$repo/" in
     *[:@]*|*//*|*/./*|*/../*) die 4 "unsupported origin URL: $url" ;;
     /*/*/) ;;
@@ -105,7 +106,7 @@ list_worktrees() {
     git remote set-head origin "$base" >/dev/null
   fi
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-  [ "$remote" = 0 ] || prs="$(gh pr list -R "$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
+  [ "$remote" = 0 ] || prs="$(gh pr list -R "$host/$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
   rows="$(list_rows "$root" "$default" "$prs")"
   # shortcut: PRs are matched within the latest $pr_limit only; make the limit configurable with #8
   if [ "$remote" = 1 ] && [ "$(jq length <<<"$prs")" = "$pr_limit" ] && [ "$(printf '%s\n' "$rows" | jq -s 'any(.[]; .branch != null and .merged == false and .pr == null)')" = true ]; then
