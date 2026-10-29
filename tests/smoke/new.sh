@@ -76,3 +76,10 @@ git -C "$TMP/r-sb" remote set-url origin "$REMOTE_URL"
 dest="$HOME/.worktrees/acme/demo/fix-sb"
 [ "$(git -C "$dest" rev-parse HEAD)" = "$(git -C "$TMP/origin.git" rev-parse release/1.2)" ] || fail "$name: no parte de origin/release/1.2"
 pass "$name"
+
+name="new no trae tags de origin al repo del usuario"
+git -C "$TMP/origin.git" tag v-from-origin main
+[ -z "$(git -C "$TMP/repo" tag -l)" ] || fail "$name: el repo ya tenía tags antes de la prueba"
+(cd "$TMP/repo" && "$WT" new feature/no-tags) || fail "$name: th-wt new falló"
+[ -z "$(git -C "$TMP/repo" tag -l)" ] || fail "$name: new escribió tags: [$(git -C "$TMP/repo" tag -l)]"
+pass "$name"
