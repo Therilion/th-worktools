@@ -26,7 +26,8 @@ Argumentos recibidos: $ARGUMENTS
 - Usa `--remote` cuando el usuario quiera saber qué puede cerrar. Hace fetch de la rama por defecto de `origin` (sin tocar `origin/HEAD`, así que `merged` se calcula aunque falte) y consulta con `gh` los PRs del repo. Necesita `gh` autenticado y acceso a `origin`; `gh` consulta github.com, o el host de la variable `GH_HOST` (GitHub Enterprise): si falta algo, sale con error y no hay lista local de respaldo; no reintentes sin `--remote` salvo que el usuario lo pida.
 - Con `--remote`, `merged` sigue siendo solo contención en git (ya contra el `origin` actual). Cada worktree trae además `pr`, que se lee junto a `merged`:
   - `pr: null` en una rama contenida: no se consultó el PR, ya está integrada. En una rama no contenida: no tiene PR, o su PR es anterior a los 100 más recientes (en ese caso `list` avisa por stderr: repítelo al usuario).
-  - `pr.state` `MERGED` con `ahead: false`: el PR se mergeó (con squash, rebase o contra otra base) y no hay trabajo local posterior; la rama se puede cerrar aunque `merged` sea `false`.
+  - `pr.state` `MERGED` con `ahead: false`: el PR se mergeó en la rama por defecto (con squash o rebase) y no hay trabajo local posterior; la rama se puede cerrar aunque `merged` sea `false`.
+  - `pr.state` `MERGED` con `pr.base` distinta de la rama por defecto (por ejemplo, una rama apilada): el trabajo llegó a esa base, no necesariamente a la rama por defecto. Dile al usuario en qué base se mergeó y no lo des por cerrable sin que lo confirme.
   - `pr.ahead: true`: la rama local tiene commits posteriores al último commit del PR; no cuenta como mergeada. Avisa al usuario antes de sugerir cerrarla.
   - `pr.ahead: null`: el último commit del PR no está en local, así que no se sabe; no la des por mergeada y avisa al usuario.
   - `pr.state` `OPEN` o `CLOSED`: no está mergeada.
