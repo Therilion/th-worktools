@@ -64,6 +64,10 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt list`: con `$HOME` como repo de dotfiles, un worktree sin `.git` informa el estado de ese repo (`git status` sube por los directorios padre) en lugar de `dirty: null`.
 - `th-wt list --remote`: límite de PRs consultados configurable (hoy fijo en 100), al implementar la configuración (#8).
 - `th-wt list --remote`: cruzar PRs por rama sin límite, con una sola consulta GraphQL que busque cada rama.
+- Unificar el código de salida de los errores de red entre subcomandos: hoy `new` sale con `1` si no puede leer `origin` y `list --remote` con `4`.
+- `th-wt list --remote` con un fork como `origin` (los PRs viven en el repo `upstream`): hoy todas las ramas salen con `pr: null` y sin aviso. Resolverlo consultando también `upstream`.
+- Extraer el descubrimiento y el fetch de la rama por defecto de `origin`, hoy duplicado entre `new` y `list --remote`, al despachar los subcomandos (#3).
+- Al implementar `close` (#3): un PR `MERGED` contra una base que no es la rama por defecto no significa que el trabajo llegó a esa rama; decidir qué muestra `close` en ese caso.
 - `th-wt list`: si `git worktree list` falla, el script sale con el código crudo de git (128) y sin mensaje `th-wt:`; debería salir con 1.
 - `th-wt list`: un proceso `jq` por worktree; unirlos en una sola llamada si hay decenas de worktrees.
 - `th-wt list` en la terminal (#11): el texto va solo a stderr, así que `th-wt list | grep` no recibe nada; mandar las filas a stdout y dejar solo los avisos en stderr.
