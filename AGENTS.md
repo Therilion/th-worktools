@@ -29,4 +29,5 @@ Public kit of skills (`SKILL.md` standard) and scripts for Claude Code and Antig
 
 - Don't commit or push on your own initiative; only when asked.
 - Commit messages follow Conventional Commits (`feat`, `fix`, `refactor`, `docs`, `test`, `chore`), in English, with a subject of 72 characters max.
+- Story branches are merged into `main` with a merge commit up to story 5; from story 6 (backlog #6) on, with squash (so keep the PR title in Conventional Commits format).
 - Never add `Co-Authored-By` or any AI attribution, in commits or PRs.
