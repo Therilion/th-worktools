@@ -232,3 +232,24 @@ out="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || fail "$name: th-wt list -
 line="$(printf '%s\n' "$out" | grep -F "feature/other-base")" || fail "$name: no aparece la rama: [$out]"
 case "$line" in *"PR #30 MERGED (base release/1.0)"*) ;; *) fail "$name: la línea no dice PR #30 MERGED (base release/1.0): [$line]" ;; esac
 pass "$name"
+
+name="list --remote ignora el PR de un fork cuya rama se llama igual que una rama local"
+(cd "$TMP/repo" && "$WT" new feature/fork-clash) || fail "$name: th-wt new falló"
+(cd "$TMP/repo" && "$WT" new feature/fork-only) || fail "$name: th-wt new falló"
+for b in fork-clash fork-only; do
+  git -C "$HOME/.worktrees/acme/demo/feature-$b" commit -q --allow-empty -m "trabajo de $b"
+done
+head="$(git -C "$HOME/.worktrees/acme/demo/feature-fork-clash" rev-parse HEAD)"
+rm -f "$TMP/gh.calls"
+jq -n --arg oid "$head" '[
+  {number: 40, state: "MERGED", baseRefName: "main", headRefName: "feature/fork-clash", headRefOid: $oid, isCrossRepository: true},
+  {number: 38, state: "OPEN", baseRefName: "main", headRefName: "feature/fork-clash", headRefOid: $oid, isCrossRepository: false},
+  {number: 41, state: "MERGED", baseRefName: "main", headRefName: "feature/fork-only", headRefOid: $oid, isCrossRepository: true}
+]' > "$TMP/gh.json"
+out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>/dev/null)" || fail "$name: th-wt list --remote --json falló"
+entry="$(printf '%s' "$out" | jq -S -c '.worktrees[] | select(.branch == "feature/fork-clash") | .pr')"
+[ "$entry" = '{"ahead":false,"base":"main","number":38,"state":"OPEN"}' ] || fail "$name: fork-clash: pr=[$entry], esperado el #38 del mismo repo"
+entry="$(printf '%s' "$out" | jq -c '.worktrees[] | select(.branch == "feature/fork-only") | .pr')"
+[ "$entry" = null ] || fail "$name: fork-only: pr=[$entry], esperado null"
+grep -qF "isCrossRepository" "$TMP/gh.calls" || fail "$name: la consulta a gh no pide isCrossRepository: [$(cat "$TMP/gh.calls")]"
+pass "$name"
