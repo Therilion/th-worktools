@@ -114,14 +114,24 @@ case "$line" in *"not contained"*) fail "$name: con --remote dice not contained:
 case "$line" in *"contained in origin/main"*) ;; *) fail "$name: con --remote no dice contained in origin/main: [$line]" ;; esac
 pass "$name"
 
-name="list --remote repara un origin/HEAD ausente: merged deja de ser desconocido"
+name="list --remote calcula merged contra la rama por defecto de origin sin escribir origin/HEAD"
 git -C "$TMP/repo" remote set-head origin -d >/dev/null
 git -C "$TMP/repo" symbolic-ref -q refs/remotes/origin/HEAD >/dev/null && fail "$name: origin/HEAD debería estar ausente antes de la prueba"
 out="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null)" || fail "$name: th-wt list --json falló"
 [ "$(printf '%s' "$out" | jq -c '.worktrees[] | select(.branch == "feature/stale") | .merged')" = null ] || fail "$name: sin --remote merged debería ser null: [$out]"
 out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>/dev/null)" || fail "$name: th-wt list --remote --json falló"
 [ "$(printf '%s' "$out" | jq -c '.worktrees[] | select(.branch == "feature/stale") | .merged')" = true ] || fail "$name: con --remote merged debería ser true: [$out]"
-[ "$(git -C "$TMP/repo" symbolic-ref --short refs/remotes/origin/HEAD)" = origin/main ] || fail "$name: origin/HEAD no quedó apuntando a origin/main"
+git -C "$TMP/repo" symbolic-ref -q refs/remotes/origin/HEAD >/dev/null && fail "$name: list --remote escribió origin/HEAD"
+# Caso 2: origin/HEAD apuntado a mano a otra rama (que no contiene feature/stale): no se pisa ni se usa.
+git -C "$TMP/repo" update-ref refs/remotes/origin/develop "$(git -C "$TMP/repo" rev-list --max-parents=0 origin/main)"
+git -C "$TMP/repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/develop
+out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>/dev/null)" || fail "$name: caso 2: th-wt list --remote --json falló"
+[ "$(printf '%s' "$out" | jq -c '.worktrees[] | select(.branch == "feature/stale") | .merged')" = true ] || fail "$name: caso 2: merged debería calcularse contra origin/main: [$out]"
+[ "$(git -C "$TMP/repo" symbolic-ref --short refs/remotes/origin/HEAD)" = origin/develop ] || fail "$name: caso 2: list --remote pisó origin/HEAD"
+out="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || fail "$name: caso 2: th-wt list --remote falló"
+line="$(printf '%s\n' "$out" | grep -F "feature/stale")" || fail "$name: caso 2: no aparece la rama: [$out]"
+case "$line" in *"contained in origin/main"*) ;; *) fail "$name: caso 2: la línea no dice contained in origin/main: [$line]" ;; esac
+git -C "$TMP/repo" remote set-head origin main >/dev/null
 pass "$name"
 
 name="list --remote sin gh → exit 3 que nombra gh; list sin --remote sigue funcionando"

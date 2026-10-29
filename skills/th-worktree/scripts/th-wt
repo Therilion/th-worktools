@@ -103,9 +103,10 @@ list_worktrees() {
     base="$(printf '%s\n' "$head_ref" | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
     [ -n "$base" ] || die 4 "cannot determine origin's default branch"
     git fetch -q origin "+refs/heads/$base:refs/remotes/origin/$base" || die 4 "fetch of origin/$base failed"
-    git remote set-head origin "$base" >/dev/null
+    default="origin/$base"
+  else
+    default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   fi
-  default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   [ "$remote" = 0 ] || prs="$(gh pr list -R "$host/$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
   rows="$(list_rows "$root" "$default" "$prs")"
   # shortcut: PRs are matched within the latest $pr_limit only; make the limit configurable with #8
