@@ -17,6 +17,7 @@ Public kit of skills (`SKILL.md` standard) and scripts for Claude Code and Antig
 - Never add real work data (organizations, repos, paths, tickets). The repo is public; `examples/config/` holds only fictitious values.
 - Nothing is written to the repos where the kit is used: everything lives in the kit, in `~/.config/th-worktools/` or in `~/.worktrees/`.
 - Scripts: `set -euo pipefail`, no interactive prompts, dry-run by default and `--yes` to execute. Messages go to stderr; `--json` writes a single object to stdout. Exit codes per §5 of the plan.
+- Network access is opt-in: subcommands stay offline (no `git fetch` or `ls-remote`, no `gh`) unless a flag like `--remote` asks for it. The only thing written outside the kit is the `refs/remotes/origin/<default>` that the fetch updates; never touch `origin/HEAD`.
 - Never print the contents of `.env*` files or sensitive config; only file names. Config is parsed line by line, never with `source`.
 - Bash 3.2 trap: never put `case … esac` inside `$( … )` (3.2 mis-parses the `)` of the patterns); move it to a function.
 - Script paths in `SKILL.md`: always with `${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/<skill>}`, never bare relative paths.
