@@ -30,8 +30,7 @@ resolve_repo() {
 
 # One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
-  local root="$1" default="$2" prs="$3" remote=true path line head dirty missing ref name merged rc out pr oid ahead
-  [ "$prs" != null ] || remote=false
+  local root="$1" default="$2" prs="$3" remote="$4" path line head dirty missing ref name merged rc out pr oid ahead
   git worktree list --porcelain | while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
@@ -85,32 +84,32 @@ list_rows() {
 }
 
 list_worktrees() {
-  local default root rows head_ref base pr_limit=100 json=0 remote=0 prs=null
+  local default root rows head_ref base pr_limit=100 json=0 remote=false prs=null
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1; shift ;;
-      --remote) remote=1; shift ;;
+      --remote) remote=true; shift ;;
       *) bad_usage ;;
     esac
   done
   resolve_repo
   # shortcut: root is compared with git's real paths without resolving symlinks, so a symlinked ~/.worktrees or $HOME lists nothing; canonicalize both sides with #8 (configurable root)
   root="$HOME/.worktrees/$repo/"
-  if [ "$remote" = 1 ]; then
+  if [ "$remote" = true ]; then
     command -v gh >/dev/null || die 3 "missing dependency: gh"
     head_ref="$(git ls-remote --symref origin HEAD)" || die 4 "cannot read origin (unreachable or no access)"
     base="$(printf '%s\n' "$head_ref" | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
     [ -n "$base" ] || die 4 "cannot determine origin's default branch"
     git fetch -q origin "+refs/heads/$base:refs/remotes/origin/$base" || die 4 "fetch of origin/$base failed"
     default="origin/$base"
+    prs="$(gh pr list -R "$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
+    jq -e 'type == "array"' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
   else
     default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   fi
-  [ "$remote" = 0 ] || prs="$(gh pr list -R "$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
-  [ "$remote" = 0 ] || jq -e 'type == "array"' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
-  rows="$(list_rows "$root" "$default" "$prs")"
+  rows="$(list_rows "$root" "$default" "$prs" "$remote")"
   # shortcut: PRs are matched within the latest $pr_limit only; make the limit configurable with #8
-  if [ "$remote" = 1 ] && [ "$(jq length <<<"$prs")" = "$pr_limit" ] && [ "$(printf '%s\n' "$rows" | jq -s 'any(.[]; .branch != null and .merged == false and .pr == null)')" = true ]; then
+  if [ "$remote" = true ] && [ "$(jq length <<<"$prs")" = "$pr_limit" ] && [ "$(printf '%s\n' "$rows" | jq -s 'any(.[]; .branch != null and .merged == false and .pr == null)')" = true ]; then
     echo "th-wt: only the $pr_limit most recent PRs were checked; branches without a PR here may have an older one" >&2
   fi
   if [ "$json" = 1 ]; then
