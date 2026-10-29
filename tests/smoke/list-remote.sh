@@ -320,3 +320,13 @@ echo '[]' > "$TMP/gh.json"
 (cd "$TMP/repo" && "$WT" list --remote >/dev/null 2>&1) || fail "$name: th-wt list --remote falló"
 [ -z "$(git -C "$TMP/repo" tag -l)" ] || fail "$name: list --remote escribió tags: [$(git -C "$TMP/repo" tag -l)]"
 pass "$name"
+
+name="list --remote con gh devolviendo una lista con elementos que no son objetos → exit 4 con mensaje"
+for payload in '["x"]' '[1, null]'; do
+  echo "$payload" > "$TMP/gh.json"
+  rc=0
+  out="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || rc=$?
+  [ "$rc" = 4 ] || fail "$name: $payload: exit=$rc, esperado 4: [$out]"
+  case "$out" in *"th-wt: unexpected output from gh pr list"*) ;; *) fail "$name: $payload: el mensaje no dice que la salida de gh es inesperada: [$out]" ;; esac
+done
+pass "$name"

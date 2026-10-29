@@ -103,7 +103,7 @@ list_worktrees() {
     git fetch -q --no-tags origin "+refs/heads/$base:refs/remotes/origin/$base" || die 4 "fetch of origin/$base failed"
     default="origin/$base"
     prs="$(gh pr list -R "$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
-    jq -e 'type == "array"' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
+    jq -e 'type == "array" and all(.[]; type == "object")' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
   else
     default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   fi
