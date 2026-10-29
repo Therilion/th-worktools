@@ -7,7 +7,7 @@ Usage: th-wt new <branch> [--base <branch>] [--json]
        th-wt list [--remote] [--json]
 
 new   Create a git worktree for a new branch under ~/.worktrees.
-list  Show this repo's worktrees under ~/.worktrees (local data only; --remote also queries GitHub PRs).
+list  Show this repo's worktrees under ~/.worktrees (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
 USAGE
 }
 
