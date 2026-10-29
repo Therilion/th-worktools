@@ -264,15 +264,19 @@ entry="$(printf '%s' "$out" | jq -c '.worktrees[] | select(.branch == "feature/f
 grep -qF "isCrossRepository" "$TMP/gh.calls" || fail "$name: la consulta a gh no pide isCrossRepository: [$(cat "$TMP/gh.calls")]"
 pass "$name"
 
-name="list --remote consulta gh con el host del origin (HOST/OWNER/REPO), no solo owner/repo"
-git init -q -b main "$TMP/ghe"
-git -C "$TMP/ghe" remote add origin "git@ghe.example.com:acme/enterprise.git"
-git config --global --add "url.$TMP/origin.git.insteadOf" "git@ghe.example.com:acme/enterprise.git"
+name="list --remote consulta gh con owner/repo sin host, también con alias SSH o credenciales en la URL"
 echo '[]' > "$TMP/gh.json"
-rm -f "$TMP/gh.calls"
-(cd "$TMP/ghe" && "$WT" list --remote >/dev/null 2>&1) || fail "$name: list --remote falló en el repo con host propio"
-grep -qF -- "-R ghe.example.com/acme/enterprise " "$TMP/gh.calls" || fail "$name: enterprise: gh no recibió el host: [$(cat "$TMP/gh.calls")]"
-rm -f "$TMP/gh.calls"
-(cd "$TMP/repo" && "$WT" list --remote >/dev/null 2>&1) || fail "$name: list --remote falló en el repo de github.com"
-grep -qF -- "-R github.com/acme/demo " "$TMP/gh.calls" || fail "$name: github.com: gh no recibió el host: [$(cat "$TMP/gh.calls")]"
+# gh usa github.com, o el host de GH_HOST: th-wt no debe inventar uno a partir de la URL (alias SSH, user:token@).
+i=0
+for url in "git@github-work:acme/aliased.git" "https://user:secrettoken@github.com/acme/creds.git"; do
+  i=$((i + 1))
+  git init -q -b main "$TMP/remote-url-$i"
+  git -C "$TMP/remote-url-$i" remote add origin "$url"
+  git config --global --add "url.$TMP/origin.git.insteadOf" "$url"
+  rm -f "$TMP/gh.calls"
+  (cd "$TMP/remote-url-$i" && "$WT" list --remote >"$TMP/url.out" 2>&1) || fail "$name: $url: list --remote falló: [$(cat "$TMP/url.out")]"
+  expected="-R acme/$(basename "${url##*/}" .git) "
+  grep -qF -- "$expected" "$TMP/gh.calls" || fail "$name: $url: gh no recibió [$expected]: [$(cat "$TMP/gh.calls")]"
+  ! grep -qF "secrettoken" "$TMP/gh.calls" "$TMP/url.out" || fail "$name: $url: la credencial aparece en la salida o en la llamada a gh"
+done
 pass "$name"
