@@ -312,3 +312,11 @@ out="$(cd "$TMP/repo" && PATH="$TMP/badjson:$PATH" "$WT" list --remote 2>&1)" ||
 [ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
 case "$out" in *"th-wt: unexpected output from gh pr list"*) ;; *) fail "$name: el mensaje no dice que la salida de gh es inesperada: [$out]" ;; esac
 pass "$name"
+
+name="list --remote no trae tags de origin al repo del usuario"
+git -C "$TMP/origin.git" tag v-from-origin main
+[ -z "$(git -C "$TMP/repo" tag -l)" ] || fail "$name: el repo ya tenía tags antes de la prueba"
+echo '[]' > "$TMP/gh.json"
+(cd "$TMP/repo" && "$WT" list --remote >/dev/null 2>&1) || fail "$name: th-wt list --remote falló"
+[ -z "$(git -C "$TMP/repo" tag -l)" ] || fail "$name: list --remote escribió tags: [$(git -C "$TMP/repo" tag -l)]"
+pass "$name"
