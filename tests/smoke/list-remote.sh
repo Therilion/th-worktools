@@ -218,3 +218,17 @@ jq -n --arg oid "$oid" --argjson b "$branches" '
 err="$(cd "$TMP/repo" && "$WT" list --remote 2>&1 >/dev/null)" || fail "$name: caso 3: th-wt list --remote falló"
 case "$err" in *"most recent PRs"*) fail "$name: caso 3: avisó con todas las ramas cubiertas: [$err]" ;; esac
 pass "$name"
+
+name="list --remote cuenta como mergeado un PR cuya base no es la rama por defecto"
+(cd "$TMP/repo" && "$WT" new feature/other-base) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-other-base"
+git -C "$dest" commit -q --allow-empty -m "trabajo mergeado en una rama de release"
+head="$(git -C "$dest" rev-parse HEAD)"
+jq -n --arg oid "$head" '[{number: 30, state: "MERGED", baseRefName: "release/1.0", headRefName: "feature/other-base", headRefOid: $oid}]' > "$TMP/gh.json"
+out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>/dev/null)" || fail "$name: th-wt list --remote --json falló"
+entry="$(printf '%s' "$out" | jq -S -c '.worktrees[] | select(.branch == "feature/other-base") | {merged, pr}')"
+[ "$entry" = '{"merged":false,"pr":{"ahead":false,"base":"release/1.0","number":30,"state":"MERGED"}}' ] || fail "$name: entrada=[$entry]"
+out="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || fail "$name: th-wt list --remote falló: [$out]"
+line="$(printf '%s\n' "$out" | grep -F "feature/other-base")" || fail "$name: no aparece la rama: [$out]"
+case "$line" in *"PR #30 MERGED (base release/1.0)"*) ;; *) fail "$name: la línea no dice PR #30 MERGED (base release/1.0): [$line]" ;; esac
+pass "$name"
