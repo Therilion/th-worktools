@@ -136,10 +136,12 @@ find_worktree() {
 }
 
 close_worktree() {
-  local branch="" json=0 path root default out dirty=true merged=false unpushed del_wt=true del_br=false what
+  local branch="" json=0 yes=0 force=0 path root default out oid dirty=true merged=false unpushed del_wt=true del_br=false what
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1 ;;
+      --yes) yes=1 ;;
+      --force) force=1 ;;
       -*) bad_usage ;;
       *) [ -z "$branch" ] || bad_usage; branch="$1" ;;
     esac
@@ -157,8 +159,15 @@ close_worktree() {
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   if [ -n "$default" ] && git merge-base --is-ancestor "refs/heads/$branch" "$default" 2>/dev/null; then merged=true; fi
   unpushed="$(git rev-list --count "refs/heads/$branch" --not --remotes=origin)"
-  if [ "$dirty" = true ] || [ "$unpushed" != 0 ]; then del_wt=false
+  if { [ "$dirty" = true ] || [ "$unpushed" != 0 ]; } && [ "$force" = 0 ]; then del_wt=false
   elif [ "$merged" = true ]; then del_br=true; fi
+  if [ "$yes" = 1 ]; then
+    [ "$del_wt" = true ] || die 4 "uncommitted changes or unpushed commits in $path (use --force to close anyway)"
+    oid="$(git rev-parse "refs/heads/$branch")"
+    if [ "$force" = 1 ]; then git worktree remove --force "$path"; else git worktree remove "$path"; fi
+    if [ "$del_br" = true ]; then git update-ref -d "refs/heads/$branch" "$oid"; else echo "th-wt: branch $branch kept: not contained in ${default:-the default branch}" >&2; fi
+    git worktree prune
+  fi
   if [ "$json" = 1 ]; then
     jq -n --arg path "$path" --arg branch "$branch" --argjson merged "$merged" --argjson dirty "$dirty" \
       --argjson unpushed "$unpushed" --argjson wt "$del_wt" --argjson br "$del_br" \
@@ -175,7 +184,7 @@ close_worktree() {
     echo "  dirty:     $dirty"
     echo "  unpushed:  $unpushed commits"
     echo "  delete:    $what"
-    echo "Dry run: nothing deleted. Add --yes to close."
+    if [ "$yes" = 1 ]; then echo "closed $path"; else echo "Dry run: nothing deleted. Add --yes to close."; fi
   } >&2
 }
 
