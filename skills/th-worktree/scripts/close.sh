@@ -17,6 +17,8 @@ close_worktree() {
   [ -n "$branch" ] || bad_usage
   resolve_repo
   root="$HOME/.worktrees/$repo/"
+  # read before anything else: a commit that lands later must not be deleted with the branch
+  oid="$(git rev-parse --verify -q "refs/heads/$branch")" || die 4 "no worktree for branch $branch under $root"
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   row="$(list_rows "$root" "$default" null false | jq -cs --arg b "$branch" 'map(select(.branch == $b))[0] // empty')"
   [ -n "$row" ] || die 4 "no worktree for branch $branch under $root"
@@ -27,7 +29,7 @@ close_worktree() {
   if [ "$missing" = false ] && out="$(git --no-optional-locks -C "$path" status --porcelain --ignored --untracked-files=normal 2>/dev/null)"; then
     ignored="$(printf '%s\n' "$out" | jq -R -n -c '[inputs | select(startswith("!! ")) | .[3:]]')"
   fi
-  unpushed="$(git rev-list --count "refs/heads/$branch" --not --remotes=origin)"
+  unpushed="$(git rev-list --count "$oid" --not --remotes=origin)"
   if { [ "$dirty" = true ] || [ "$unreadable" = true ] || [ "$unpushed" != 0 ]; } && [ "$force" = 0 ]; then del_wt=false
   elif [ "$merged" = true ]; then del_br=true; fi
   if [ "$yes" = 1 ]; then
@@ -41,10 +43,11 @@ close_worktree() {
       [ "$unreadable" = false ] || why="${why:+$why; }cannot read git status of $path"
       die 4 "$why (use --force to close anyway)"
     fi
-    oid="$(git rev-parse "refs/heads/$branch")"
     if [ "$force" = 1 ]; then git worktree remove --force "$path" || die 4 "git could not remove $path (locked?)"
     else git worktree remove "$path" || die 4 "git could not remove $path (locked?)"; fi
-    if [ "$del_br" = true ]; then git update-ref -d "refs/heads/$branch" "$oid"
+    if [ "$del_br" = true ]; then
+      # update-ref only deletes if the branch still points at $oid; otherwise a commit arrived meanwhile
+      git update-ref -d "refs/heads/$branch" "$oid" 2>/dev/null || echo "th-wt: branch $branch kept: it moved while closing" >&2
     elif [ "$merged" = null ]; then echo "th-wt: branch $branch kept: default branch unknown (try: git remote set-head origin -a)" >&2
     else echo "th-wt: branch $branch kept: not contained in $default" >&2; fi
   fi

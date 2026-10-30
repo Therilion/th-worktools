@@ -222,3 +222,40 @@ printf '%s\n' "$out" | grep -qE 'ignored: +\.env, build/' || fail "$name: el pla
 case "$out" in *no-imprimir*) fail "$name: se imprimió el contenido de .env (texto)" ;; esac
 [ -d "$dest" ] || fail "$name: se borró el directorio en el dry-run"
 pass "$name"
+
+name="close --yes nunca pierde un commit que llega mientras se cierra"
+# git falso: reenvía al real y, una sola vez, hace un commit en el worktree justo antes de la llamada que coincide con FAKE_MATCH.
+REAL_GIT="$(command -v git)"
+mkdir "$TMP/fakebin"
+cat > "$TMP/fakebin/git" <<'FAKE'
+#!/bin/sh
+if [ ! -e "$FAKE_MARK" ]; then
+  case " $* " in
+    $FAKE_MATCH) : > "$FAKE_MARK"; "$REAL_GIT" -C "$FAKE_DEST" commit -q --allow-empty -m carrera ;;
+  esac
+fi
+exec "$REAL_GIT" "$@"
+FAKE
+chmod +x "$TMP/fakebin/git"
+# (a) el commit llega antes de leer el oid de la rama
+(cd "$TMP/repo" && "$WT" new feature/ra) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-ra"
+base="$(git -C "$TMP/repo" rev-parse refs/heads/feature/ra)"
+rc=0
+out="$(cd "$TMP/repo" && REAL_GIT="$REAL_GIT" FAKE_DEST="$dest" FAKE_MARK="$TMP/mark-a" FAKE_MATCH='*rev-parse*refs/heads/feature/ra*' PATH="$TMP/fakebin:$PATH" "$WT" close feature/ra --yes 2>&1)" || rc=$?
+[ -e "$TMP/mark-a" ] || fail "$name: (a) el git falso no inyectó el commit: [$out]"
+[ "$(git -C "$TMP/repo" log -1 --format=%s refs/heads/feature/ra 2>/dev/null)" = carrera ] || fail "$name: (a) la rama no apunta al commit inyectado (rc=$rc): [$out]"
+[ "$(git -C "$TMP/repo" rev-parse refs/heads/feature/ra^)" = "$base" ] || fail "$name: (a) la rama no es base + commit inyectado"
+# (b) el commit llega justo antes de git worktree remove
+(cd "$TMP/repo" && "$WT" new feature/rb) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-rb"
+base="$(git -C "$TMP/repo" rev-parse refs/heads/feature/rb)"
+rc=0
+out="$(cd "$TMP/repo" && REAL_GIT="$REAL_GIT" FAKE_DEST="$dest" FAKE_MARK="$TMP/mark-b" FAKE_MATCH='*worktree remove*' PATH="$TMP/fakebin:$PATH" "$WT" close feature/rb --yes 2>&1)" || rc=$?
+[ -e "$TMP/mark-b" ] || fail "$name: (b) el git falso no inyectó el commit: [$out]"
+[ "$rc" = 0 ] || fail "$name: (b) exit=$rc, esperado 0: [$out]"
+[ ! -e "$dest" ] || fail "$name: (b) sigue el directorio"
+[ "$(git -C "$TMP/repo" log -1 --format=%s refs/heads/feature/rb 2>/dev/null)" = carrera ] || fail "$name: (b) la rama no apunta al commit inyectado: [$out]"
+[ "$(git -C "$TMP/repo" rev-parse refs/heads/feature/rb^)" = "$base" ] || fail "$name: (b) la rama no es base + commit inyectado"
+printf '%s\n' "$out" | grep -qE '^th-wt: .*feature/rb.*kept.*moved' || fail "$name: (b) falta el aviso de rama movida: [$out]"
+pass "$name"
