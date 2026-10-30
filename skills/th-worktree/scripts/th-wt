@@ -5,9 +5,11 @@ usage() {
   cat <<'USAGE'
 Usage: th-wt new <branch> [--base <branch>] [--json]
        th-wt list [--remote] [--json]
+       th-wt close <branch> [--yes] [--force] [--json]
 
-new   Create a git worktree for a new branch under ~/.worktrees.
-list  Show this repo's worktrees under ~/.worktrees (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
+new    Create a git worktree for a new branch under ~/.worktrees.
+list   Show this repo's worktrees under ~/.worktrees (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
+close  Remove the worktree of <branch> under ~/.worktrees and its branch if merged. Dry-run unless --yes; --force also closes with uncommitted changes or unpushed commits.
 USAGE
 }
 
@@ -122,9 +124,64 @@ list_worktrees() {
   fi
 }
 
+# Path of the worktree of branch $1 whose path starts with $2 (case lives here: bash 3.2 mis-parses it inside $(...)).
+find_worktree() {
+  local line path=""
+  git worktree list --porcelain | while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) path="${line#worktree }" ;;
+      "branch refs/heads/$1") case "$path" in "$2"*) echo "$path" ;; esac ;;
+    esac
+  done
+}
+
+close_worktree() {
+  local branch="" json=0 path root default out dirty=true merged=false unpushed del_wt=true del_br=false what
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json) json=1 ;;
+      -*) bad_usage ;;
+      *) [ -z "$branch" ] || bad_usage; branch="$1" ;;
+    esac
+    shift
+  done
+  [ -n "$branch" ] || bad_usage
+  resolve_repo
+  root="$HOME/.worktrees/$repo/"
+  path="$(find_worktree "$branch" "$root")"
+  [ -n "$path" ] || die 4 "no worktree for branch $branch under $root"
+  if out="$(git --no-optional-locks -C "$path" status --porcelain --untracked-files=normal 2>/dev/null)"; then
+    dirty=false
+    [ -z "$out" ] || dirty=true
+  fi
+  default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  if [ -n "$default" ] && git merge-base --is-ancestor "refs/heads/$branch" "$default" 2>/dev/null; then merged=true; fi
+  unpushed="$(git rev-list --count "refs/heads/$branch" --not --remotes=origin)"
+  if [ "$dirty" = true ] || [ "$unpushed" != 0 ]; then del_wt=false
+  elif [ "$merged" = true ]; then del_br=true; fi
+  if [ "$json" = 1 ]; then
+    jq -n --arg path "$path" --arg branch "$branch" --argjson merged "$merged" --argjson dirty "$dirty" \
+      --argjson unpushed "$unpushed" --argjson wt "$del_wt" --argjson br "$del_br" \
+      '{path: $path, branch: $branch, merged: $merged, dirty: $dirty, unpushed: $unpushed, delete: {worktree: $wt, branch: $br}}'
+    return 0
+  fi
+  if [ "$del_wt" = false ]; then what="nothing (blocked by uncommitted changes or unpushed commits)"
+  elif [ "$del_br" = true ]; then what="worktree and branch"
+  else what="worktree only (branch kept: not merged)"; fi
+  {
+    echo "  branch:    $branch"
+    echo "  path:      $path"
+    echo "  merged:    $merged"
+    echo "  dirty:     $dirty"
+    echo "  unpushed:  $unpushed commits"
+    echo "  delete:    $what"
+    echo "Dry run: nothing deleted. Add --yes to close."
+  } >&2
+}
+
 cmd="${1:-}"
 case "$cmd" in
-  new|list) ;;
+  new|list|close) ;;
   -h|--help) usage; exit 0 ;;
   *) bad_usage ;;
 esac
@@ -136,6 +193,10 @@ done
 shift
 if [ "$cmd" = list ]; then
   list_worktrees "$@"
+  exit 0
+fi
+if [ "$cmd" = close ]; then
+  close_worktree "$@"
   exit 0
 fi
 case "${1:-}" in
