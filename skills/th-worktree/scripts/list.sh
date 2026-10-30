@@ -2,61 +2,6 @@
 # shellcheck source=lib.sh source-path=SCRIPTDIR
 # shellcheck disable=SC2154 # $repo is set by resolve_repo in lib.sh
 
-# One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
-list_rows() {
-  local root="$1" default="$2" prs="$3" remote="$4" path line head dirty missing ref name merged rc out pr oid ahead
-  git worktree list --porcelain | while IFS= read -r line; do
-    case "$line" in
-      "worktree "*) path="${line#worktree }" ;;
-      "HEAD "*) head="${line#HEAD }" ;;
-      "branch "*|detached)
-        case "$path" in "$root"*) ;; *) continue ;; esac
-        if [ "$line" = detached ]; then
-          ref="$head"
-          name=""
-        else
-          ref="${line#branch }"
-          name="${ref#refs/heads/}"
-        fi
-        dirty=false
-        missing=false
-        if [ -d "$path" ]; then
-          if out="$(git --no-optional-locks -C "$path" status --porcelain --untracked-files=normal 2>/dev/null)"; then
-            [ -z "$out" ] || dirty=true
-          else
-            dirty=null
-          fi
-        else
-          missing=true
-          dirty=null
-        fi
-        merged=null
-        if [ -n "$default" ]; then
-          rc=0
-          git merge-base --is-ancestor "$ref" "$default" 2>/dev/null || rc=$?
-          # 0 = ancestor, 1 = not; anything else (unborn branch, missing default) = unknown
-          case "$rc" in 0) merged=true ;; 1) merged=false ;; esac
-        fi
-        pr=null
-        ahead=null
-        # the PR is looked up once per row, and only for branches git does not already contain
-        if [ "$remote" = true ] && [ -n "$name" ] && [ "$merged" != true ]; then
-          pr="$(jq -c --arg b "$name" '[.[] | select(.headRefName == $b and (.isCrossRepository | not))] | max_by(.number)' <<<"$prs")"
-          oid="$(jq -r '.headRefOid // empty' <<<"$pr")"
-          if [ -n "$oid" ]; then
-            rc=0
-            git merge-base --is-ancestor "$ref" "$oid" 2>/dev/null || rc=$?
-            # 0 = ancestor, 1 = local commits after the PR head; anything else (no PR head, or not fetched) = unknown
-            case "$rc" in 0) ahead=false ;; 1) ahead=true ;; esac
-          fi
-        fi
-        jq -cn --arg path "$path" --arg branch "$name" --argjson dirty "$dirty" --argjson merged "$merged" --argjson missing "$missing" --argjson remote "$remote" --argjson pr "$pr" --argjson ahead "$ahead" \
-          '{path: $path, branch: (if $branch == "" then null else $branch end), dirty: $dirty, merged: $merged, missing: $missing}
-           + if $remote then {pr: ($pr | if . == null then null else {number, state, base: .baseRefName, ahead: $ahead} end)} else {} end' ;;
-    esac
-  done
-}
-
 list_worktrees() {
   local default root rows base pr_limit=100 json=0 remote=false prs=null
   while [ $# -gt 0 ]; do

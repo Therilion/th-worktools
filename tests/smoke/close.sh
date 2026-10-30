@@ -21,7 +21,7 @@ pass "$name"
 
 name="close --json sin --yes devuelve un único objeto con el plan"
 out="$(cd "$TMP/repo" && "$WT" close feature/x --json 2>/dev/null)" || fail "$name: th-wt close --json falló"
-expected="{\"branch\":\"feature/x\",\"delete\":{\"branch\":true,\"worktree\":true},\"dirty\":false,\"merged\":true,\"path\":\"$dest\",\"unpushed\":0}"
+expected="{\"branch\":\"feature/x\",\"delete\":{\"branch\":true,\"worktree\":true},\"dirty\":false,\"merged\":true,\"missing\":false,\"path\":\"$dest\",\"unpushed\":0}"
 [ "$(printf '%s' "$out" | jq -S -c .)" = "$expected" ] || fail "$name: plan=[$out]"
 [ -d "$dest" ] || fail "$name: se borró el directorio en el dry-run"
 pass "$name"
@@ -142,4 +142,38 @@ out="$(cd "$dest" && "$WT" close feature/c --yes 2>&1)" || rc=$?
 [ "$rc" = 4 ] || fail "$name: desde la raíz del worktree: exit=$rc, esperado 4: [$out]"
 [ -d "$dest" ] || fail "$name: se borró el directorio"
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/c || fail "$name: se borró la rama"
+pass "$name"
+
+name="close de un worktree con el directorio borrado lo muestra como faltante y lo cierra sin --force"
+(cd "$TMP/repo" && "$WT" new feature/m) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-m"
+rm -rf "$dest"
+out="$(cd "$TMP/repo" && "$WT" close feature/m --json 2>/dev/null)" || fail "$name: th-wt close --json falló"
+[ "$(printf '%s' "$out" | jq -c '[.missing, .dirty, .merged]')" = "[true,null,true]" ] || fail "$name: plan=[$out]"
+out="$(cd "$TMP/repo" && "$WT" close feature/m 2>&1)" || fail "$name: th-wt close falló: [$out]"
+printf '%s\n' "$out" | grep -qi 'missing' || fail "$name: el plan no dice que falta el directorio: [$out]"
+printf '%s\n' "$out" | grep -qE 'dirty: +unknown' || fail "$name: dirty no sale unknown: [$out]"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close feature/m --yes 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+wts="$(git -C "$TMP/repo" worktree list --porcelain)"
+case "$wts" in *"$dest"*) fail "$name: git worktree list aún muestra el worktree" ;; esac
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/m && fail "$name: sigue la rama"
+pass "$name"
+
+name="close sin origin/HEAD local muestra merged desconocido, conserva la rama y sugiere git remote set-head origin -a"
+(cd "$TMP/repo" && "$WT" new feature/u) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-u"
+git -C "$TMP/repo" remote set-head origin -d >/dev/null
+out="$(cd "$TMP/repo" && "$WT" close feature/u --json 2>/dev/null)" || fail "$name: th-wt close --json falló"
+[ "$(printf '%s' "$out" | jq -c '[.merged, .delete.branch]')" = "[null,false]" ] || fail "$name: plan=[$out]"
+out="$(cd "$TMP/repo" && "$WT" close feature/u 2>&1)" || fail "$name: th-wt close falló: [$out]"
+printf '%s\n' "$out" | grep -qE 'merged: +unknown' || fail "$name: merged no sale unknown: [$out]"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close feature/u --yes 2>&1)" || rc=$?
+git -C "$TMP/repo" remote set-head origin main >/dev/null
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+[ ! -e "$dest" ] || fail "$name: sigue el directorio"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/u || fail "$name: se borró la rama con merged desconocido"
+printf '%s\n' "$out" | grep -qF 'git remote set-head origin -a' || fail "$name: falta la sugerencia: [$out]"
 pass "$name"
