@@ -258,4 +258,16 @@ out="$(cd "$TMP/repo" && REAL_GIT="$REAL_GIT" FAKE_DEST="$dest" FAKE_MARK="$TMP/
 [ "$(git -C "$TMP/repo" log -1 --format=%s refs/heads/feature/rb 2>/dev/null)" = carrera ] || fail "$name: (b) la rama no apunta al commit inyectado: [$out]"
 [ "$(git -C "$TMP/repo" rev-parse refs/heads/feature/rb^)" = "$base" ] || fail "$name: (b) la rama no es base + commit inyectado"
 printf '%s\n' "$out" | grep -qE '^th-wt: .*feature/rb.*kept.*moved' || fail "$name: (b) falta el aviso de rama movida: [$out]"
+line="$(printf '%s\n' "$out" | grep -E '^ +delete:' || true)"
+case "$line" in *moved*) ;; *) fail "$name: (b) la línea delete: no dice moved: [$line]" ;; esac
+case "$line" in *"not merged"*) fail "$name: (b) la línea delete: dice not merged: [$line]" ;; esac
+# (c) igual que (b) con --yes --json: el objeto describe lo ejecutado
+(cd "$TMP/repo" && "$WT" new feature/rc) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-rc"
+rc=0
+out="$(cd "$TMP/repo" && REAL_GIT="$REAL_GIT" FAKE_DEST="$dest" FAKE_MARK="$TMP/mark-c" FAKE_MATCH='*worktree remove*' PATH="$TMP/fakebin:$PATH" "$WT" close feature/rc --yes --json 2>"$TMP/err-c")" || rc=$?
+[ -e "$TMP/mark-c" ] || fail "$name: (c) el git falso no inyectó el commit"
+[ "$rc" = 0 ] || fail "$name: (c) exit=$rc, esperado 0: [$out]"
+[ "$(printf '%s' "$out" | jq -c '.delete.branch')" = false ] || fail "$name: (c) delete.branch debería ser false: [$out]"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/rc || fail "$name: (c) se borró la rama"
 pass "$name"

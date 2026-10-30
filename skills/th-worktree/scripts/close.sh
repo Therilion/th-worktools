@@ -47,7 +47,10 @@ close_worktree() {
     else git worktree remove "$path" || die 4 "git could not remove $path (locked?)"; fi
     if [ "$del_br" = true ]; then
       # update-ref only deletes if the branch still points at $oid; otherwise a commit arrived meanwhile
-      git update-ref -d "refs/heads/$branch" "$oid" 2>/dev/null || echo "th-wt: branch $branch kept: it moved while closing" >&2
+      if ! git update-ref -d "refs/heads/$branch" "$oid" 2>/dev/null; then
+        del_br=false
+        echo "th-wt: branch $branch kept: it moved while closing" >&2
+      fi
     elif [ "$merged" = null ]; then echo "th-wt: branch $branch kept: default branch unknown (try: git remote set-head origin -a)" >&2
     else echo "th-wt: branch $branch kept: not contained in $default" >&2; fi
   fi
@@ -59,6 +62,7 @@ close_worktree() {
   fi
   if [ "$del_wt" = false ]; then what="nothing (blocked by uncommitted changes or unpushed commits)"
   elif [ "$del_br" = true ]; then what="worktree and branch"
+  elif [ "$merged" = true ]; then what="worktree only (branch kept: it moved while closing)" # only reachable after the race
   elif [ "$merged" = null ]; then what="worktree only (branch kept: default branch unknown)"
   else what="worktree only (branch kept: not merged)"; fi
   {
