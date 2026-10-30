@@ -81,4 +81,3 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt list` en la terminal (#11): el texto va solo a stderr, así que `th-wt list | grep` no recibe nada; mandar las filas a stdout y dejar solo los avisos en stderr.
 - `th-wt list` y mayúsculas: el prefijo de la raíz distingue mayúsculas, pero APFS no; un cambio de capitalización en la URL de `origin` oculta worktrees existentes. Resolverlo junto con los symlinks (#8).
 - `th-wt list` y archivos ignorados: `dirty` no cuenta los ignorados por git; decidir qué significa «limpio» cuando `new` copie `.env` (#7).
-- Despachar los subcomandos de `th-wt` con un `case` y una función por subcomando (`new_worktree`, `list_worktrees`…) al añadir `close` (#3); hoy `list` es función y `new` es código de nivel superior.

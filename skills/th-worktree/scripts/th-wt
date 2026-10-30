@@ -195,6 +195,49 @@ close_worktree() {
   } >&2
 }
 
+new_worktree() {
+  local branch base json dest head_ref
+  case "${1:-}" in
+    ""|-*) bad_usage ;;
+  esac
+  branch="$1"
+  shift
+  base=""
+  json=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --base) { [ $# -ge 2 ] && [ -n "$2" ]; } || bad_usage; base="$2"; shift 2 ;;
+      --json) json=1; shift ;;
+      *) bad_usage ;;
+    esac
+  done
+
+  git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch"
+  [ -z "$base" ] || git check-ref-format "refs/heads/$base" || die 2 "invalid base branch: $base"
+
+  resolve_repo
+  dest="$HOME/.worktrees/$repo/${branch//\//-}"
+
+  [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
+
+  head_ref="$(git ls-remote --symref origin HEAD)" || die 1 "cannot read origin (unreachable or no access)"
+
+  if git show-ref --verify --quiet "refs/heads/$branch" || [ -n "$(git ls-remote --heads origin "refs/heads/$branch")" ]; then
+    die 4 "branch already exists: $branch"
+  fi
+
+  if [ -z "$base" ]; then
+    base="$(printf '%s\n' "$head_ref" | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
+    [ -n "$base" ] || die 1 "cannot determine origin's default branch (pass --base)"
+  fi
+  git fetch -q --no-tags origin "+refs/heads/$base:refs/remotes/origin/$base" || die 4 "base branch not found on origin (or fetch failed): $base"
+  git worktree add --no-track -q -b "$branch" "$dest" "origin/$base" || die 1 "git worktree add failed"
+
+  if [ "$json" = 1 ]; then
+    jq -n --arg path "$dest" --arg branch "$branch" --arg repo "$repo" '{path: $path, branch: $branch, repo: $repo}'
+  fi
+}
+
 cmd="${1:-}"
 case "$cmd" in
   new|list|close) ;;
@@ -207,50 +250,8 @@ for dep in git jq; do
 done
 
 shift
-if [ "$cmd" = list ]; then
-  list_worktrees "$@"
-  exit 0
-fi
-if [ "$cmd" = close ]; then
-  close_worktree "$@"
-  exit 0
-fi
-case "${1:-}" in
-  ""|-*) bad_usage ;;
+case "$cmd" in
+  new) new_worktree "$@" ;;
+  list) list_worktrees "$@" ;;
+  close) close_worktree "$@" ;;
 esac
-branch="$1"
-shift
-base=""
-json=0
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --base) { [ $# -ge 2 ] && [ -n "$2" ]; } || bad_usage; base="$2"; shift 2 ;;
-    --json) json=1; shift ;;
-    *) bad_usage ;;
-  esac
-done
-
-git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch"
-[ -z "$base" ] || git check-ref-format "refs/heads/$base" || die 2 "invalid base branch: $base"
-
-resolve_repo
-dest="$HOME/.worktrees/$repo/${branch//\//-}"
-
-[ ! -e "$dest" ] || die 4 "destination already exists: $dest"
-
-head_ref="$(git ls-remote --symref origin HEAD)" || die 1 "cannot read origin (unreachable or no access)"
-
-if git show-ref --verify --quiet "refs/heads/$branch" || [ -n "$(git ls-remote --heads origin "refs/heads/$branch")" ]; then
-  die 4 "branch already exists: $branch"
-fi
-
-if [ -z "$base" ]; then
-  base="$(printf '%s\n' "$head_ref" | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
-  [ -n "$base" ] || die 1 "cannot determine origin's default branch (pass --base)"
-fi
-git fetch -q --no-tags origin "+refs/heads/$base:refs/remotes/origin/$base" || die 4 "base branch not found on origin (or fetch failed): $base"
-git worktree add --no-track -q -b "$branch" "$dest" "origin/$base" || die 1 "git worktree add failed"
-
-if [ "$json" = 1 ]; then
-  jq -n --arg path "$dest" --arg branch "$branch" --arg repo "$repo" '{path: $path, branch: $branch, repo: $repo}'
-fi
