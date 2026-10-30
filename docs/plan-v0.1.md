@@ -70,8 +70,11 @@ th-worktools/
 │   └── th-worktree/
 │       ├── SKILL.md
 │       └── scripts/
-│           ├── th-wt         # entrypoint con subcomandos
-│           └── lib.sh        # funciones del skill
+│           ├── th-wt         # entrypoint: usage, dependencias y despacho; carga solo el archivo del subcomando
+│           ├── lib.sh        # funciones compartidas: die, bad_usage, resolve_repo, rama por defecto de origin
+│           ├── new.sh        # subcomando new
+│           ├── list.sh       # subcomando list
+│           └── close.sh      # subcomando close
 ├── tests/
 │   ├── smoke.sh              # ejecuta tests/smoke/*.sh, cada uno en un repo temporal propio
 │   ├── lib.sh                # fixture compartida (HOME aislado, origin bare, fail/pass)
@@ -113,13 +116,14 @@ th-worktools/
 
 ```bash
 src="${BASH_SOURCE[0]}"
+case "$src" in */*) ;; *) src="./$src" ;; esac
 while [ -L "$src" ]; do
-  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  dir="$(cd -P "${src%/*}" && pwd)"
   src="$(readlink "$src")"
   case "$src" in /*) ;; *) src="$dir/$src" ;; esac
 done
-SCRIPT_DIR="$(cd -P "$(dirname "$src")" && pwd)"
-# shellcheck source=lib.sh
+SCRIPT_DIR="$(cd -P "${src%/*}" && pwd)"
+# shellcheck source=lib.sh source-path=SCRIPTDIR
 . "$SCRIPT_DIR/lib.sh"
 ```
 
@@ -142,6 +146,7 @@ El objetivo es el bash de macOS (`/bin/bash`, 3.2). No basta con exigir el de Ho
 - Array vacío con `set -u` falla en bash < 4.4 → usar `${arr[@]+"${arr[@]}"}`.
 - `local x=$(cmd)` oculta el código de salida de `cmd` → declararla y asignarla en dos líneas (`local x; x=$(cmd)`).
 - `case … esac` dentro de `$( … )` falla en 3.2 (parsea mal el `)` de los patrones) → moverlo a una función.
+- El entrypoint `th-wt` usa solo builtins antes de la comprobación de dependencias (`${src%/*}`, no `dirname`), porque los tests lo ejecutan con un `PATH` mínimo sin `dirname`.
 
 ### GNU (Linux) vs BSD (macOS)
 
