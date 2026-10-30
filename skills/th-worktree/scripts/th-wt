@@ -30,6 +30,18 @@ resolve_repo() {
   esac
 }
 
+# Prints origin's default branch (empty if origin's HEAD is not a symref); fails only if origin cannot be read.
+origin_default_branch() {
+  local head_ref
+  head_ref="$(git ls-remote --symref origin HEAD)" || return 1
+  printf '%s\n' "$head_ref" | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }'
+}
+
+# Fetches origin's branch $1 into refs/remotes/origin/$1; the caller decides the exit code.
+fetch_origin_branch() {
+  git fetch -q --no-tags origin "+refs/heads/$1:refs/remotes/origin/$1"
+}
+
 # One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
   local root="$1" default="$2" prs="$3" remote="$4" path line head dirty missing ref name merged rc out pr oid ahead
@@ -86,7 +98,7 @@ list_rows() {
 }
 
 list_worktrees() {
-  local default root rows head_ref base pr_limit=100 json=0 remote=false prs=null
+  local default root rows base pr_limit=100 json=0 remote=false prs=null
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1; shift ;;
@@ -99,10 +111,9 @@ list_worktrees() {
   root="$HOME/.worktrees/$repo/"
   if [ "$remote" = true ]; then
     command -v gh >/dev/null || die 3 "missing dependency: gh"
-    head_ref="$(git ls-remote --symref origin HEAD)" || die 4 "cannot read origin (unreachable or no access)"
-    base="$(printf '%s\n' "$head_ref" | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
+    base="$(origin_default_branch)" || die 4 "cannot read origin (unreachable or no access)"
     [ -n "$base" ] || die 4 "cannot determine origin's default branch"
-    git fetch -q --no-tags origin "+refs/heads/$base:refs/remotes/origin/$base" || die 4 "fetch of origin/$base failed"
+    fetch_origin_branch "$base" || die 4 "fetch of origin/$base failed"
     default="origin/$base"
     prs="$(gh pr list -R "$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
     jq -e 'type == "array" and all(.[]; type == "object")' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
@@ -196,7 +207,7 @@ close_worktree() {
 }
 
 new_worktree() {
-  local branch base json dest head_ref
+  local branch base json dest default
   case "${1:-}" in
     ""|-*) bad_usage ;;
   esac
@@ -220,17 +231,17 @@ new_worktree() {
 
   [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
 
-  head_ref="$(git ls-remote --symref origin HEAD)" || die 1 "cannot read origin (unreachable or no access)"
+  default="$(origin_default_branch)" || die 1 "cannot read origin (unreachable or no access)"
 
   if git show-ref --verify --quiet "refs/heads/$branch" || [ -n "$(git ls-remote --heads origin "refs/heads/$branch")" ]; then
     die 4 "branch already exists: $branch"
   fi
 
   if [ -z "$base" ]; then
-    base="$(printf '%s\n' "$head_ref" | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
+    base="$default"
     [ -n "$base" ] || die 1 "cannot determine origin's default branch (pass --base)"
   fi
-  git fetch -q --no-tags origin "+refs/heads/$base:refs/remotes/origin/$base" || die 4 "base branch not found on origin (or fetch failed): $base"
+  fetch_origin_branch "$base" || die 4 "base branch not found on origin (or fetch failed): $base"
   git worktree add --no-track -q -b "$branch" "$dest" "origin/$base" || die 1 "git worktree add failed"
 
   if [ "$json" = 1 ]; then
