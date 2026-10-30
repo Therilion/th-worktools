@@ -177,3 +177,16 @@ git -C "$TMP/repo" remote set-head origin main >/dev/null
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/u || fail "$name: se borró la rama con merged desconocido"
 printf '%s\n' "$out" | grep -qF 'git remote set-head origin -a' || fail "$name: falta la sugerencia: [$out]"
 pass "$name"
+
+name="close --yes de un worktree bloqueado → exit 4 con mensaje"
+(cd "$TMP/repo" && "$WT" new feature/l) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-l"
+git -C "$TMP/repo" worktree lock "$dest"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close feature/l --yes 2>&1)" || rc=$?
+git -C "$TMP/repo" worktree unlock "$dest"
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+printf '%s\n' "$out" | grep -q '^th-wt: ' || fail "$name: falta el mensaje th-wt: [$out]"
+[ -d "$dest" ] || fail "$name: se borró el directorio"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/l || fail "$name: se borró la rama"
+pass "$name"

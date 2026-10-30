@@ -38,7 +38,8 @@ close_worktree() {
       die 4 "$why (use --force to close anyway)"
     fi
     oid="$(git rev-parse "refs/heads/$branch")"
-    if [ "$force" = 1 ]; then git worktree remove --force "$path"; else git worktree remove "$path"; fi
+    if [ "$force" = 1 ]; then git worktree remove --force "$path" || die 4 "git could not remove $path (locked?)"
+    else git worktree remove "$path" || die 4 "git could not remove $path (locked?)"; fi
     if [ "$del_br" = true ]; then git update-ref -d "refs/heads/$branch" "$oid"
     elif [ "$merged" = null ]; then echo "th-wt: branch $branch kept: default branch unknown (try: git remote set-head origin -a)" >&2
     else echo "th-wt: branch $branch kept: not contained in $default" >&2; fi
