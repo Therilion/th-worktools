@@ -12,8 +12,7 @@ list_worktrees() {
     esac
   done
   resolve_repo
-  # shortcut: root is compared with git's real paths without resolving symlinks, so a symlinked ~/.worktrees or $HOME lists nothing; canonicalize both sides with #8 (configurable root)
-  root="$HOME/.worktrees/$repo/"
+  root="$(worktrees_root)"
   if [ "$remote" = true ]; then
     command -v gh >/dev/null || die 3 "missing dependency: gh"
     base="$(origin_default_branch)" || die 4 "cannot read origin (unreachable or no access)"
@@ -23,7 +22,7 @@ list_worktrees() {
     prs="$(gh pr list -R "$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
     jq -e 'type == "array" and all(.[]; type == "object")' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
   else
-    default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+    default="$(local_default_branch)"
   fi
   rows="$(list_rows "$root" "$default" "$prs" "$remote")"
   # shortcut: PRs are matched within the latest $pr_limit only; make the limit configurable with #8

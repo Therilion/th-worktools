@@ -17,6 +17,13 @@ resolve_repo() {
   esac
 }
 
+# shortcut: root is compared with git's real paths without resolving symlinks, so a symlinked ~/.worktrees or $HOME lists nothing; canonicalize both sides with #8 (configurable root)
+# Where this repo's worktrees live; needs $repo from resolve_repo.
+worktrees_root() { printf '%s' "$HOME/.worktrees/$repo/"; }
+
+# Local default branch (e.g. origin/main) from refs/remotes/origin/HEAD; empty if unset. Offline.
+local_default_branch() { git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true; }
+
 # Prints origin's default branch (empty if origin's HEAD is not a symref); fails only if origin cannot be read.
 origin_default_branch() {
   local head_ref

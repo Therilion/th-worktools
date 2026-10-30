@@ -16,10 +16,10 @@ close_worktree() {
   done
   [ -n "$branch" ] || bad_usage
   resolve_repo
-  root="$HOME/.worktrees/$repo/"
+  root="$(worktrees_root)"
   # read before anything else: a commit that lands later must not be deleted with the branch
   oid="$(git rev-parse --verify -q "refs/heads/$branch")" || die 4 "no worktree for branch $branch under $root"
-  default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  default="$(local_default_branch)"
   row="$(list_rows "$root" "$default" null false "$branch")"
   [ -n "$row" ] || die 4 "no worktree for branch $branch under $root"
   # path goes last: read splits on tabs, so a path with spaces stays whole

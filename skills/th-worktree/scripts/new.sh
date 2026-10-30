@@ -23,7 +23,7 @@ new_worktree() {
   [ -z "$base" ] || git check-ref-format "refs/heads/$base" || die 2 "invalid base branch: $base"
 
   resolve_repo
-  dest="$HOME/.worktrees/$repo/${branch//\//-}"
+  dest="$(worktrees_root)${branch//\//-}"
 
   [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
 
