@@ -299,3 +299,46 @@ out="$(cd "$TMP/repo" && "$WT" close feature/tl --json 2>/dev/null)" || fail "$n
 out="$(cd "$TMP/repo" && "$WT" close feature/tl 2>&1)" || fail "$name: th-wt close falló: [$out]"
 printf '%s\n' "$out" | grep -qE 'ignored: +producción\.env' || fail "$name: el texto no muestra el nombre: [$out]"
 pass "$name"
+
+name="close con el estado de git ilegible muestra ignored desconocido"
+(cd "$TMP/repo" && "$WT" new feature/ig) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-ig"
+echo "gitdir: /nonexistent" > "$dest/.git"
+out="$(cd "$TMP/repo" && GIT_CEILING_DIRECTORIES="$TMP" "$WT" close feature/ig --json 2>/dev/null)" || fail "$name: th-wt close --json falló"
+[ "$(printf '%s' "$out" | jq -c '.ignored')" = null ] || fail "$name: ignored=[$(printf '%s' "$out" | jq -c '.ignored')], esperado null"
+out="$(cd "$TMP/repo" && GIT_CEILING_DIRECTORIES="$TMP" "$WT" close feature/ig 2>&1)" || fail "$name: th-wt close falló: [$out]"
+printf '%s\n' "$out" | grep -qE 'ignored: +unknown' || fail "$name: el plan no dice ignored unknown: [$out]"
+(cd "$TMP/repo" && "$WT" new feature/igm) || fail "$name: th-wt new falló"
+rm -rf "$HOME/.worktrees/acme/demo/feature-igm"
+out="$(cd "$TMP/repo" && "$WT" close feature/igm --json 2>/dev/null)" || fail "$name: th-wt close --json falló"
+[ "$(printf '%s' "$out" | jq -c '.ignored')" = '[]' ] || fail "$name: con el directorio faltante ignored=[$(printf '%s' "$out" | jq -c '.ignored')], esperado []"
+pass "$name"
+
+name="close sin --yes con el estado ilegible dice en el plan por qué se bloquea"
+(cd "$TMP/repo" && "$WT" new feature/bp) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-bp"
+echo "gitdir: /nonexistent" > "$dest/.git"
+out="$(cd "$TMP/repo" && GIT_CEILING_DIRECTORIES="$TMP" "$WT" close feature/bp 2>&1)" || fail "$name: th-wt close falló: [$out]"
+line="$(printf '%s\n' "$out" | grep -E '^ +delete:' || true)"
+case "$line" in *"cannot read git status"*) ;; *) fail "$name: la línea delete: no da el motivo: [$line]" ;; esac
+case "$line" in *uncommitted*) fail "$name: la línea delete: menciona cambios sin commitear: [$line]" ;; esac
+pass "$name"
+
+name="close --yes conserva la rama si sigue en uso en otro worktree"
+(cd "$TMP/repo" && "$WT" new feature/sh) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-sh"
+git -C "$TMP/repo" worktree add -q -f "$TMP/dup" feature/sh
+out="$(cd "$TMP/repo" && "$WT" close feature/sh --json 2>/dev/null)" || fail "$name: th-wt close --json falló"
+[ "$(printf '%s' "$out" | jq -c '.delete')" = '{"worktree":true,"branch":false}' ] || fail "$name: plan=[$out]"
+out="$(cd "$TMP/repo" && "$WT" close feature/sh 2>&1)" || fail "$name: th-wt close falló: [$out]"
+line="$(printf '%s\n' "$out" | grep -E '^ +delete:' || true)"
+case "$line" in *"checked out in another worktree"*) ;; *) fail "$name: la línea delete: no da el motivo: [$line]" ;; esac
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close feature/sh --yes 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+[ ! -e "$dest" ] || fail "$name: sigue el directorio"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/sh || fail "$name: se borró la rama en uso"
+printf '%s\n' "$out" | grep -qE '^th-wt: .*feature/sh.*checked out in another worktree' || fail "$name: falta el aviso: [$out]"
+[ -d "$TMP/dup" ] || fail "$name: se tocó el otro worktree"
+git -C "$TMP/repo" worktree remove --force "$TMP/dup"
+pass "$name"
