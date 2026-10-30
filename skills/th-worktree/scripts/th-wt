@@ -136,7 +136,7 @@ find_worktree() {
 }
 
 close_worktree() {
-  local branch="" json=0 yes=0 force=0 path root default out oid dirty=true merged=false unpushed del_wt=true del_br=false what
+  local branch="" json=0 yes=0 force=0 path root default out oid why here dirty=true merged=false unpushed del_wt=true del_br=false what
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1 ;;
@@ -162,7 +162,14 @@ close_worktree() {
   if { [ "$dirty" = true ] || [ "$unpushed" != 0 ]; } && [ "$force" = 0 ]; then del_wt=false
   elif [ "$merged" = true ]; then del_br=true; fi
   if [ "$yes" = 1 ]; then
-    [ "$del_wt" = true ] || die 4 "uncommitted changes or unpushed commits in $path (use --force to close anyway)"
+    here="$(pwd -P)"
+    case "$here/" in "$path/"*) die 4 "cannot close $path from inside it: run close from another directory" ;; esac
+    if [ "$del_wt" = false ]; then
+      why=""
+      [ "$dirty" = false ] || why="uncommitted changes"
+      [ "$unpushed" = 0 ] || why="${why:+$why and }$unpushed unpushed commit(s)"
+      die 4 "$why in $path (use --force to close anyway)"
+    fi
     oid="$(git rev-parse "refs/heads/$branch")"
     if [ "$force" = 1 ]; then git worktree remove --force "$path"; else git worktree remove "$path"; fi
     if [ "$del_br" = true ]; then git update-ref -d "refs/heads/$branch" "$oid"; else echo "th-wt: branch $branch kept: not contained in ${default:-the default branch}" >&2; fi

@@ -87,3 +87,59 @@ out="$(cd "$TMP/repo" && "$WT" close feature/w --yes 2>&1)" || rc=$?
 [ ! -e "$dest" ] || fail "$name: sigue el directorio"
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/w && fail "$name: sigue la rama contenida en origin/main"
 pass "$name"
+
+name="close --yes con cambios sin commitear → exit 4, no borra nada y dice por qué"
+(cd "$TMP/repo" && "$WT" new feature/d) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-d"
+echo sucio > "$dest/sucio.txt"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close feature/d --yes 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+[ -d "$dest" ] || fail "$name: se borró el directorio"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/d || fail "$name: se borró la rama"
+reason="$(printf '%s\n' "$out" | grep '^th-wt: ' || true)"
+case "$reason" in *"uncommitted changes"*) ;; *) fail "$name: el motivo no dice cambios sin commitear: [$reason]" ;; esac
+case "$reason" in *unpushed*) fail "$name: el motivo menciona commits sin push: [$reason]" ;; esac
+pass "$name"
+
+name="close --yes con commits sin push → exit 4, no borra nada y dice por qué"
+(cd "$TMP/repo" && "$WT" new feature/p) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-p"
+git -C "$dest" commit -q --allow-empty -m "sin push"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close feature/p --yes 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+[ -d "$dest" ] || fail "$name: se borró el directorio"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/p || fail "$name: se borró la rama"
+reason="$(printf '%s\n' "$out" | grep '^th-wt: ' || true)"
+case "$reason" in *"1 unpushed"*) ;; *) fail "$name: el motivo no dice 1 unpushed: [$reason]" ;; esac
+case "$reason" in *uncommitted*) fail "$name: el motivo menciona cambios sin commitear: [$reason]" ;; esac
+pass "$name"
+
+name="close --yes --force con cambios y commits sin push cierra el worktree y conserva la rama no mergeada"
+(cd "$TMP/repo" && "$WT" new feature/f) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-f"
+git -C "$dest" commit -q --allow-empty -m "sin push"
+echo sucio > "$dest/sucio.txt"
+oid="$(git -C "$TMP/repo" rev-parse refs/heads/feature/f)"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close feature/f --yes --force 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+[ ! -e "$dest" ] || fail "$name: sigue el directorio"
+[ "$(git -C "$TMP/repo" rev-parse refs/heads/feature/f)" = "$oid" ] || fail "$name: la rama cambió o no existe"
+printf '%s\n' "$out" | grep -qE '^th-wt: .*feature/f.*kept' || fail "$name: no hay aviso de rama conservada: [$out]"
+pass "$name"
+
+name="close --yes desde dentro del worktree a cerrar → exit 4"
+(cd "$TMP/repo" && "$WT" new feature/c) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-c"
+mkdir "$dest/sub"
+rc=0
+out="$(cd "$dest/sub" && "$WT" close feature/c --yes 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: desde un subdirectorio: exit=$rc, esperado 4: [$out]"
+rc=0
+out="$(cd "$dest" && "$WT" close feature/c --yes 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: desde la raíz del worktree: exit=$rc, esperado 4: [$out]"
+[ -d "$dest" ] || fail "$name: se borró el directorio"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/c || fail "$name: se borró la rama"
+pass "$name"
