@@ -3,7 +3,7 @@
 # shellcheck disable=SC2154 # $repo is set by resolve_repo in lib.sh
 
 close_worktree() {
-  local branch="" json=0 yes=0 force=0 path root default row oid why="" here dirty merged missing unpushed ignored=[] out unreadable=false shared=false del_wt=true del_br=false what
+  local branch="" json=0 yes=0 force=0 path root default row oid why="" err here dirty merged missing unpushed ignored=[] out unreadable=false kept="" del_wt=true del_br=false what
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1 ;;
@@ -15,6 +15,7 @@ close_worktree() {
     shift
   done
   [ -n "$branch" ] || bad_usage
+  git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch"
   resolve_repo
   root="$(worktrees_root)"
   # read before anything else: a commit that lands later must not be deleted with the branch
@@ -25,18 +26,18 @@ close_worktree() {
   # path goes last: read splits on tabs, so a path with spaces stays whole
   IFS=$'\t' read -r dirty merged missing path < <(jq -r '[.dirty, .merged, .missing, .path] | map(tostring) | join("\t")' <<<"$row")
   [ "$dirty" != null ] || [ "$missing" = true ] || unreadable=true
-  # ignored files are deleted with the directory but never block; only names are read (directories come collapsed)
-  if [ "$missing" = false ] && out="$(git -c core.quotePath=false --no-optional-locks -C "$path" status --porcelain --ignored --untracked-files=normal 2>/dev/null)"; then
-    ignored="$(printf '%s\n' "$out" | jq -R -n -c '[inputs | select(startswith("!! ")) | .[3:]]')"
+  # ignored files are deleted with the directory but never block; only names are read (directories come collapsed). -z: git does not quote names; tr because $(...) drops NUL bytes
+  if [ "$missing" = false ] && out="$(git --no-optional-locks -C "$path" status --porcelain -z --ignored --untracked-files=normal 2>/dev/null | tr '\0' '\1')"; then
+    ignored="$(printf '%s' "$out" | jq -R -s -c 'split("\u0001") | map(select(startswith("!! ")) | .[3:])')"
   elif [ "$missing" = false ]; then ignored=null; fi
   unpushed="$(git rev-list --count "$oid" --not --remotes=origin)"
   if { [ "$dirty" = true ] || [ "$unreadable" = true ] || [ "$unpushed" != 0 ]; } && [ "$force" = 0 ]; then del_wt=false
-  elif [ "$merged" = true ]; then
-    # a branch checked out elsewhere must survive: update-ref would leave that worktree on a dangling branch
-    if [ "$(git worktree list --porcelain | grep -cxF "branch refs/heads/$branch" || true)" -gt 1 ]; then shared=true; else del_br=true; fi
-  fi
+  elif [ "$merged" = null ]; then kept="default branch unknown (try: git remote set-head origin -a)"
+  elif [ "$merged" = false ]; then kept="not contained in $default"
+  # a branch checked out elsewhere must survive: update-ref would leave that worktree on a dangling branch
+  elif [ "$(git worktree list --porcelain | grep -cxF "branch refs/heads/$branch" || true)" -gt 1 ]; then kept="still checked out in another worktree"
+  else del_br=true; fi
   if [ "$del_wt" = false ]; then
-    why=""
     [ "$dirty" != true ] || why="uncommitted changes"
     [ "$unpushed" = 0 ] || why="${why:+$why and }$unpushed unpushed commit(s)"
     [ -z "$why" ] || why="$why in $path"
@@ -50,13 +51,15 @@ close_worktree() {
     else git worktree remove "$path" || die 4 "git could not remove $path (see git's message above)"; fi
     if [ "$del_br" = true ]; then
       # update-ref only deletes if the branch still points at $oid; otherwise a commit arrived meanwhile
-      if ! git update-ref -d "refs/heads/$branch" "$oid" 2>/dev/null; then
+      if err="$(git update-ref -d "refs/heads/$branch" "$oid" 2>&1)"; then
+        git config --remove-section "branch.$branch" 2>/dev/null || true
+      else
         del_br=false
-        echo "th-wt: branch $branch kept: it moved while closing" >&2
+        if [ "$(git rev-parse --verify -q "refs/heads/$branch" || true)" != "$oid" ]; then kept="it moved while closing"
+        else kept="git could not delete it: ${err//$'\n'/ }"; fi
       fi
-    elif [ "$shared" = true ]; then echo "th-wt: branch $branch kept: still checked out in another worktree" >&2
-    elif [ "$merged" = null ]; then echo "th-wt: branch $branch kept: default branch unknown (try: git remote set-head origin -a)" >&2
-    else echo "th-wt: branch $branch kept: not contained in $default" >&2; fi
+    fi
+    [ "$del_br" = true ] || echo "th-wt: branch $branch kept: $kept" >&2
   fi
   if [ "$json" = 1 ]; then
     jq -n --arg path "$path" --arg branch "$branch" --argjson merged "$merged" --argjson dirty "$dirty" --argjson missing "$missing" --argjson ignored "$ignored" \
@@ -66,10 +69,7 @@ close_worktree() {
   fi
   if [ "$del_wt" = false ]; then what="nothing (blocked: $why)"
   elif [ "$del_br" = true ]; then what="worktree and branch"
-  elif [ "$shared" = true ]; then what="worktree only (branch kept: checked out in another worktree)"
-  elif [ "$merged" = true ]; then what="worktree only (branch kept: it moved while closing)" # only reachable after the race
-  elif [ "$merged" = null ]; then what="worktree only (branch kept: default branch unknown)"
-  else what="worktree only (branch kept: not merged)"; fi
+  else what="worktree only (branch kept: $kept)"; fi
   {
     echo "  branch:    $branch"
     echo "  path:      $path"

@@ -342,3 +342,58 @@ printf '%s\n' "$out" | grep -qE '^th-wt: .*feature/sh.*checked out in another wo
 [ -d "$TMP/dup" ] || fail "$name: se tocó el otro worktree"
 git -C "$TMP/repo" worktree remove --force "$TMP/dup"
 pass "$name"
+
+name="close muestra tal cual los nombres ignorados con espacios"
+common="$(git -C "$TMP/repo" rev-parse --git-common-dir)"
+case "$common" in /*) ;; *) common="$TMP/repo/$common" ;; esac
+printf '%s\n' 'secret file.txt' >> "$common/info/exclude"
+(cd "$TMP/repo" && "$WT" new feature/sp) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-sp"
+echo x > "$dest/secret file.txt"
+out="$(cd "$TMP/repo" && "$WT" close feature/sp --json 2>/dev/null)" || fail "$name: th-wt close --json falló"
+[ "$(printf '%s' "$out" | jq -c '.ignored')" = '["secret file.txt"]' ] || fail "$name: ignored=[$(printf '%s' "$out" | jq -c '.ignored')]"
+pass "$name"
+
+name="close --yes al borrar la rama borra también su configuración branch.<rama>"
+(cd "$TMP/repo" && "$WT" new feature/cfg) || fail "$name: th-wt new falló"
+git -C "$TMP/repo" config branch.feature/cfg.remote origin
+git -C "$TMP/repo" config branch.feature/cfg.merge refs/heads/feature/cfg
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close feature/cfg --yes 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/cfg && fail "$name: sigue la rama"
+left="$(git -C "$TMP/repo" config --get-regexp '^branch\.feature/cfg\.' || true)"
+[ -z "$left" ] || fail "$name: queda configuración: [$left]"
+pass "$name"
+
+name="close --yes sin poder borrar la rama da el error real, no 'moved'"
+if [ "$(git -C "$TMP/repo" rev-parse --show-ref-format 2>/dev/null || echo files)" != files ]; then
+  pass "$name (omitido: reftable)"
+else
+  (cd "$TMP/repo" && "$WT" new feature/lk) || fail "$name: th-wt new falló"
+  dest="$HOME/.worktrees/acme/demo/feature-lk"
+  common="$(git -C "$TMP/repo" rev-parse --git-common-dir)"
+  case "$common" in /*) ;; *) common="$TMP/repo/$common" ;; esac
+  lock="$common/refs/heads/feature/lk.lock"
+  touch "$lock"
+  rc=0
+  out="$(cd "$TMP/repo" && "$WT" close feature/lk --yes 2>&1)" || rc=$?
+  rm -f "$lock"
+  [ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+  [ ! -e "$dest" ] || fail "$name: sigue el directorio"
+  git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/lk || fail "$name: se borró la rama"
+  warn="$(printf '%s\n' "$out" | grep -E '^th-wt: .*feature/lk.*kept' || true)"
+  [ -n "$warn" ] || fail "$name: falta el aviso de rama conservada: [$out]"
+  case "$warn" in *moved*) fail "$name: el aviso dice moved: [$warn]" ;; esac
+  case "$warn" in *lock*) ;; *) fail "$name: el aviso no incluye el error de git: [$warn]" ;; esac
+  pass "$name"
+fi
+
+name="close con un nombre de rama inválido → exit 2"
+for bad in 'feat~1' 'a..b'; do
+  rc=0
+  out="$(cd "$TMP/repo" && "$WT" close "$bad" --json 2>/dev/null)" || rc=$?
+  [ "$rc" = 2 ] || fail "$name: [$bad]: exit=$rc, esperado 2"
+  [ -z "$out" ] || fail "$name: [$bad]: hay salida en stdout: [$out]"
+done
+pass "$name"
