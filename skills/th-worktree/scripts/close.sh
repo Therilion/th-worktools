@@ -20,7 +20,7 @@ close_worktree() {
   # read before anything else: a commit that lands later must not be deleted with the branch
   oid="$(git rev-parse --verify -q "refs/heads/$branch")" || die 4 "no worktree for branch $branch under $root"
   default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-  row="$(list_rows "$root" "$default" null false | jq -cs --arg b "$branch" 'map(select(.branch == $b))[0] // empty')"
+  row="$(list_rows "$root" "$default" null false "$branch")"
   [ -n "$row" ] || die 4 "no worktree for branch $branch under $root"
   # path goes last: read splits on tabs, so a path with spaces stays whole
   IFS=$'\t' read -r dirty merged missing path < <(jq -r '[.dirty, .merged, .missing, .path] | map(tostring) | join("\t")' <<<"$row")

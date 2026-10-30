@@ -29,9 +29,9 @@ fetch_origin_branch() {
   git fetch -q --no-tags origin "+refs/heads/$1:refs/remotes/origin/$1"
 }
 
-# One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
+# One JSON object per line for each worktree under $1, only the one on branch $5 if given (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
-  local root="$1" default="$2" prs="$3" remote="$4" path line head dirty missing ref name merged rc out pr oid ahead
+  local root="$1" default="$2" prs="$3" remote="$4" only="${5:-}" path line head dirty missing ref name merged rc out pr oid ahead
   git worktree list --porcelain | while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
@@ -45,6 +45,7 @@ list_rows() {
           ref="${line#branch }"
           name="${ref#refs/heads/}"
         fi
+        [ -z "$only" ] || [ "$name" = "$only" ] || continue
         dirty=false
         missing=false
         if [ -d "$path" ]; then
