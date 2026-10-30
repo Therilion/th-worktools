@@ -21,7 +21,7 @@ pass "$name"
 
 name="close --json sin --yes devuelve un único objeto con el plan"
 out="$(cd "$TMP/repo" && "$WT" close feature/x --json 2>/dev/null)" || fail "$name: th-wt close --json falló"
-expected="{\"branch\":\"feature/x\",\"delete\":{\"branch\":true,\"worktree\":true},\"dirty\":false,\"merged\":true,\"missing\":false,\"path\":\"$dest\",\"unpushed\":0}"
+expected="{\"branch\":\"feature/x\",\"delete\":{\"branch\":true,\"worktree\":true},\"dirty\":false,\"ignored\":[],\"merged\":true,\"missing\":false,\"path\":\"$dest\",\"unpushed\":0}"
 [ "$(printf '%s' "$out" | jq -S -c .)" = "$expected" ] || fail "$name: plan=[$out]"
 [ -d "$dest" ] || fail "$name: se borró el directorio en el dry-run"
 pass "$name"
@@ -203,4 +203,22 @@ out="$(cd "$TMP/repo" && "$WT" close feature/g --yes 2>&1)" || rc=$?
 [ ! -e "$dest" ] || fail "$name: sigue el directorio"
 wts="$(git -C "$TMP/repo" worktree list --porcelain)"
 case "$wts" in *"$gone"*) ;; *) fail "$name: se borró del registro el worktree con directorio faltante" ;; esac
+pass "$name"
+
+name="close sin --yes lista los archivos ignorados que se van a borrar (solo nombres)"
+common="$(git -C "$TMP/repo" rev-parse --git-common-dir)"
+case "$common" in /*) ;; *) common="$TMP/repo/$common" ;; esac
+printf '%s\n' .env build/ >> "$common/info/exclude"
+(cd "$TMP/repo" && "$WT" new feature/i) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-i"
+echo 'SECRET=no-imprimir' > "$dest/.env"
+mkdir "$dest/build"
+echo x > "$dest/build/x"
+out="$(cd "$TMP/repo" && "$WT" close feature/i --json 2>&1)" || fail "$name: th-wt close --json falló: [$out]"
+[ "$(printf '%s' "$out" | jq -c '[.ignored, .delete.worktree]')" = '[[".env","build/"],true]' ] || fail "$name: plan=[$out]"
+case "$out" in *no-imprimir*) fail "$name: se imprimió el contenido de .env (json)" ;; esac
+out="$(cd "$TMP/repo" && "$WT" close feature/i 2>&1)" || fail "$name: th-wt close falló: [$out]"
+printf '%s\n' "$out" | grep -qE 'ignored: +\.env, build/' || fail "$name: el plan no lista los ignorados: [$out]"
+case "$out" in *no-imprimir*) fail "$name: se imprimió el contenido de .env (texto)" ;; esac
+[ -d "$dest" ] || fail "$name: se borró el directorio en el dry-run"
 pass "$name"

@@ -3,7 +3,7 @@
 # shellcheck disable=SC2154 # $repo is set by resolve_repo in lib.sh
 
 close_worktree() {
-  local branch="" json=0 yes=0 force=0 path root default row oid why here dirty merged missing unpushed unreadable=false del_wt=true del_br=false what
+  local branch="" json=0 yes=0 force=0 path root default row oid why here dirty merged missing unpushed ignored=[] out unreadable=false del_wt=true del_br=false what
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1 ;;
@@ -23,6 +23,10 @@ close_worktree() {
   # path goes last: read splits on tabs, so a path with spaces stays whole
   IFS=$'\t' read -r dirty merged missing path < <(jq -r '[.dirty, .merged, .missing, .path] | map(tostring) | join("\t")' <<<"$row")
   [ "$dirty" != null ] || [ "$missing" = true ] || unreadable=true
+  # ignored files are deleted with the directory but never block; only names are read (directories come collapsed)
+  if [ "$missing" = false ] && out="$(git --no-optional-locks -C "$path" status --porcelain --ignored --untracked-files=normal 2>/dev/null)"; then
+    ignored="$(printf '%s\n' "$out" | jq -R -n -c '[inputs | select(startswith("!! ")) | .[3:]]')"
+  fi
   unpushed="$(git rev-list --count "refs/heads/$branch" --not --remotes=origin)"
   if { [ "$dirty" = true ] || [ "$unreadable" = true ] || [ "$unpushed" != 0 ]; } && [ "$force" = 0 ]; then del_wt=false
   elif [ "$merged" = true ]; then del_br=true; fi
@@ -45,9 +49,9 @@ close_worktree() {
     else echo "th-wt: branch $branch kept: not contained in $default" >&2; fi
   fi
   if [ "$json" = 1 ]; then
-    jq -n --arg path "$path" --arg branch "$branch" --argjson merged "$merged" --argjson dirty "$dirty" --argjson missing "$missing" \
+    jq -n --arg path "$path" --arg branch "$branch" --argjson merged "$merged" --argjson dirty "$dirty" --argjson missing "$missing" --argjson ignored "$ignored" \
       --argjson unpushed "$unpushed" --argjson wt "$del_wt" --argjson br "$del_br" \
-      '{path: $path, branch: $branch, merged: $merged, dirty: $dirty, missing: $missing, unpushed: $unpushed, delete: {worktree: $wt, branch: $br}}'
+      '{path: $path, branch: $branch, merged: $merged, dirty: $dirty, missing: $missing, ignored: $ignored, unpushed: $unpushed, delete: {worktree: $wt, branch: $br}}'
     return 0
   fi
   if [ "$del_wt" = false ]; then what="nothing (blocked by uncommitted changes or unpushed commits)"
@@ -61,6 +65,7 @@ close_worktree() {
     echo "  merged:    ${merged/null/unknown}"
     echo "  dirty:     ${dirty/null/unknown}"
     echo "  unpushed:  $unpushed commits"
+    echo "  ignored:   $(jq -r 'if length == 0 then "none" else join(", ") end' <<<"$ignored")"
     echo "  delete:    $what"
     if [ "$yes" = 1 ]; then echo "closed $path"; else echo "Dry run: nothing deleted. Add --yes to close."; fi
   } >&2
