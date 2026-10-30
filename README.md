@@ -69,8 +69,12 @@ Ideas que quedan fuera de la versión en curso.
 - Varias cuentas o hosts de GitHub: hoy `list --remote` consulta `gh` con `owner/repo` (github.com, o `GH_HOST` para Enterprise) y no entiende alias SSH. Idea: un configurador propio de multicuentas (una o varias keys por cuenta) en el directorio de configuración, que resuelva cuenta y host por repo (#8).
 - Unificar el código de salida de los errores de red entre subcomandos: hoy `new` sale con `1` si no puede leer `origin` y `list --remote` con `4`.
 - `th-wt list --remote` con un fork como `origin` (los PRs viven en el repo `upstream`): hoy todas las ramas salen con `pr: null` y sin aviso. Resolverlo consultando también `upstream`.
-- Extraer el descubrimiento y el fetch de la rama por defecto de `origin`, hoy duplicado entre `new` y `list --remote`, al despachar los subcomandos (#3).
-- Al implementar `close` (#3): un PR `MERGED` contra una base que no es la rama por defecto no significa que el trabajo llegó a esa rama; decidir qué muestra `close` en ese caso.
+- `th-wt close` de un worktree con HEAD desacoplado (rebase o bisect a medias): hoy sale con 4 «no worktree», porque `close` busca por rama. Permitir cerrarlo por ruta.
+- `th-wt close`: si la rama recibe un commit entre la lectura del `oid` y `list_rows`, el plan puede describir `merged` del commit nuevo y `unpushed` del anterior (el borrado sigue protegido por `update-ref`). Calcular `merged` sobre el `oid`.
+- `th-wt close`: ejecuta `git status` dos veces en el worktree (para `dirty` y para `ignored`); sacar los dos de una sola pasada con `--ignored`.
+- `th-wt close`: el plan no ve worktrees bloqueados (`git worktree lock`) ni con submódulos; promete borrar y `--yes` sale con 4 (con lock, `--force` tampoco basta: git pide `-f -f`). Leer `locked` del porcelain en `list_rows` y mostrarlo en el plan.
+- `th-wt close` de una rama huérfana sin commits (`worktree add --orphan`): sale con 4 «no worktree» aunque `list` la muestra.
+- `th-wt close`: lee `git worktree list --porcelain` dos veces (en `list_rows` y para saber si la rama está en otro worktree); devolverlo desde `list_rows` en una sola pasada.
 - `th-wt list --remote`: `ahead` sale `null` cuando el último commit del PR no está en local, algo común si se usó «Update branch» o se aceptó una sugerencia de review en GitHub antes del merge. Resolverlo trayendo `refs/pull/<n>/head` (solo objetos) para esas ramas.
 - `th-wt list --remote`: el texto «PR head not fetched» también sale cuando el PR no trae su último commit (`headRefOid` ausente); usar un mensaje que no sugiera hacer fetch.
 - `th-wt list --remote`: `ls-remote`, `fetch` y `gh pr list` son independientes y hoy corren en serie; lanzar `gh pr list` en segundo plano mientras se hace el fetch.
@@ -82,4 +86,10 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt list` en la terminal (#11): el texto va solo a stderr, así que `th-wt list | grep` no recibe nada; mandar las filas a stdout y dejar solo los avisos en stderr.
 - `th-wt list` y mayúsculas: el prefijo de la raíz distingue mayúsculas, pero APFS no; un cambio de capitalización en la URL de `origin` oculta worktrees existentes. Resolverlo junto con los symlinks (#8).
 - `th-wt list` y archivos ignorados: `dirty` no cuenta los ignorados por git; decidir qué significa «limpio» cuando `new` copie `.env` (#7).
-- Despachar los subcomandos de `th-wt` con un `case` y una función por subcomando (`new_worktree`, `list_worktrees`…) al añadir `close` (#3); hoy `list` es función y `new` es código de nivel superior.
+- Skill `th-pair-lead` (nombre tentativo): el agente principal hace de TL y delega cada ciclo TDD a un subagente «driver» (definido en `.claude/agents/`, con modelo y esfuerzo propios). Aprendizajes de la story 3, donde se probó a mano:
+  - Haiku sirve para refactors mecánicos con la spec cerrada; Sonnet, para TDD con casos de borde y criterio propio.
+  - Un commit por paso, nunca pedir varios pasos en tanda: si no, el refactor se mezcla con el fix y no se puede separar.
+  - Exigir que el test se escriba antes que el código: el RED obtenido corriendo el test contra el código viejo es un TDD menos estricto.
+  - Incluir en la lista de tests inicial los casos de borde (directorio borrado, estado desconocido, archivos ignorados, rama en dos worktrees); en la story 3 aparecieron recién en los reviews y costaron dos rondas extra.
+  - Tras cada review, mostrar el triage (corregir ahora o mandar a Ideas) y esperar la aprobación del usuario antes de delegar los fixes.
+  - Los subagentes son una extensión de Claude Code: el skill debe seguir funcionando en Antigravity si la ignora (§4 del plan), por ejemplo haciendo el ciclo el propio agente.

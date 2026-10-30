@@ -70,8 +70,11 @@ th-worktools/
 │   └── th-worktree/
 │       ├── SKILL.md
 │       └── scripts/
-│           ├── th-wt         # entrypoint con subcomandos
-│           └── lib.sh        # funciones del skill
+│           ├── th-wt         # entrypoint: usage, dependencias y despacho; carga solo el archivo del subcomando
+│           ├── lib.sh        # funciones compartidas: die, bad_usage, resolve_repo, rama por defecto de origin
+│           ├── new.sh        # subcomando new
+│           ├── list.sh       # subcomando list
+│           └── close.sh      # subcomando close
 ├── tests/
 │   ├── smoke.sh              # ejecuta tests/smoke/*.sh, cada uno en un repo temporal propio
 │   ├── lib.sh                # fixture compartida (HOME aislado, origin bare, fail/pass)
@@ -113,13 +116,14 @@ th-worktools/
 
 ```bash
 src="${BASH_SOURCE[0]}"
+case "$src" in */*) ;; *) src="./$src" ;; esac
 while [ -L "$src" ]; do
-  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  dir="$(cd -P "${src%/*}" && pwd)"
   src="$(readlink "$src")"
   case "$src" in /*) ;; *) src="$dir/$src" ;; esac
 done
-SCRIPT_DIR="$(cd -P "$(dirname "$src")" && pwd)"
-# shellcheck source=lib.sh
+SCRIPT_DIR="$(cd -P "${src%/*}" && pwd)"
+# shellcheck source=lib.sh source-path=SCRIPTDIR
 . "$SCRIPT_DIR/lib.sh"
 ```
 
@@ -142,6 +146,7 @@ El objetivo es el bash de macOS (`/bin/bash`, 3.2). No basta con exigir el de Ho
 - Array vacío con `set -u` falla en bash < 4.4 → usar `${arr[@]+"${arr[@]}"}`.
 - `local x=$(cmd)` oculta el código de salida de `cmd` → declararla y asignarla en dos líneas (`local x; x=$(cmd)`).
 - `case … esac` dentro de `$( … )` falla en 3.2 (parsea mal el `)` de los patrones) → moverlo a una función.
+- El entrypoint `th-wt` usa solo builtins antes de la comprobación de dependencias (`${src%/*}`, no `dirname`), porque los tests lo ejecutan con un `PATH` mínimo sin `dirname`.
 
 ### GNU (Linux) vs BSD (macOS)
 
@@ -330,9 +335,9 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 2. Si existe `.codegraph/` y codegraph está instalado: `codegraph uninit`.
 3. `git worktree remove <ruta>` (con `--force` solo si se pasó explícitamente).
 4. Rama:
-   - Normal: `git branch -d`. Si falla porque no está mergeada, se informa y **no se fuerza**.
+   - Normal: si está contenida en la rama por defecto de `origin` (mismo criterio que `list`), `git update-ref -d refs/heads/<rama> <oid>`, que falla si la rama se movió. No se usa `git branch -d` porque compara contra el HEAD local, que suele estar atrasado, y rechaza ramas ya mergeadas. Si no está contenida (o no se sabe), se conserva y se avisa; **no se fuerza**.
    - `th/pr-*`: `git branch -D` (es solo una copia local del PR remoto).
-5. `git worktree prune`.
+5. Sin `git worktree prune`: `git worktree remove` ya limpia su propio registro, incluso si el directorio ya no existe, y `prune` borraría también el registro de otros worktrees con el directorio faltante.
 6. PRs: eliminar `pr-reviews/pr-<n>/` solo si quedó vacío. El directorio `review/` lo gestionará `th-pr-review` (v0.3); `close` no lo toca.
 
 ### `list`

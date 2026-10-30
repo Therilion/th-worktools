@@ -1,130 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+src="${BASH_SOURCE[0]}"
+case "$src" in */*) ;; *) src="./$src" ;; esac
+while [ -L "$src" ]; do
+  dir="$(cd -P "${src%/*}" && pwd)"
+  src="$(readlink "$src")"
+  case "$src" in /*) ;; *) src="$dir/$src" ;; esac
+done
+SCRIPT_DIR="$(cd -P "${src%/*}" && pwd)"
+# shellcheck source=lib.sh source-path=SCRIPTDIR
+. "$SCRIPT_DIR/lib.sh"
+
 usage() {
   cat <<'USAGE'
 Usage: th-wt new <branch> [--base <branch>] [--json]
        th-wt list [--remote] [--json]
+       th-wt close <branch> [--yes] [--force] [--json]
 
-new   Create a git worktree for a new branch under ~/.worktrees.
-list  Show this repo's worktrees under ~/.worktrees (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
+new    Create a git worktree for a new branch under ~/.worktrees.
+list   Show this repo's worktrees under ~/.worktrees (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
+close  Remove the worktree of <branch> under ~/.worktrees and its branch if merged. Dry-run unless --yes; --force also closes with uncommitted changes or unpushed commits.
 USAGE
-}
-
-die() { echo "th-wt: $2" >&2; exit "$1"; }
-bad_usage() { usage >&2; exit 2; }
-
-# Sets $repo (<owner>/<repo>) from remote.origin.url.
-resolve_repo() {
-  local url
-  git rev-parse --git-dir >/dev/null 2>&1 || die 4 "not a git repository"
-  url="$(git config --get remote.origin.url || true)"
-  [ -n "$url" ] || die 4 "no 'origin' remote configured"
-  repo="$(printf '%s' "$url" | sed -E 's#^(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')"
-  case "/$repo/" in
-    *[:@]*|*//*|*/./*|*/../*) die 4 "unsupported origin URL: $url" ;;
-    /*/*/) ;;
-    *) die 4 "unsupported origin URL: $url" ;;
-  esac
-}
-
-# One JSON object per line for each worktree under $1 (kept out of $(...): bash 3.2 mis-parses case inside it).
-list_rows() {
-  local root="$1" default="$2" prs="$3" remote="$4" path line head dirty missing ref name merged rc out pr oid ahead
-  git worktree list --porcelain | while IFS= read -r line; do
-    case "$line" in
-      "worktree "*) path="${line#worktree }" ;;
-      "HEAD "*) head="${line#HEAD }" ;;
-      "branch "*|detached)
-        case "$path" in "$root"*) ;; *) continue ;; esac
-        if [ "$line" = detached ]; then
-          ref="$head"
-          name=""
-        else
-          ref="${line#branch }"
-          name="${ref#refs/heads/}"
-        fi
-        dirty=false
-        missing=false
-        if [ -d "$path" ]; then
-          if out="$(git --no-optional-locks -C "$path" status --porcelain --untracked-files=normal 2>/dev/null)"; then
-            [ -z "$out" ] || dirty=true
-          else
-            dirty=null
-          fi
-        else
-          missing=true
-          dirty=null
-        fi
-        merged=null
-        if [ -n "$default" ]; then
-          rc=0
-          git merge-base --is-ancestor "$ref" "$default" 2>/dev/null || rc=$?
-          # 0 = ancestor, 1 = not; anything else (unborn branch, missing default) = unknown
-          case "$rc" in 0) merged=true ;; 1) merged=false ;; esac
-        fi
-        pr=null
-        ahead=null
-        # the PR is looked up once per row, and only for branches git does not already contain
-        if [ "$remote" = true ] && [ -n "$name" ] && [ "$merged" != true ]; then
-          pr="$(jq -c --arg b "$name" '[.[] | select(.headRefName == $b and (.isCrossRepository | not))] | max_by(.number)' <<<"$prs")"
-          oid="$(jq -r '.headRefOid // empty' <<<"$pr")"
-          if [ -n "$oid" ]; then
-            rc=0
-            git merge-base --is-ancestor "$ref" "$oid" 2>/dev/null || rc=$?
-            # 0 = ancestor, 1 = local commits after the PR head; anything else (no PR head, or not fetched) = unknown
-            case "$rc" in 0) ahead=false ;; 1) ahead=true ;; esac
-          fi
-        fi
-        jq -cn --arg path "$path" --arg branch "$name" --argjson dirty "$dirty" --argjson merged "$merged" --argjson missing "$missing" --argjson remote "$remote" --argjson pr "$pr" --argjson ahead "$ahead" \
-          '{path: $path, branch: (if $branch == "" then null else $branch end), dirty: $dirty, merged: $merged, missing: $missing}
-           + if $remote then {pr: ($pr | if . == null then null else {number, state, base: .baseRefName, ahead: $ahead} end)} else {} end' ;;
-    esac
-  done
-}
-
-list_worktrees() {
-  local default root rows head_ref base pr_limit=100 json=0 remote=false prs=null
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --json) json=1; shift ;;
-      --remote) remote=true; shift ;;
-      *) bad_usage ;;
-    esac
-  done
-  resolve_repo
-  # shortcut: root is compared with git's real paths without resolving symlinks, so a symlinked ~/.worktrees or $HOME lists nothing; canonicalize both sides with #8 (configurable root)
-  root="$HOME/.worktrees/$repo/"
-  if [ "$remote" = true ]; then
-    command -v gh >/dev/null || die 3 "missing dependency: gh"
-    head_ref="$(git ls-remote --symref origin HEAD)" || die 4 "cannot read origin (unreachable or no access)"
-    base="$(printf '%s\n' "$head_ref" | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
-    [ -n "$base" ] || die 4 "cannot determine origin's default branch"
-    git fetch -q --no-tags origin "+refs/heads/$base:refs/remotes/origin/$base" || die 4 "fetch of origin/$base failed"
-    default="origin/$base"
-    prs="$(gh pr list -R "$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
-    jq -e 'type == "array" and all(.[]; type == "object")' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
-  else
-    default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-  fi
-  rows="$(list_rows "$root" "$default" "$prs" "$remote")"
-  # shortcut: PRs are matched within the latest $pr_limit only; make the limit configurable with #8
-  if [ "$remote" = true ] && [ "$(jq length <<<"$prs")" = "$pr_limit" ] && [ "$(printf '%s\n' "$rows" | jq -s 'any(.[]; .branch != null and .merged == false and .pr == null)')" = true ]; then
-    echo "th-wt: only the $pr_limit most recent PRs were checked; branches without a PR here may have an older one" >&2
-  fi
-  if [ "$json" = 1 ]; then
-    printf '%s\n' "$rows" | jq -s --arg repo "$repo" '{repo: $repo, worktrees: .}'
-  elif [ -z "$rows" ]; then
-    echo "no worktrees under $root" >&2
-  else
-    printf '%s\n' "$rows" | jq -r --arg default "$default" \
-      '"\(.branch // "(detached)")  \(if .missing then "missing" elif .dirty == null then "dirty unknown" elif .dirty then "dirty" else "clean" end)  \(if .merged == null then "containment unknown" elif .merged then "contained in \($default)" else "not contained in \($default)" end)  \(if .pr then "PR #\(.pr.number) \(.pr.state) (base \(.pr.base))\(if .pr.ahead == null then ", PR head not fetched" elif .pr.ahead then ", local commits after it" else "" end)  " else "" end)\(.path)"' >&2
-  fi
 }
 
 cmd="${1:-}"
 case "$cmd" in
-  new|list) ;;
+  new|list|close) ;;
   -h|--help) usage; exit 0 ;;
   *) bad_usage ;;
 esac
@@ -134,46 +36,17 @@ for dep in git jq; do
 done
 
 shift
-if [ "$cmd" = list ]; then
-  list_worktrees "$@"
-  exit 0
-fi
-case "${1:-}" in
-  ""|-*) bad_usage ;;
+case "$cmd" in
+  new)
+    # shellcheck source=new.sh source-path=SCRIPTDIR
+    . "$SCRIPT_DIR/new.sh"
+    new_worktree "$@" ;;
+  list)
+    # shellcheck source=list.sh source-path=SCRIPTDIR
+    . "$SCRIPT_DIR/list.sh"
+    list_worktrees "$@" ;;
+  close)
+    # shellcheck source=close.sh source-path=SCRIPTDIR
+    . "$SCRIPT_DIR/close.sh"
+    close_worktree "$@" ;;
 esac
-branch="$1"
-shift
-base=""
-json=0
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --base) { [ $# -ge 2 ] && [ -n "$2" ]; } || bad_usage; base="$2"; shift 2 ;;
-    --json) json=1; shift ;;
-    *) bad_usage ;;
-  esac
-done
-
-git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch"
-[ -z "$base" ] || git check-ref-format "refs/heads/$base" || die 2 "invalid base branch: $base"
-
-resolve_repo
-dest="$HOME/.worktrees/$repo/${branch//\//-}"
-
-[ ! -e "$dest" ] || die 4 "destination already exists: $dest"
-
-head_ref="$(git ls-remote --symref origin HEAD)" || die 1 "cannot read origin (unreachable or no access)"
-
-if git show-ref --verify --quiet "refs/heads/$branch" || [ -n "$(git ls-remote --heads origin "refs/heads/$branch")" ]; then
-  die 4 "branch already exists: $branch"
-fi
-
-if [ -z "$base" ]; then
-  base="$(printf '%s\n' "$head_ref" | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2 }')"
-  [ -n "$base" ] || die 1 "cannot determine origin's default branch (pass --base)"
-fi
-git fetch -q --no-tags origin "+refs/heads/$base:refs/remotes/origin/$base" || die 4 "base branch not found on origin (or fetch failed): $base"
-git worktree add --no-track -q -b "$branch" "$dest" "origin/$base" || die 1 "git worktree add failed"
-
-if [ "$json" = 1 ]; then
-  jq -n --arg path "$dest" --arg branch "$branch" --arg repo "$repo" '{path: $path, branch: $branch, repo: $repo}'
-fi
