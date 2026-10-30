@@ -86,3 +86,10 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt list` en la terminal (#11): el texto va solo a stderr, así que `th-wt list | grep` no recibe nada; mandar las filas a stdout y dejar solo los avisos en stderr.
 - `th-wt list` y mayúsculas: el prefijo de la raíz distingue mayúsculas, pero APFS no; un cambio de capitalización en la URL de `origin` oculta worktrees existentes. Resolverlo junto con los symlinks (#8).
 - `th-wt list` y archivos ignorados: `dirty` no cuenta los ignorados por git; decidir qué significa «limpio» cuando `new` copie `.env` (#7).
+- Skill `th-pair-lead` (nombre tentativo): el agente principal hace de TL y delega cada ciclo TDD a un subagente «driver» (definido en `.claude/agents/`, con modelo y esfuerzo propios). Aprendizajes de la story 3, donde se probó a mano:
+  - Haiku sirve para refactors mecánicos con la spec cerrada; Sonnet, para TDD con casos de borde y criterio propio.
+  - Un commit por paso, nunca pedir varios pasos en tanda: si no, el refactor se mezcla con el fix y no se puede separar.
+  - Exigir que el test se escriba antes que el código: el RED obtenido corriendo el test contra el código viejo es un TDD menos estricto.
+  - Incluir en la lista de tests inicial los casos de borde (directorio borrado, estado desconocido, archivos ignorados, rama en dos worktrees); en la story 3 aparecieron recién en los reviews y costaron dos rondas extra.
+  - Tras cada review, mostrar el triage (corregir ahora o mandar a Ideas) y esperar la aprobación del usuario antes de delegar los fixes.
+  - Los subagentes son una extensión de Claude Code: el skill debe seguir funcionando en Antigravity si la ignora (§4 del plan), por ejemplo haciendo el ciclo el propio agente.
