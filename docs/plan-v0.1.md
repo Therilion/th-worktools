@@ -337,7 +337,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 4. Rama:
    - Normal: `git branch -d`. Si falla porque no está mergeada, se informa y **no se fuerza**.
    - `th/pr-*`: `git branch -D` (es solo una copia local del PR remoto).
-5. `git worktree prune`.
+5. Sin `git worktree prune`: `git worktree remove` ya limpia su propio registro, incluso si el directorio ya no existe, y `prune` borraría también el registro de otros worktrees con el directorio faltante.
 6. PRs: eliminar `pr-reviews/pr-<n>/` solo si quedó vacío. El directorio `review/` lo gestionará `th-pr-review` (v0.3); `close` no lo toca.
 
 ### `list`

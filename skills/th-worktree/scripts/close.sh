@@ -43,7 +43,6 @@ close_worktree() {
     if [ "$del_br" = true ]; then git update-ref -d "refs/heads/$branch" "$oid"
     elif [ "$merged" = null ]; then echo "th-wt: branch $branch kept: default branch unknown (try: git remote set-head origin -a)" >&2
     else echo "th-wt: branch $branch kept: not contained in $default" >&2; fi
-    git worktree prune
   fi
   if [ "$json" = 1 ]; then
     jq -n --arg path "$path" --arg branch "$branch" --argjson merged "$merged" --argjson dirty "$dirty" --argjson missing "$missing" \

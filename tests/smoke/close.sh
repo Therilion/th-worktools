@@ -190,3 +190,17 @@ printf '%s\n' "$out" | grep -q '^th-wt: ' || fail "$name: falta el mensaje th-wt
 [ -d "$dest" ] || fail "$name: se borró el directorio"
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/l || fail "$name: se borró la rama"
 pass "$name"
+
+name="close --yes no borra del registro otros worktrees con el directorio faltante"
+(cd "$TMP/repo" && "$WT" new feature/gone) || fail "$name: th-wt new falló"
+gone="$HOME/.worktrees/acme/demo/feature-gone"
+rm -rf "$gone"
+(cd "$TMP/repo" && "$WT" new feature/g) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-g"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close feature/g --yes 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+[ ! -e "$dest" ] || fail "$name: sigue el directorio"
+wts="$(git -C "$TMP/repo" worktree list --porcelain)"
+case "$wts" in *"$gone"*) ;; *) fail "$name: se borró del registro el worktree con directorio faltante" ;; esac
+pass "$name"
