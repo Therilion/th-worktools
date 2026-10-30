@@ -70,8 +70,6 @@ Ideas que quedan fuera de la versión en curso.
 - Unificar el código de salida de los errores de red entre subcomandos: hoy `new` sale con `1` si no puede leer `origin` y `list --remote` con `4`.
 - `th-wt list --remote` con un fork como `origin` (los PRs viven en el repo `upstream`): hoy todas las ramas salen con `pr: null` y sin aviso. Resolverlo consultando también `upstream`.
 - Extraer el descubrimiento y el fetch de la rama por defecto de `origin`, hoy duplicado entre `new` y `list --remote`, al despachar los subcomandos (#3).
-- Al implementar `close` (#3): un PR `MERGED` contra una base que no es la rama por defecto no significa que el trabajo llegó a esa rama; decidir qué muestra `close` en ese caso.
-- `th-wt close --remote`: tras un merge con squash y la rama remota podada, `close` ve todos los commits como sin push y obliga a `--force`. Usar el PR, como `list --remote`, para reconocer el merge sin forzar.
 - `th-wt list --remote`: `ahead` sale `null` cuando el último commit del PR no está en local, algo común si se usó «Update branch» o se aceptó una sugerencia de review en GitHub antes del merge. Resolverlo trayendo `refs/pull/<n>/head` (solo objetos) para esas ramas.
 - `th-wt list --remote`: el texto «PR head not fetched» también sale cuando el PR no trae su último commit (`headRefOid` ausente); usar un mensaje que no sugiera hacer fetch.
 - `th-wt list --remote`: `ls-remote`, `fetch` y `gh pr list` son independientes y hoy corren en serie; lanzar `gh pr list` en segundo plano mientras se hace el fetch.
