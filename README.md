@@ -70,9 +70,11 @@ Ideas que quedan fuera de la versión en curso.
 - Unificar el código de salida de los errores de red entre subcomandos: hoy `new` sale con `1` si no puede leer `origin` y `list --remote` con `4`.
 - `th-wt list --remote` con un fork como `origin` (los PRs viven en el repo `upstream`): hoy todas las ramas salen con `pr: null` y sin aviso. Resolverlo consultando también `upstream`.
 - `th-wt close` de un worktree con HEAD desacoplado (rebase o bisect a medias): hoy sale con 4 «no worktree», porque `close` busca por rama. Permitir cerrarlo por ruta.
-- `th-wt close`: los nombres ignorados con comillas, barras invertidas o caracteres de control salen con el escape de git (`core.quotePath=false` solo evita el de los no ASCII). Leerlos con `status --porcelain -z`.
 - `th-wt close`: si la rama recibe un commit entre la lectura del `oid` y `list_rows`, el plan puede describir `merged` del commit nuevo y `unpushed` del anterior (el borrado sigue protegido por `update-ref`). Calcular `merged` sobre el `oid`.
 - `th-wt close`: ejecuta `git status` dos veces en el worktree (para `dirty` y para `ignored`); sacar los dos de una sola pasada con `--ignored`.
+- `th-wt close`: el plan no ve worktrees bloqueados (`git worktree lock`) ni con submódulos; promete borrar y `--yes` sale con 4 (con lock, `--force` tampoco basta: git pide `-f -f`). Leer `locked` del porcelain en `list_rows` y mostrarlo en el plan.
+- `th-wt close` de una rama huérfana sin commits (`worktree add --orphan`): sale con 4 «no worktree» aunque `list` la muestra.
+- `th-wt close`: lee `git worktree list --porcelain` dos veces (en `list_rows` y para saber si la rama está en otro worktree); devolverlo desde `list_rows` en una sola pasada.
 - `th-wt list --remote`: `ahead` sale `null` cuando el último commit del PR no está en local, algo común si se usó «Update branch» o se aceptó una sugerencia de review en GitHub antes del merge. Resolverlo trayendo `refs/pull/<n>/head` (solo objetos) para esas ramas.
 - `th-wt list --remote`: el texto «PR head not fetched» también sale cuando el PR no trae su último commit (`headRefOid` ausente); usar un mensaje que no sugiera hacer fetch.
 - `th-wt list --remote`: `ls-remote`, `fetch` y `gh pr list` son independientes y hoy corren en serie; lanzar `gh pr list` en segundo plano mientras se hace el fetch.
