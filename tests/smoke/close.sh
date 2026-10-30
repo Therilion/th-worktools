@@ -271,3 +271,18 @@ out="$(cd "$TMP/repo" && REAL_GIT="$REAL_GIT" FAKE_DEST="$dest" FAKE_MARK="$TMP/
 [ "$(printf '%s' "$out" | jq -c '.delete.branch')" = false ] || fail "$name: (c) delete.branch debería ser false: [$out]"
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/rc || fail "$name: (c) se borró la rama"
 pass "$name"
+
+name="close --yes con el estado de git ilegible → exit 4, no borra nada y dice por qué"
+(cd "$TMP/repo" && "$WT" new feature/bg) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-bg"
+echo "gitdir: /nonexistent" > "$dest/.git"
+out="$(cd "$TMP/repo" && GIT_CEILING_DIRECTORIES="$TMP" "$WT" close feature/bg --json 2>/dev/null)" || fail "$name: th-wt close --json falló"
+[ "$(printf '%s' "$out" | jq -c '[.dirty, .delete.worktree]')" = "[null,false]" ] || fail "$name: plan=[$out]"
+rc=0
+out="$(cd "$TMP/repo" && GIT_CEILING_DIRECTORIES="$TMP" "$WT" close feature/bg --yes 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+[ -d "$dest" ] || fail "$name: se borró el directorio"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/bg || fail "$name: se borró la rama"
+reason="$(printf '%s\n' "$out" | grep '^th-wt: ' || true)"
+case "$reason" in *"cannot read git status"*) ;; *) fail "$name: el motivo no dice cannot read git status: [$reason]" ;; esac
+pass "$name"
