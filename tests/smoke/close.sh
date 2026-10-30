@@ -286,3 +286,16 @@ git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/bg || fail "$nam
 reason="$(printf '%s\n' "$out" | grep '^th-wt: ' || true)"
 case "$reason" in *"cannot read git status"*) ;; *) fail "$name: el motivo no dice cannot read git status: [$reason]" ;; esac
 pass "$name"
+
+name="close muestra sin codificar los nombres ignorados con tildes"
+common="$(git -C "$TMP/repo" rev-parse --git-common-dir)"
+case "$common" in /*) ;; *) common="$TMP/repo/$common" ;; esac
+printf '%s\n' 'producción.env' >> "$common/info/exclude"
+(cd "$TMP/repo" && "$WT" new feature/tl) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-tl"
+echo x > "$dest/producción.env"
+out="$(cd "$TMP/repo" && "$WT" close feature/tl --json 2>/dev/null)" || fail "$name: th-wt close --json falló"
+[ "$(printf '%s' "$out" | jq -c '.ignored')" = '["producción.env"]' ] || fail "$name: ignored=[$(printf '%s' "$out" | jq -c '.ignored')]"
+out="$(cd "$TMP/repo" && "$WT" close feature/tl 2>&1)" || fail "$name: th-wt close falló: [$out]"
+printf '%s\n' "$out" | grep -qE 'ignored: +producción\.env' || fail "$name: el texto no muestra el nombre: [$out]"
+pass "$name"

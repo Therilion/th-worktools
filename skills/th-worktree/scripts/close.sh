@@ -26,7 +26,7 @@ close_worktree() {
   IFS=$'\t' read -r dirty merged missing path < <(jq -r '[.dirty, .merged, .missing, .path] | map(tostring) | join("\t")' <<<"$row")
   [ "$dirty" != null ] || [ "$missing" = true ] || unreadable=true
   # ignored files are deleted with the directory but never block; only names are read (directories come collapsed)
-  if [ "$missing" = false ] && out="$(git --no-optional-locks -C "$path" status --porcelain --ignored --untracked-files=normal 2>/dev/null)"; then
+  if [ "$missing" = false ] && out="$(git -c core.quotePath=false --no-optional-locks -C "$path" status --porcelain --ignored --untracked-files=normal 2>/dev/null)"; then
     ignored="$(printf '%s\n' "$out" | jq -R -n -c '[inputs | select(startswith("!! ")) | .[3:]]')"
   fi
   unpushed="$(git rev-list --count "$oid" --not --remotes=origin)"
