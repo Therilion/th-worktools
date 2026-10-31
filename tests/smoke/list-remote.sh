@@ -102,8 +102,7 @@ name="list --remote refleja un avance de origin/main que el clon no tenía; list
 (cd "$TMP/repo" && "$WT" new feature/stale) || fail "$name: th-wt new falló"
 dest="$HOME/.worktrees/acme/demo/feature-stale"
 git -C "$dest" commit -q --allow-empty -m "trabajo integrado desde otro clon"
-# Push por ruta (no por el remote): origin avanza sin que se actualice refs/remotes/origin/main local.
-git -C "$dest" push -q "$TMP/origin.git" HEAD:main
+advance_origin "$dest"
 echo '[]' > "$TMP/gh.json"
 out="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló: [$out]"
 line="$(printf '%s\n' "$out" | grep -F "feature/stale")" || fail "$name: no aparece la rama: [$out]"
@@ -182,7 +181,7 @@ err1="$(cd "$TMP/repo" && "$WT" list --remote 2>&1)" || rc1=$?
 git -C "$TMP/origin.git" symbolic-ref HEAD refs/heads/main
 # Caso 2: origin avanza y responde, pero el fetch no puede escribir origin/main (lock obsoleto).
 git -C "$HOME/.worktrees/acme/demo/feature-stale" commit -q --allow-empty -m "origin avanza otra vez"
-git -C "$HOME/.worktrees/acme/demo/feature-stale" push -q "$TMP/origin.git" HEAD:main
+advance_origin "$HOME/.worktrees/acme/demo/feature-stale"
 lock="$TMP/repo/.git/refs/remotes/origin/main.lock"
 touch "$lock"
 rc2=0

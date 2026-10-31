@@ -29,3 +29,7 @@ git init -q -b main "$TMP/repo"
 git -C "$TMP/repo" remote add origin "$REMOTE_URL"
 git -C "$TMP/repo" commit -q --allow-empty -m init
 git -C "$TMP/repo" push -q -u origin main
+
+# Mueve main de origin al HEAD del worktree $1 sin tocar las refs remotas del clon: origin trae el commit él mismo.
+# No usar push: git recientes (visto en 2.56) actualizan refs/remotes/origin/* también al hacer push a una URL que coincide con origin.
+advance_origin() { git -C "$TMP/origin.git" fetch -q "$1" HEAD:refs/heads/main; }
