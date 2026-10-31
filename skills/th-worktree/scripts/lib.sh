@@ -36,6 +36,20 @@ fetch_origin_branch() {
   git fetch -q --no-tags origin "+refs/heads/$1:refs/remotes/origin/$1"
 }
 
+# --remote prelude shared by list and close: checks gh, fetches origin's default branch and reads PRs. Sets $default (origin/<branch>) and $prs in the caller; needs $repo. $1 = PR limit, $2 = only PRs from this head branch (optional).
+load_remote() {
+  local limit="$1" head="${2:-}" base filter=()
+  [ -z "$head" ] || filter=(--head "$head")
+  command -v gh >/dev/null || die 3 "missing dependency: gh"
+  base="$(origin_default_branch)" || die 4 "cannot read origin (unreachable or no access)"
+  [ -n "$base" ] || die 4 "cannot determine origin's default branch"
+  fetch_origin_branch "$base" || die 4 "fetch of origin/$base failed"
+  default="origin/$base"
+  # ${filter[@]+...}: bash 3.2 fails on an empty array under set -u
+  prs="$(gh pr list -R "$repo" --state all --limit "$limit" ${filter[@]+"${filter[@]}"} --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
+  jq -e 'type == "array" and all(.[]; type == "object")' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
+}
+
 # One JSON object per line for each worktree under $1, only the one on branch $5 if given (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
   local root="$1" default="$2" prs="$3" remote="$4" only="${5:-}" path line head dirty missing ref name merged rc out pr oid ahead

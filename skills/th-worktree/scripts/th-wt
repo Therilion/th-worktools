@@ -16,11 +16,11 @@ usage() {
   cat <<'USAGE'
 Usage: th-wt new <branch> [--base <branch>] [--json]
        th-wt list [--remote] [--json]
-       th-wt close <branch> [--yes] [--force] [--json]
+       th-wt close <branch> [--remote] [--yes] [--force] [--json]
 
 new    Create a git worktree for a new branch under ~/.worktrees.
 list   Show this repo's worktrees under ~/.worktrees (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
-close  Remove the worktree of <branch> under ~/.worktrees and its branch if merged. Dry-run unless --yes; --force also closes with uncommitted changes or unpushed commits.
+close  Remove the worktree of <branch> under ~/.worktrees and its branch if merged. Dry-run unless --yes; --remote also queries the branch's GitHub PR (like list --remote): a merged PR with no later local commits counts as merged. --force also closes with uncommitted changes or unpushed commits.
 USAGE
 }
 

@@ -3,7 +3,7 @@
 # shellcheck disable=SC2154 # $repo is set by resolve_repo in lib.sh
 
 list_worktrees() {
-  local default root rows base pr_limit=100 json=0 remote=false prs=null
+  local default root rows pr_limit=100 json=0 remote=false prs=null
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1; shift ;;
@@ -14,13 +14,7 @@ list_worktrees() {
   resolve_repo
   root="$(worktrees_root)"
   if [ "$remote" = true ]; then
-    command -v gh >/dev/null || die 3 "missing dependency: gh"
-    base="$(origin_default_branch)" || die 4 "cannot read origin (unreachable or no access)"
-    [ -n "$base" ] || die 4 "cannot determine origin's default branch"
-    fetch_origin_branch "$base" || die 4 "fetch of origin/$base failed"
-    default="origin/$base"
-    prs="$(gh pr list -R "$repo" --state all --limit "$pr_limit" --json number,state,baseRefName,headRefName,headRefOid,isCrossRepository)" || die 4 "gh pr list failed (not authenticated, or no access to GitHub or $repo?)"
-    jq -e 'type == "array" and all(.[]; type == "object")' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
+    load_remote "$pr_limit"
   else
     default="$(local_default_branch)"
   fi
