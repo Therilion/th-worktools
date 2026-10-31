@@ -107,3 +107,26 @@ dest="$HOME/.worktrees/acme/demo/feature-fetched"
 [ "$(git -C "$TMP/repo" config --get branch.feature/fetched.remote || true)" = "origin" ] || fail "$name: upstream remote incorrecto"
 [ "$(git -C "$TMP/repo" config --get branch.feature/fetched.merge || true)" = "refs/heads/feature/fetched" ] || fail "$name: upstream merge incorrecto"
 pass "$name"
+
+name="clon --single-branch: checkout --remote trae la rama y git push desde el worktree llega a origin/<rama>"
+git -C "$TMP/other" checkout -q -b feature/sb
+git -C "$TMP/other" commit -q --allow-empty -m "sb commit"
+git -C "$TMP/other" push -q origin feature/sb
+origin_commit="$(git -C "$TMP/origin.git" rev-parse refs/heads/feature/sb)"
+
+git clone -q --single-branch -b main "$TMP/origin.git" "$TMP/r-sb"
+git -C "$TMP/r-sb" remote set-url origin "$REMOTE_URL"
+
+rc=0
+(cd "$TMP/r-sb" && "$WT" checkout feature/sb --remote) || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
+dest="$HOME/.worktrees/acme/demo/feature-sb"
+[ -d "$dest" ] || fail "$name: no existe $dest"
+[ "$(git -C "$dest" branch --show-current)" = "feature/sb" ] || fail "$name: rama incorrecta"
+[ "$(git -C "$dest" rev-parse HEAD)" = "$origin_commit" ] || fail "$name: commit incorrecto"
+
+git -C "$dest" commit -q --allow-empty -m "sb worktree commit"
+new_head="$(git -C "$dest" rev-parse HEAD)"
+git -C "$dest" push -q || fail "$name: git push falló"
+[ "$(git -C "$TMP/origin.git" rev-parse refs/heads/feature/sb)" = "$new_head" ] || fail "$name: push no llegó a origin"
+pass "$name"
