@@ -1,7 +1,15 @@
 # shellcheck shell=bash
 
 die() { echo "th-wt: $2" >&2; exit "$1"; }
-bad_usage() { usage >&2; exit 2; }
+bad_usage() { [ $# -eq 0 ] || echo "th-wt: $1" >&2; usage >&2; exit 2; }
+# For an argument no option arm matched: -h/--help prints usage (exit 0), anything else is a usage error.
+bad_arg() {
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    -*) bad_usage "unknown option: $1" ;;
+    *) bad_usage "unexpected argument: $1" ;;
+  esac
+}
 
 # Sets $repo (<owner>/<repo>) from remote.origin.url.
 resolve_repo() {

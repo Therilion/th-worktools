@@ -5,7 +5,9 @@
 new_worktree() {
   local branch base json dest default remote_heads
   case "${1:-}" in
-    ""|-*) bad_usage ;;
+    "") bad_usage "missing <branch>" ;;
+    -h|--help) usage; exit 0 ;;
+    -*) bad_usage "expected <branch> first, got option: $1 (options go after <branch>)" ;;
   esac
   branch="$1"
   shift
@@ -13,9 +15,9 @@ new_worktree() {
   json=0
   while [ $# -gt 0 ]; do
     case "$1" in
-      --base) { [ $# -ge 2 ] && [ -n "$2" ]; } || bad_usage; base="$2"; shift 2 ;;
+      --base) { [ $# -ge 2 ] && [ -n "$2" ]; } || bad_usage "--base requires a non-empty value"; base="$2"; shift 2 ;;
       --json) json=1; shift ;;
-      *) bad_usage ;;
+      *) bad_arg "$1" ;;
     esac
   done
 
