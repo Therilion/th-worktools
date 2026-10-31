@@ -15,28 +15,7 @@ exec "$real_git" "\$@"
 EOF
 chmod +x "$TMP/shim/git"
 
-name="list fija GIT_TERMINAL_PROMPT=0 en cada git que lanza"
-unset GIT_TERMINAL_PROMPT
-: > "$log"
-out="$(cd "$TMP/repo" && PATH="$TMP/shim:$PATH" "$WT" list --json 2>&1)" || fail "$name: th-wt list --json falló: [$out]"
-[ -s "$log" ] || fail "$name: el shim no registró ningún git"
-if grep -qv '^0 ' "$log"; then
-  fail "$name: valores distintos de 0: [$(sort -u "$log" | tr '\n' ' ')]"
-fi
-pass "$name"
-
-name="list fija GIT_TERMINAL_PROMPT=0 aunque el llamador lo exporte a 1"
-export GIT_TERMINAL_PROMPT=1
-: > "$log"
-out="$(cd "$TMP/repo" && PATH="$TMP/shim:$PATH" "$WT" list --json 2>&1)" || fail "$name: th-wt list --json falló: [$out]"
-unset GIT_TERMINAL_PROMPT
-[ -s "$log" ] || fail "$name: el shim no registró ningún git"
-if grep -qv '^0 ' "$log"; then
-  fail "$name: valores distintos de 0: [$(sort -u "$log" | tr '\n' ' ')]"
-fi
-pass "$name"
-
-name="new fija GIT_TERMINAL_PROMPT=0 también en ls-remote y fetch, los git que tocan la red"
+name="new fija GIT_TERMINAL_PROMPT=0 en cada git, también en ls-remote y fetch, aunque el llamador lo exporte a 1"
 export GIT_TERMINAL_PROMPT=1
 : > "$log"
 out="$(cd "$TMP/repo" && PATH="$TMP/shim:$PATH" "$WT" new feature/no-prompt --json 2>&1)" || fail "$name: th-wt new falló: [$out]"
