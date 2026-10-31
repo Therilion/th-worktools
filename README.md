@@ -83,6 +83,7 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt list`: un proceso `jq` por worktree; unirlos en una sola llamada si hay decenas de worktrees. Con `--remote` suma otros dos por rama no contenida y el aviso del límite relee todas las filas: armar un mapa rama → PR más reciente con una sola llamada a `jq` antes del bucle.
 - `th-wt list --remote` y `close --remote`: solo informan el PR más reciente de cada rama, así que un PR nuevo mergeado puede ocultar otro abierto de la misma rama contra otra base. Mostrar los PRs abiertos aunque haya uno más reciente mergeado.
 - `th-wt list --remote`: consulta `origin` y GitHub aunque no haya worktrees bajo la raíz (y falla con 4 si las credenciales son malas). Comprobar antes si hay filas.
+- CI: shellcheck usa la versión que trae `ubuntu-latest` (0.9) y en local la 0.11; fijar la versión (binario descargado con checksum) si un aviso nuevo hace diferir ambos.
 - Test de `list --remote` con el fetch fallando: fuerza el fallo con un archivo `.lock`, que solo bloquea con el backend de refs `files`. Cuando `reftable` sea el predeterminado de git, condicionarlo con `git rev-parse --show-ref-format` o buscar otra forma de hacer fallar el fetch.
 - `th-wt list` en la terminal (#11): el texto va solo a stderr, así que `th-wt list | grep` no recibe nada; mandar las filas a stdout y dejar solo los avisos en stderr.
 - `th-wt list` y mayúsculas: el prefijo de la raíz distingue mayúsculas, pero APFS no; un cambio de capitalización en la URL de `origin` oculta worktrees existentes. Resolverlo junto con los symlinks (#8).

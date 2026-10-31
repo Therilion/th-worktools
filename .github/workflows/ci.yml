@@ -10,7 +10,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Only PR runs are superseded; every commit on main keeps its own result.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   shellcheck:
@@ -20,7 +21,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: shellcheck --version && shellcheck -x skills/*/scripts/th-wt skills/*/scripts/*.sh tests/*.sh tests/smoke/*.sh
+      - run: shellcheck --version && shellcheck -x $(git ls-files '*.sh') skills/*/scripts/th-wt
 
   test:
     strategy:
