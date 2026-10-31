@@ -15,19 +15,21 @@ SCRIPT_DIR="$(cd -P "${src%/*}" && pwd)"
 usage() {
   cat <<'USAGE'
 Usage: th-wt new <branch> [--base <branch>] [--json]
+       th-wt checkout <branch> [--remote] [--json]
        th-wt list [--remote] [--json]
        th-wt close <branch> [--remote] [--yes] [--force] [--json]
-       th-wt [new|list|close] -h | --help
+       th-wt [new|checkout|list|close] -h | --help
 
-new    Create a git worktree for a new branch under ~/.worktrees.
-list   Show this repo's worktrees under ~/.worktrees (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
-close  Remove the worktree of <branch> under ~/.worktrees and its branch if merged. Dry-run unless --yes; --remote also queries the branch's GitHub PR (like list --remote): a merged PR with no later local commits counts as merged. --force also closes with uncommitted changes or unpushed commits.
+new       Create a git worktree for a new branch under ~/.worktrees.
+checkout  Create a git worktree for an existing branch under ~/.worktrees.
+list      Show this repo's worktrees under ~/.worktrees (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
+close     Remove the worktree of <branch> under ~/.worktrees and its branch if merged. Dry-run unless --yes; --remote also queries the branch's GitHub PR (like list --remote): a merged PR with no later local commits counts as merged. --force also closes with uncommitted changes or unpushed commits.
 USAGE
 }
 
 cmd="${1:-}"
 case "$cmd" in
-  new|list|close) ;;
+  new|checkout|list|close) ;;
   -h|--help) usage; exit 0 ;;
   "") bad_usage "missing subcommand" ;;
   *) bad_usage "unknown subcommand: $cmd" ;;
@@ -45,6 +47,10 @@ case "$cmd" in
     # shellcheck source=new.sh source-path=SCRIPTDIR
     . "$SCRIPT_DIR/new.sh"
     new_worktree "$@" ;;
+  checkout)
+    # shellcheck source=checkout.sh source-path=SCRIPTDIR
+    . "$SCRIPT_DIR/checkout.sh"
+    checkout_worktree "$@" ;;
   list)
     # shellcheck source=list.sh source-path=SCRIPTDIR
     . "$SCRIPT_DIR/list.sh"
