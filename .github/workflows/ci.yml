@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: shellcheck --version && shellcheck -x skills/*/scripts/th-wt skills/*/scripts/*.sh tests/*.sh tests/smoke/*.sh
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The macOS image puts Homebrew's bash 5 first in PATH; /bin/bash is the 3.2 the kit must support.
+      - if: runner.os == 'macOS'
+        run: echo /bin >> "$GITHUB_PATH"
+      - run: bash --version | head -1 && git --version && jq --version
+      - if: runner.os == 'macOS'
+        run: bash -c '[ "${BASH_VERSINFO[0]}" = 3 ]' || { echo "expected bash 3.2 on macOS" >&2; exit 1; }
+      - run: tests/lint-skills.sh
+      - run: tests/smoke.sh
