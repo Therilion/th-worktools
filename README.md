@@ -74,13 +74,14 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt close`: ejecuta `git status` dos veces en el worktree (para `dirty` y para `ignored`); sacar los dos de una sola pasada con `--ignored`.
 - `th-wt close`: el plan no ve worktrees bloqueados (`git worktree lock`) ni con submódulos; promete borrar y `--yes` sale con 4 (con lock, `--force` tampoco basta: git pide `-f -f`). Leer `locked` del porcelain en `list_rows` y mostrarlo en el plan.
 - `th-wt close` de una rama huérfana sin commits (`worktree add --orphan`): sale con 4 «no worktree» aunque `list` la muestra.
+- `th-wt close --remote`: hace `ls-remote`, `fetch` y `gh pr list` antes de comprobar que la rama tiene un worktree bajo la raíz; una rama que existe sin worktree gasta la red y, sin red o sin `gh`, falla con ese error en vez de «no worktree». Comprobar el worktree primero.
 - `th-wt close`: lee `git worktree list --porcelain` dos veces (en `list_rows` y para saber si la rama está en otro worktree); devolverlo desde `list_rows` en una sola pasada.
 - `th-wt list --remote`: `ahead` sale `null` cuando el último commit del PR no está en local, algo común si se usó «Update branch» o se aceptó una sugerencia de review en GitHub antes del merge. Resolverlo trayendo `refs/pull/<n>/head` (solo objetos) para esas ramas.
 - `th-wt list --remote`: el texto «PR head not fetched» también sale cuando el PR no trae su último commit (`headRefOid` ausente); usar un mensaje que no sugiera hacer fetch.
 - `th-wt list --remote`: `ls-remote`, `fetch` y `gh pr list` son independientes y hoy corren en serie; lanzar `gh pr list` en segundo plano mientras se hace el fetch.
 - `th-wt list`: si `git worktree list` falla, el script sale con el código crudo de git (128) y sin mensaje `th-wt:`; debería salir con 1.
 - `th-wt list`: un proceso `jq` por worktree; unirlos en una sola llamada si hay decenas de worktrees. Con `--remote` suma otros dos por rama no contenida y el aviso del límite relee todas las filas: armar un mapa rama → PR más reciente con una sola llamada a `jq` antes del bucle.
-- `th-wt list --remote`: solo informa el PR más reciente de cada rama, así que un PR nuevo mergeado puede ocultar otro abierto de la misma rama contra otra base. Mostrar los PRs abiertos aunque haya uno más reciente mergeado.
+- `th-wt list --remote` y `close --remote`: solo informan el PR más reciente de cada rama, así que un PR nuevo mergeado puede ocultar otro abierto de la misma rama contra otra base. Mostrar los PRs abiertos aunque haya uno más reciente mergeado.
 - `th-wt list --remote`: consulta `origin` y GitHub aunque no haya worktrees bajo la raíz (y falla con 4 si las credenciales son malas). Comprobar antes si hay filas.
 - Test de `list --remote` con el fetch fallando: fuerza el fallo con un archivo `.lock`, que solo bloquea con el backend de refs `files`. Cuando `reftable` sea el predeterminado de git, condicionarlo con `git rev-parse --show-ref-format` o buscar otra forma de hacer fallar el fetch.
 - `th-wt list` en la terminal (#11): el texto va solo a stderr, así que `th-wt list | grep` no recibe nada; mandar las filas a stdout y dejar solo los avisos en stderr.

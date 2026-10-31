@@ -156,3 +156,43 @@ out="$(cd "$TMP/repo" && "$WT" close feature/contained --remote 2>&1)" || fail "
 printf '%s\n' "$out" | grep -qE "pr: +not checked \(already contained in main\)" || fail "$name: [$out]"
 printf '%s\n' "$out" | grep -qE "delete: +worktree and branch" || fail "$name: no borra ambos: [$out]"
 pass "$name"
+
+name="close --remote con PR mergeado conserva la rama si está abierta en otro worktree"
+new_branch feature/shared
+pr_json feature/shared 70 MERGED main "$head"
+git -C "$TMP/repo" worktree add -q -f "$TMP/shared-other" feature/shared
+(cd "$TMP/repo" && "$WT" close feature/shared --remote --yes >"$TMP/shared.out" 2>&1) || fail "$name: --yes falló: [$(cat "$TMP/shared.out")]"
+[ ! -e "$dest" ] || fail "$name: sigue el directorio"
+branch_exists feature/shared || fail "$name: se borró la rama que usa otro worktree"
+grep -qF "branch feature/shared kept: still checked out in another worktree" "$TMP/shared.out" || fail "$name: no dice por qué conserva la rama: [$(cat "$TMP/shared.out")]"
+git -C "$TMP/repo" worktree remove --force "$TMP/shared-other"
+pass "$name"
+
+name="close --remote --force con PR mergeado y cambios sin commitear borra worktree y rama"
+new_branch feature/force
+pr_json feature/force 71 MERGED main "$head"
+echo x > "$dest/nuevo.txt"
+(cd "$TMP/repo" && "$WT" close feature/force --remote --yes --force >/dev/null 2>&1) || fail "$name: --yes --force falló"
+[ ! -e "$dest" ] || fail "$name: sigue el directorio"
+branch_exists feature/force && fail "$name: sigue la rama"
+pass "$name"
+
+name="close --remote ignora el PR mergeado de un fork con el mismo nombre de rama y bloquea por commits sin push"
+new_branch feature/fork
+jq -n --arg oid "$head" '[{number: 72, state: "MERGED", baseRefName: "main", headRefName: "feature/fork", headRefOid: $oid, isCrossRepository: true}]' > "$TMP/gh.json"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close feature/fork --remote --yes 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+still_there feature/fork || fail "$name: se borró algo"
+pass "$name"
+
+name="close --remote con el último commit del PR sin traer (ahead null) bloquea y lo dice en el plan"
+new_branch feature/unfetched
+pr_json feature/unfetched 73 MERGED main 0123456789abcdef0123456789abcdef01234567
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close feature/unfetched --remote --yes 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+still_there feature/unfetched || fail "$name: se borró algo"
+out="$(cd "$TMP/repo" && "$WT" close feature/unfetched --remote 2>&1)" || fail "$name: dry-run falló"
+printf '%s\n' "$out" | grep -qF "PR head not fetched" || fail "$name: el plan no lo dice: [$out]"
+pass "$name"
