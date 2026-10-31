@@ -67,7 +67,6 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt list --remote`: límite de PRs consultados configurable (hoy fijo en 100), al implementar la configuración (#8).
 - `th-wt list --remote`: cruzar PRs por rama sin límite, con una sola consulta GraphQL que busque cada rama.
 - Varias cuentas o hosts de GitHub: hoy `list --remote` consulta `gh` con `owner/repo` (github.com, o `GH_HOST` para Enterprise) y no entiende alias SSH. Idea: un configurador propio de multicuentas (una o varias keys por cuenta) en el directorio de configuración, que resuelva cuenta y host por repo (#8).
-- Unificar el código de salida de los errores de red entre subcomandos: hoy `new` sale con `1` si no puede leer `origin` y `list --remote` con `4`.
 - `th-wt list --remote` con un fork como `origin` (los PRs viven en el repo `upstream`): hoy todas las ramas salen con `pr: null` y sin aviso. Resolverlo consultando también `upstream`.
 - `th-wt close` de un worktree con HEAD desacoplado (rebase o bisect a medias): hoy sale con 4 «no worktree», porque `close` busca por rama. Permitir cerrarlo por ruta.
 - `th-wt close`: si la rama recibe un commit entre la lectura del `oid` y `list_rows`, el plan puede describir `merged` del commit nuevo y `unpushed` del anterior (el borrado sigue protegido por `update-ref`). Calcular `merged` sobre el `oid`.

@@ -3,7 +3,7 @@
 # shellcheck disable=SC2154 # $repo is set by resolve_repo in lib.sh
 
 new_worktree() {
-  local branch base json dest default
+  local branch base json dest default remote_heads
   case "${1:-}" in
     ""|-*) bad_usage ;;
   esac
@@ -27,15 +27,16 @@ new_worktree() {
 
   [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
 
-  default="$(origin_default_branch)" || die 1 "cannot read origin (unreachable or no access)"
+  default="$(origin_default_branch)" || die 4 "cannot read origin (unreachable or no access)"
 
-  if git show-ref --verify --quiet "refs/heads/$branch" || [ -n "$(git ls-remote --heads origin "refs/heads/$branch")" ]; then
+  remote_heads="$(git ls-remote --heads origin "refs/heads/$branch")" || die 4 "cannot read origin (unreachable or no access)"
+  if git show-ref --verify --quiet "refs/heads/$branch" || [ -n "$remote_heads" ]; then
     die 4 "branch already exists: $branch"
   fi
 
   if [ -z "$base" ]; then
     base="$default"
-    [ -n "$base" ] || die 1 "cannot determine origin's default branch (pass --base)"
+    [ -n "$base" ] || die 4 "cannot determine origin's default branch (pass --base)"
   fi
   fetch_origin_branch "$base" || die 4 "base branch not found on origin (or fetch failed): $base"
   git worktree add --no-track -q -b "$branch" "$dest" "origin/$base" || die 1 "git worktree add failed"
