@@ -36,6 +36,8 @@ esac
 for dep in git jq; do
   command -v "$dep" >/dev/null || die 3 "missing dependency: $dep"
 done
+# Agents have no terminal to answer git's credential prompt; fail instead of hanging.
+export GIT_TERMINAL_PROMPT=0
 
 shift
 case "$cmd" in

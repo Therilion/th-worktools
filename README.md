@@ -57,7 +57,7 @@ Ideas que quedan fuera de la versión en curso.
 - Derivar `<owner>/<repo>` también de remotes `ssh://`, con puerto o con barra final (hoy solo `git@host:` y `https://`).
 - Que `--base` acepte tags y SHAs (hoy es siempre `origin/<rama>`).
 - Resumen legible de `new` en la terminal, sin necesidad de `--json`.
-- Evitar prompts interactivos de git en la terminal (`GIT_TERMINAL_PROMPT=0`) sin pisar el `core.sshCommand` del usuario.
+- Evitar prompts que bloqueen al agente más allá del de la terminal de git (ya desactivado con `GIT_TERMINAL_PROMPT=0`): askpass (`GIT_ASKPASS`, `core.askPass`, `SSH_ASKPASS`) y SSH (clave de host desconocida, passphrase; `BatchMode`), sin pisar el `core.sshCommand` del usuario.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.
 - Lint de skills más estricto: `description`, `disable-model-invocation` en los skills con efectos secundarios e invocaciones de scripts sin la ruta completa.
 - Registro de la base de cada worktree (en `~/.worktrees/<owner>/<repo>/`) para soportar ramas apiladas sin PR y mostrar el árbol del stack en `list`.
