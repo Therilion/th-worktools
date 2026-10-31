@@ -13,6 +13,7 @@ checkout_worktree() {
   shift
   while [ $# -gt 0 ]; do
     case "$1" in
+      --remote) shift ;;
       *) bad_arg "$1" ;;
     esac
   done

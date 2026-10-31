@@ -28,3 +28,28 @@ dest="$HOME/.worktrees/acme/demo/feature-local"
 [ "$(git -C "$TMP/repo" branch --show-current)" = "$before_branch" ] || fail "$name: la rama principal cambió"
 [ "$(git -C "$TMP/repo" status --porcelain)" = "$before_status" ] || fail "$name: el status principal cambió"
 pass "$name"
+
+name="checkout --remote de una rama que existe en local y en origin usa la local tal cual: no hace fetch ni la mueve"
+git -C "$TMP/repo" checkout -q -b feature/both
+git -C "$TMP/repo" commit -q --allow-empty -m "local both"
+git -C "$TMP/repo" push -q -u origin feature/both
+git -C "$TMP/repo" checkout -q main
+
+git clone -q "$REMOTE_URL" "$TMP/other"
+git -C "$TMP/other" checkout -q feature/both
+git -C "$TMP/other" commit -q --allow-empty -m "origin both advanced"
+git -C "$TMP/other" push -q origin feature/both
+
+local_commit="$(git -C "$TMP/repo" rev-parse refs/heads/feature/both)"
+remote_ref_before="$(git -C "$TMP/repo" rev-parse refs/remotes/origin/feature/both)"
+
+rc=0
+(cd "$TMP/repo" && "$WT" checkout feature/both --remote) || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
+dest="$HOME/.worktrees/acme/demo/feature-both"
+[ -d "$dest" ] || fail "$name: no existe $dest"
+[ "$(git -C "$dest" branch --show-current)" = "feature/both" ] || fail "$name: rama incorrecta"
+[ "$(git -C "$dest" rev-parse HEAD)" = "$local_commit" ] || fail "$name: commit incorrecto"
+[ "$(git -C "$TMP/repo" rev-parse refs/heads/feature/both)" = "$local_commit" ] || fail "$name: la rama local se movió"
+[ "$(git -C "$TMP/repo" rev-parse refs/remotes/origin/feature/both)" = "$remote_ref_before" ] || fail "$name: refs/remotes/origin/feature/both cambió"
+pass "$name"
