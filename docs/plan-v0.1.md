@@ -109,7 +109,7 @@ th-worktools/
 - **Sin prompts interactivos** (`read`): los agentes ejecutan sin TTY y el script quedaría colgado.
 - **Efectos secundarios:** sin `--yes` solo se muestra el plan (dry-run); con `--yes` se ejecuta.
 - **Salida:** mensajes para personas a stderr. Con `--json`, un único objeto JSON a stdout, generado con `jq` (`-n` o `-s`), nunca a mano.
-- **Códigos de salida:** `0` OK · `1` error · `2` uso incorrecto · `3` dependencia faltante · `4` precondición no cumplida (cambios sin commitear, destino existente, etc.).
+- **Códigos de salida:** `0` OK · `1` error · `2` uso incorrecto · `3` dependencia faltante · `4` precondición no cumplida (cambios sin commitear, destino existente, `origin` o GitHub inaccesibles, etc.).
 - `--help` en cada entrypoint.
 - **Nunca imprimir el contenido** de archivos de entorno o configuración sensible; solo nombres de archivo.
 - **Resolver la propia ubicación siguiendo symlinks**, porque el script puede invocarse desde `~/.local/bin`:

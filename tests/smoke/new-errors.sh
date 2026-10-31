@@ -30,6 +30,24 @@ done
 [ -z "$(git -C "$TMP/repo" branch -r --list origin/feature/remote-b)" ] || fail "$name: se hizo fetch antes de validar"
 pass "$name"
 
+name="ls-remote --heads falla tras el --symref → exit 4 \"cannot read origin\", sin crear nada"
+# git falso: solo la consulta de ramas de origin falla; todo lo demás va al git real.
+shim="$TMP/bin-lsremote-falla"
+mkdir -p "$shim"
+cat >"$shim/git" <<EOF
+#!/usr/bin/env bash
+if [ "\${1:-}" = ls-remote ] && [ "\${2:-}" = --heads ]; then echo "fatal: simulated failure" >&2; exit 128; fi
+exec "$(command -v git)" "\$@"
+EOF
+chmod +x "$shim/git"
+rc=0
+err="$(cd "$TMP/repo" && PATH="$shim:$PATH" "$WT" new feature/lsfail 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4"
+case "$err" in *"cannot read origin"*) ;; *) fail "$name: el mensaje no es 'cannot read origin': [$err]" ;; esac
+[ -z "$(git -C "$TMP/repo" branch --list feature/lsfail)" ] || fail "$name: se creó la rama"
+[ ! -e "$HOME/.worktrees/acme/demo/feature-lsfail" ] || fail "$name: se creó el destino"
+pass "$name"
+
 name="falta git o jq → exit 3 y mensaje con la dependencia"
 for dep in git jq; do
   # PATH mínimo con las herramientas de th-wt menos la que "falta".
@@ -58,25 +76,27 @@ case "$err" in *origin*) ;; *) fail "$name: el mensaje no menciona origin: [$err
 [ "$(git -C "$TMP/no-origin" worktree list | wc -l | tr -d ' ')" = 1 ] || fail "$name: se creó un worktree"
 pass "$name"
 
-name="origin inalcanzable o sin rama por defecto → exit 1 con mensaje, sin crear nada"
+name="origin inalcanzable o sin rama por defecto → exit 4 con mensaje, sin crear nada"
 git init -q --bare -b main "$TMP/empty.git"
 git config --global "url.$TMP/missing.git.insteadOf" "git@github.com:acme/unreach.git"
 git config --global "url.$TMP/empty.git.insteadOf" "git@github.com:acme/empty.git"
 for r in unreach empty; do
+  want="cannot read origin"
+  [ "$r" != empty ] || want="cannot determine origin's default branch"
   git init -q -b main "$TMP/r-$r"
   git -C "$TMP/r-$r" commit -q --allow-empty -m init
   git -C "$TMP/r-$r" remote add origin "git@github.com:acme/$r.git"
   rc=0
   err="$(cd "$TMP/r-$r" && "$WT" new "feature/$r" 2>&1)" || rc=$?
-  [ "$rc" = 1 ] || fail "$name: $r: exit=$rc, esperado 1"
-  case "$err" in *"th-wt: "*origin*) ;; *) fail "$name: $r: sin mensaje de th-wt sobre origin: [$err]" ;; esac
+  [ "$rc" = 4 ] || fail "$name: $r: exit=$rc, esperado 4"
+  case "$err" in *"th-wt: $want"*) ;; *) fail "$name: $r: esperaba '$want': [$err]" ;; esac
   [ -z "$(git -C "$TMP/r-$r" branch --list "feature/$r")" ] || fail "$name: $r: se creó la rama"
   [ ! -e "$HOME/.worktrees/acme/$r" ] || fail "$name: $r: se creó el destino"
 done
 pass "$name"
 
 name="nombre de rama inválido → exit 2 antes de tocar la red"
-# r-unreach tiene un origin inalcanzable: si hubiera red de por medio, saldría con 1.
+# r-unreach tiene un origin inalcanzable: si hubiera red de por medio, saldría con 4.
 for b in "bad..name" "foo bar"; do
   rc=0
   err="$(cd "$TMP/r-unreach" && "$WT" new "$b" 2>&1)" || rc=$?
