@@ -53,3 +53,28 @@ dest="$HOME/.worktrees/acme/demo/feature-both"
 [ "$(git -C "$TMP/repo" rev-parse refs/heads/feature/both)" = "$local_commit" ] || fail "$name: la rama local se movió"
 [ "$(git -C "$TMP/repo" rev-parse refs/remotes/origin/feature/both)" = "$remote_ref_before" ] || fail "$name: refs/remotes/origin/feature/both cambió"
 pass "$name"
+
+name="checkout --remote de una rama que solo está en origin y nunca se trajo crea la rama local en el commit de origin, con upstream origin/<rama>"
+git -C "$TMP/other" checkout -q -b feature/remote-only
+git -C "$TMP/other" commit -q --allow-empty -m "remote only commit"
+git -C "$TMP/other" push -q origin feature/remote-only
+
+if git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/remote-only; then
+  fail "$name: ya existe refs/heads/feature/remote-only en repo"
+fi
+if git -C "$TMP/repo" show-ref --verify --quiet refs/remotes/origin/feature/remote-only; then
+  fail "$name: ya existe refs/remotes/origin/feature/remote-only en repo"
+fi
+
+origin_commit="$(git -C "$TMP/origin.git" rev-parse refs/heads/feature/remote-only)"
+
+rc=0
+(cd "$TMP/repo" && "$WT" checkout feature/remote-only --remote) || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
+dest="$HOME/.worktrees/acme/demo/feature-remote-only"
+[ -d "$dest" ] || fail "$name: no existe $dest"
+[ "$(git -C "$dest" branch --show-current)" = "feature/remote-only" ] || fail "$name: rama incorrecta"
+[ "$(git -C "$dest" rev-parse HEAD)" = "$origin_commit" ] || fail "$name: commit incorrecto"
+[ "$(git -C "$TMP/repo" config --get branch.feature/remote-only.remote || true)" = "origin" ] || fail "$name: upstream remote incorrecto"
+[ "$(git -C "$TMP/repo" config --get branch.feature/remote-only.merge || true)" = "refs/heads/feature/remote-only" ] || fail "$name: upstream merge incorrecto"
+pass "$name"
