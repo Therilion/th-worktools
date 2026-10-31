@@ -78,3 +78,32 @@ dest="$HOME/.worktrees/acme/demo/feature-remote-only"
 [ "$(git -C "$TMP/repo" config --get branch.feature/remote-only.remote || true)" = "origin" ] || fail "$name: upstream remote incorrecto"
 [ "$(git -C "$TMP/repo" config --get branch.feature/remote-only.merge || true)" = "refs/heads/feature/remote-only" ] || fail "$name: upstream merge incorrecto"
 pass "$name"
+
+name="checkout sin --remote de una rama remota ya traída funciona con origin inaccesible y queda con upstream"
+git -C "$TMP/other" checkout -q -b feature/fetched
+git -C "$TMP/other" commit -q --allow-empty -m "fetched commit"
+git -C "$TMP/other" push -q origin feature/fetched
+
+git -C "$TMP/repo" fetch -q origin
+if git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/fetched; then
+  fail "$name: ya existe refs/heads/feature/fetched en repo"
+fi
+if ! git -C "$TMP/repo" show-ref --verify --quiet refs/remotes/origin/feature/fetched; then
+  fail "$name: no existe refs/remotes/origin/feature/fetched en repo"
+fi
+
+remote_commit="$(git -C "$TMP/repo" rev-parse refs/remotes/origin/feature/fetched)"
+
+mv "$TMP/origin.git" "$TMP/origin.git.bak"
+rc=0
+(cd "$TMP/repo" && "$WT" checkout feature/fetched) || rc=$?
+mv "$TMP/origin.git.bak" "$TMP/origin.git"
+
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
+dest="$HOME/.worktrees/acme/demo/feature-fetched"
+[ -d "$dest" ] || fail "$name: no existe $dest"
+[ "$(git -C "$dest" branch --show-current)" = "feature/fetched" ] || fail "$name: rama incorrecta"
+[ "$(git -C "$dest" rev-parse HEAD)" = "$remote_commit" ] || fail "$name: commit incorrecto"
+[ "$(git -C "$TMP/repo" config --get branch.feature/fetched.remote || true)" = "origin" ] || fail "$name: upstream remote incorrecto"
+[ "$(git -C "$TMP/repo" config --get branch.feature/fetched.merge || true)" = "refs/heads/feature/fetched" ] || fail "$name: upstream merge incorrecto"
+pass "$name"

@@ -24,9 +24,15 @@ checkout_worktree() {
 
   if git show-ref --verify --quiet "refs/heads/$branch"; then
     git worktree add -q "$dest" "$branch" || die 1 "git worktree add failed"
-  elif [ "$remote" = 1 ]; then
+    return 0
+  fi
+
+  if [ "$remote" = 1 ]; then
     git ls-remote --heads origin "refs/heads/$branch" >/dev/null
     fetch_origin_branch "$branch"
+  fi
+
+  if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
     git worktree add --no-track -q -b "$branch" "$dest" "origin/$branch" || die 1 "git worktree add failed"
     git config "branch.$branch.remote" origin
     git config "branch.$branch.merge" "refs/heads/$branch"
