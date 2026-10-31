@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   # Only PR runs are superseded; every commit on main keeps its own result.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
