@@ -17,6 +17,7 @@ usage() {
 Usage: th-wt new <branch> [--base <branch>] [--json]
        th-wt list [--remote] [--json]
        th-wt close <branch> [--remote] [--yes] [--force] [--json]
+       th-wt [new|list|close] -h | --help
 
 new    Create a git worktree for a new branch under ~/.worktrees.
 list   Show this repo's worktrees under ~/.worktrees (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
@@ -28,7 +29,8 @@ cmd="${1:-}"
 case "$cmd" in
   new|list|close) ;;
   -h|--help) usage; exit 0 ;;
-  *) bad_usage ;;
+  "") bad_usage "missing subcommand" ;;
+  *) bad_usage "unknown subcommand: $cmd" ;;
 esac
 
 for dep in git jq; do

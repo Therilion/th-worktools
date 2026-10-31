@@ -10,12 +10,12 @@ close_worktree() {
       --yes) yes=1 ;;
       --force) force=1 ;;
       --remote) remote=true ;;
-      -*) bad_usage ;;
-      *) [ -z "$branch" ] || bad_usage; branch="$1" ;;
+      -*) bad_arg "$1" ;;
+      *) [ -z "$branch" ] || bad_arg "$1"; branch="$1" ;;
     esac
     shift
   done
-  [ -n "$branch" ] || bad_usage
+  [ -n "$branch" ] || bad_usage "missing <branch>"
   git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch"
   resolve_repo
   root="$(worktrees_root)"

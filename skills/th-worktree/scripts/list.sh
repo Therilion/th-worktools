@@ -8,7 +8,7 @@ list_worktrees() {
     case "$1" in
       --json) json=1; shift ;;
       --remote) remote=true; shift ;;
-      *) bad_usage ;;
+      *) bad_arg "$1" ;;
     esac
   done
   resolve_repo
