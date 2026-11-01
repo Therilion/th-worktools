@@ -2,8 +2,24 @@
 # shellcheck source=lib.sh source-path=SCRIPTDIR
 # shellcheck disable=SC2154 # $repo is set by resolve_repo in lib.sh
 
+# Returns the path of the worktree where branch $1 is checked out, or empty if none.
+find_worktree_for_branch() {
+  local target="refs/heads/$1" line path=""
+  git worktree list --porcelain | while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) path="${line#worktree }" ;;
+      "branch "*)
+        if [ "$line" = "branch $target" ]; then
+          printf '%s\n' "$path"
+          return 0
+        fi
+        ;;
+    esac
+  done
+}
+
 checkout_worktree() {
-  local branch dest remote json remote_heads
+  local branch dest remote json remote_heads busy_path
   case "${1:-}" in
     "") bad_usage "missing <branch>" ;;
     -h|--help) usage; exit 0 ;;
@@ -25,6 +41,8 @@ checkout_worktree() {
   dest="$(worktrees_root)${branch//\//-}"
 
   if git show-ref --verify --quiet "refs/heads/$branch"; then
+    busy_path="$(find_worktree_for_branch "$branch")"
+    [ -z "$busy_path" ] || die 4 "branch $branch is already checked out in $busy_path"
     git worktree add -q "$dest" "$branch" || die 1 "git worktree add failed"
   else
     if [ "$remote" = 1 ]; then

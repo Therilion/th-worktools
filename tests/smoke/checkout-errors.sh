@@ -27,3 +27,25 @@ case "$err" in *"not found on origin"*) ;; *) fail "$name: (con --remote) el men
 case "$err" in *"try --remote"*) fail "$name: (con --remote) el mensaje sugiere --remote: [$err]" ;; esac
 
 pass "$name"
+
+name="rama abierta en otro worktree o en el checkout principal → exit 4 con la ruta de ese worktree, sin crear nada"
+
+# Caso 1: main en el checkout principal
+rc=0
+err="$(cd "$TMP/repo" && "$WT" checkout main 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: (main) exit=$rc, esperado 4"
+case "$err" in *"$TMP/repo"*) ;; *) fail "$name: (main) el mensaje no menciona el repo principal: [$err]" ;; esac
+[ ! -e "$HOME/.worktrees/acme/demo/main" ] || fail "$name: (main) se creó el destino"
+
+# Caso 2: feature/busy en otro worktree fuera de la raíz
+git -C "$TMP/repo" worktree add -q "$TMP/busy-wt" -b feature/busy
+before_count="$(git -C "$TMP/repo" worktree list --porcelain | grep -c '^worktree ')"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" checkout feature/busy 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: (busy) exit=$rc, esperado 4"
+case "$err" in *"$TMP/busy-wt"*) ;; *) fail "$name: (busy) el mensaje no menciona la ruta del worktree: [$err]" ;; esac
+[ ! -e "$HOME/.worktrees/acme/demo/feature-busy" ] || fail "$name: (busy) se creó el destino"
+after_count="$(git -C "$TMP/repo" worktree list --porcelain | grep -c '^worktree ')"
+[ "$before_count" = "$after_count" ] || fail "$name: (busy) cambió la cantidad de worktrees"
+
+pass "$name"
