@@ -397,3 +397,29 @@ for bad in 'feat~1' 'a..b'; do
   [ -z "$out" ] || fail "$name: [$bad]: hay salida en stdout: [$out]"
 done
 pass "$name"
+
+name="close --yes conserva la rama por defecto de origin aunque esté contenida, y borra solo el worktree"
+git -C "$TMP/repo" remote set-head origin main >/dev/null
+git -C "$TMP/repo" checkout -q -b side
+(cd "$TMP/repo" && "$WT" checkout main) || fail "$name: th-wt checkout main falló"
+dest="$HOME/.worktrees/acme/demo/main"
+[ -d "$dest" ] || fail "$name: no existe $dest"
+main_before="$(git -C "$TMP/repo" rev-parse refs/heads/main)"
+merge_before="$(git -C "$TMP/repo" config --get branch.main.merge)"
+
+rc=0
+err="$(cd "$TMP/repo" && "$WT" close main 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: (dry run) exit=$rc, esperado 0: [$err]"
+case "$err" in *"default branch"*) ;; *) fail "$name: (dry run) no dice que se conserva la rama por defecto: [$err]" ;; esac
+[ -d "$dest" ] || fail "$name: (dry run) se borró el worktree"
+
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close main --yes --json 2>"$TMP/err-main")" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$(cat "$TMP/err-main")]"
+[ "$(printf '%s' "$out" | jq -c '[.merged, .delete.worktree, .delete.branch]')" = '[true,true,false]' ] || fail "$name: json=[$out]"
+[ ! -e "$dest" ] || fail "$name: sigue el directorio"
+[ "$(git -C "$TMP/repo" rev-parse refs/heads/main)" = "$main_before" ] || fail "$name: cambió refs/heads/main"
+[ "$(git -C "$TMP/repo" config --get branch.main.merge)" = "$merge_before" ] || fail "$name: se perdió branch.main.merge"
+grep -q 'kept' "$TMP/err-main" || fail "$name: falta el aviso de rama conservada: [$(cat "$TMP/err-main")]"
+git -C "$TMP/repo" checkout -q main
+pass "$name"
