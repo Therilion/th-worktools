@@ -32,10 +32,10 @@ rc=0
 [ ! -e "$HOME/.worktrees/acme/demo/feature-bad-opt" ] || fail "$name: se creó el destino"
 pass "$name"
 
-name="new/list/close con --help o -h → exit 0, uso en stdout, stderr vacío, también fuera de un repo, sin crear nada"
+name="new/checkout/list/close con --help o -h → exit 0, uso en stdout, stderr vacío, también fuera de un repo, sin crear nada"
 mkdir -p "$TMP/norepo"
 for dir in "$TMP/repo" "$TMP/norepo"; do
-  for sub in new list close; do
+  for sub in new checkout list close; do
     for flag in --help -h; do
       rc=0
       out="$(cd "$dir" && "$WT" "$sub" "$flag" 2>"$TMP/help.err")" || rc=$?
@@ -48,6 +48,11 @@ done
 rc=0
 out="$(cd "$TMP/repo" && "$WT" new feature/help-arg --help 2>&1)" || rc=$?
 [ "$rc" = 0 ] || fail "$name: new <rama> --help: exit=$rc, esperado 0"
+[ -z "$(git -C "$TMP/repo" branch --list feature/help-arg)" ] || fail "$name: se creó la rama"
+[ ! -e "$HOME/.worktrees" ] || fail "$name: se creó algo bajo ~/.worktrees"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" checkout feature/help-arg --help 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: checkout <rama> --help: exit=$rc, esperado 0"
 [ -z "$(git -C "$TMP/repo" branch --list feature/help-arg)" ] || fail "$name: se creó la rama"
 [ ! -e "$HOME/.worktrees" ] || fail "$name: se creó algo bajo ~/.worktrees"
 pass "$name"
@@ -69,6 +74,10 @@ expect_usage_error "unknown option: --bogus" new feature/x --bogus
 expect_usage_error "unexpected argument: extra" new feature/x extra
 expect_usage_error "--base requires" new feature/x --base
 expect_usage_error "--base requires" new feature/x --base ""
+expect_usage_error "missing <branch>" checkout
+expect_usage_error "expected <branch> first, got option: --remote" checkout --remote
+expect_usage_error "unknown option: --bogus" checkout feature/x --bogus
+expect_usage_error "unexpected argument: extra" checkout feature/x extra
 expect_usage_error "unknown option: --bogus" list --bogus
 expect_usage_error "unexpected argument: extra" list extra
 expect_usage_error "missing <branch>" close
