@@ -298,7 +298,7 @@ Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git
 | Subcomando | Efecto | Requiere `--yes` |
 |---|---|---|
 | `new <rama> [--base <rama>]` | Rama nueva desde `origin/<rama>` (por defecto, la rama por defecto de `origin`) | No |
-| `checkout <rama>` | Worktree de una rama existente, local o remota | No |
+| `checkout <rama> [--remote]` | Worktree de una rama existente, local o remota | No |
 | `pr <n>` | Worktree de un PR en `pr-reviews/pr-<n>/code` | No |
 | `list` | Worktrees del repo actual bajo la raíz, con su estado | No |
 | `close <rama\|pr-<n>> [--force]` | Cierra el worktree (ver abajo) | **Sí** |
@@ -310,10 +310,10 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 1. Verificar dependencias (`git`, `jq`; `gh` solo para `pr`).
 2. Con `origin`, no hace falta `--git-common-dir`: `<owner>/<repo>` sale de `remote.origin.url`, que es la misma config en el checkout principal y en sus worktrees. `--git-common-dir` solo se usará en el fallback `_local/<directorio>`; mientras tanto, sin `origin` sale con código `4`.
 3. Derivar `<owner>/<repo>`, calcular la ruta destino y abortar (código `4`) si ya existe.
-4. `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>` (explícito, para que funcione en clones `--single-branch` o con refspec personalizado; si falla, código `4`).
+4. `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>` (explícito, para que funcione en clones `--single-branch` o con refspec personalizado; si falla, código `4`; en `checkout` el fetch solo ocurre con `--remote`).
 5. Crear el worktree:
    - `new`: `git worktree add --no-track -b <rama> <ruta> origin/<base>` (`--no-track`: la rama nueva no debe seguir a `origin/<base>`, o un `git push` iría a la rama base)
-   - `checkout`: `git worktree add <ruta> <rama>` (si la rama solo existe en el remoto, se crea con tracking).
+   - `checkout`: si la rama es local, `git worktree add <ruta> <rama>` sin red. Si no, sale de `origin/<rama>` (con `--remote`, primero `ls-remote` y el mismo fetch explícito; sin `--remote`, la copia ya traída): `git worktree add --no-track -b <rama> <ruta> origin/<rama>` y el upstream (`branch.<rama>.remote`/`.merge`) se escribe a mano, porque `--track` falla en clones `--single-branch`.
    - `pr`: `git fetch origin pull/<n>/head:th/pr-<n>` y luego `git worktree add <ruta> th/pr-<n>`. Metadatos con `gh pr view <n> --json number,title,headRefName,baseRefName`.
 6. Aplicar el `.conf` del repo (`link` / `copy`, validados).
 7. Si `TH_INSTALL_DEPS=1`, instalar dependencias según el lockfile:

@@ -18,7 +18,7 @@ Crea, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`, para
 | Subcomando | Qué hace |
 |---|---|
 | `new <rama> [--base <rama>]` | Worktree con una rama nueva |
-| `checkout <rama>` | Worktree de una rama existente, local o remota |
+| `checkout <rama> [--remote]` | Worktree de una rama existente, local o de `origin` (`--remote` la trae) |
 | `pr <n>` | Worktree de un PR de GitHub en `pr-reviews/pr-<n>/code` |
 | `list` | Worktrees del repo actual, con su estado |
 | `close <rama\|pr-<n>>` | Cierra el worktree; requiere `--yes` |
@@ -88,6 +88,12 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt list` en la terminal (#11): el texto va solo a stderr, así que `th-wt list | grep` no recibe nada; mandar las filas a stdout y dejar solo los avisos en stderr.
 - `th-wt list` y mayúsculas: el prefijo de la raíz distingue mayúsculas, pero APFS no; un cambio de capitalización en la URL de `origin` oculta worktrees existentes. Resolverlo junto con los symlinks (#8).
 - `th-wt list` y archivos ignorados: `dirty` no cuenta los ignorados por git; decidir qué significa «limpio» cuando `new` copie `.env` (#7).
+- `th-wt checkout` de una rama abierta en un worktree «prunable» (directorio borrado a mano): sale con 4 y da una ruta que ya no existe; sugerir `git worktree prune`.
+- `th-wt checkout`: una rama en rebase o bisect en otro worktree sale `detached` en el porcelain, así que pasa la comprobación y `git worktree add` falla con 1; detectarla y salir con 4 y la ruta.
+- `th-wt checkout --remote`: hace `ls-remote` y luego `fetch` (dos conexiones a `origin`); probar primero el fetch y usar `ls-remote` solo si falla, para distinguir «no existe» de «inaccesible».
+- Tres lecturas del porcelain de `git worktree list` para lo mismo (`list_rows`, `close` y `find_worktree_for_branch` de `checkout`): unificarlas en un helper de `lib.sh`.
+- `th-wt list`/`close`: `default` es el nombre corto `origin/<rama>` (ambiguo si existe una rama o tag local con ese nombre); usar `refs/remotes/origin/<rama>` como ya hacen `new` y `checkout`.
+- `th-wt close` conserva la rama por defecto de `origin`, pero no otras de larga vida (`develop`, `release/*`), que borra si están contenidas; declararlas por repo en la configuración (#8).
 - Skill `th-pair-lead` (nombre tentativo): el agente principal hace de TL y delega cada ciclo TDD a un subagente «driver» (definido en `.claude/agents/`, con modelo y esfuerzo propios). Aprendizajes de la story 3, donde se probó a mano:
   - Haiku sirve para refactors mecánicos con la spec cerrada; Sonnet, para TDD con casos de borde y criterio propio.
   - Un commit por paso, nunca pedir varios pasos en tanda: si no, el refactor se mezcla con el fix y no se puede separar.
