@@ -40,6 +40,8 @@ checkout_worktree() {
   resolve_repo
   dest="$(worktrees_root)${branch//\//-}"
 
+  [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
+
   if git show-ref --verify --quiet "refs/heads/$branch"; then
     busy_path="$(find_worktree_for_branch "$branch")"
     [ -z "$busy_path" ] || die 4 "branch $branch is already checked out in $busy_path"

@@ -49,3 +49,30 @@ after_count="$(git -C "$TMP/repo" worktree list --porcelain | grep -c '^worktree
 [ "$before_count" = "$after_count" ] || fail "$name: (busy) cambió la cantidad de worktrees"
 
 pass "$name"
+
+name="destino existente → exit 4 con la ruta, sin crear ni modificar nada, también con --remote y origin inaccesible"
+
+# Caso 1: rama local existente, destino preexistente
+git -C "$TMP/repo" branch feature/taken
+dest1="$HOME/.worktrees/acme/demo/feature-taken"
+mkdir -p "$dest1" && touch "$dest1/marker"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" checkout feature/taken 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: (local) exit=$rc, esperado 4"
+case "$err" in *"$dest1"*) ;; *) fail "$name: (local) el mensaje no menciona la ruta: [$err]" ;; esac
+[ "$(ls -A "$dest1")" = "marker" ] || fail "$name: (local) el destino cambió"
+
+# Caso 2: rama remota, destino preexistente con origin inaccesible
+dest2="$HOME/.worktrees/acme/demo/feature-taken-remote"
+mkdir -p "$dest2" && touch "$dest2/marker"
+mv "$TMP/origin.git" "$TMP/origin.git.bak"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" checkout feature/taken-remote --remote 2>&1)" || rc=$?
+mv "$TMP/origin.git.bak" "$TMP/origin.git"
+[ "$rc" = 4 ] || fail "$name: (remote) exit=$rc, esperado 4"
+case "$err" in *"$dest2"*) ;; *) fail "$name: (remote) el mensaje no menciona la ruta: [$err]" ;; esac
+case "$err" in *"cannot read origin"*) fail "$name: (remote) consultó la red antes de validar el destino: [$err]" ;; esac
+[ "$(ls -A "$dest2")" = "marker" ] || fail "$name: (remote) el destino cambió"
+[ -z "$(git -C "$TMP/repo" branch --list feature/taken-remote)" ] || fail "$name: (remote) se creó la rama"
+
+pass "$name"
