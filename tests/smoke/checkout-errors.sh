@@ -89,3 +89,16 @@ case "$err" in *"cannot read origin"*) ;; *) fail "$name: el mensaje no menciona
 [ -z "$(git -C "$TMP/repo" branch --list feature/offline)" ] || fail "$name: se creó la rama"
 [ -z "$(git -C "$TMP/repo" config --get-regexp '^branch\.feature/offline\.' || true)" ] || fail "$name: se escribió config de la rama"
 pass "$name"
+
+name="nombre de rama inválido → exit 2 sin tocar la red ni crear nada"
+mv "$TMP/origin.git" "$TMP/origin.git.bak"
+for b in "bad..name" "feature/x.lock"; do
+  rc=0
+  err="$(cd "$TMP/repo" && "$WT" checkout "$b" --remote 2>&1)" || rc=$?
+  [ "$rc" = 2 ] || fail "$name: [$b]: exit=$rc, esperado 2"
+  case "$err" in *"$b"*) ;; *) fail "$name: [$b]: el mensaje no menciona el nombre: [$err]" ;; esac
+  [ ! -e "$HOME/.worktrees/acme/demo/${b//\//-}" ] || fail "$name: [$b]: se creó el destino"
+  [ -z "$(git -C "$TMP/repo" branch --list "$b")" ] || fail "$name: [$b]: se creó la rama"
+done
+mv "$TMP/origin.git.bak" "$TMP/origin.git"
+pass "$name"

@@ -37,6 +37,8 @@ checkout_worktree() {
     esac
   done
 
+  git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch"
+
   resolve_repo
   dest="$(worktrees_root)${branch//\//-}"
 
