@@ -2,21 +2,10 @@
 # shellcheck source=lib.sh source-path=SCRIPTDIR
 # shellcheck disable=SC2154 # $repo is set by resolve_repo in lib.sh
 
-# Returns the path of the worktree where branch $1 is checked out, or empty if none.
+# Prints the path of the worktree where branch $1 is checked out, or nothing if none.
+# No exit inside awk: it reads all of git's output, so git never gets SIGPIPE.
 find_worktree_for_branch() {
-  local target="refs/heads/$1" line path="" out
-  out="$(git worktree list --porcelain)"
-  while IFS= read -r line; do
-    case "$line" in
-      "worktree "*) path="${line#worktree }" ;;
-      "branch "*)
-        if [ "$line" = "branch $target" ]; then
-          printf '%s\n' "$path"
-          return 0
-        fi
-        ;;
-    esac
-  done <<<"$out"
+  git worktree list --porcelain | awk -v t="branch refs/heads/$1" '/^worktree /{p=substr($0,10)} $0==t{print p}'
 }
 
 checkout_worktree() {
