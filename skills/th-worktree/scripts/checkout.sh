@@ -48,9 +48,9 @@ checkout_worktree() {
     git worktree add -q "$dest" "$branch" || die 1 "git worktree add failed"
   else
     if [ "$remote" = 1 ]; then
-      remote_heads="$(git ls-remote --heads origin "refs/heads/$branch")"
+      remote_heads="$(git ls-remote --heads origin "refs/heads/$branch")" || die 4 "cannot read origin (unreachable or no access)"
       [ -n "$remote_heads" ] || die 4 "branch not found on origin: $branch"
-      fetch_origin_branch "$branch"
+      fetch_origin_branch "$branch" || die 4 "fetch of origin/$branch failed"
     fi
 
     if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then

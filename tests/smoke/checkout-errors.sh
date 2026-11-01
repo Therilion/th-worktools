@@ -76,3 +76,16 @@ case "$err" in *"cannot read origin"*) fail "$name: (remote) consultó la red an
 [ -z "$(git -C "$TMP/repo" branch --list feature/taken-remote)" ] || fail "$name: (remote) se creó la rama"
 
 pass "$name"
+
+name="--remote con origin inaccesible → exit 4 \"cannot read origin\", sin crear nada"
+dest="$HOME/.worktrees/acme/demo/feature-offline"
+mv "$TMP/origin.git" "$TMP/origin.git.bak"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" checkout feature/offline --remote 2>&1)" || rc=$?
+mv "$TMP/origin.git.bak" "$TMP/origin.git"
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4"
+case "$err" in *"cannot read origin"*) ;; *) fail "$name: el mensaje no menciona 'cannot read origin': [$err]" ;; esac
+[ ! -e "$dest" ] || fail "$name: se creó el destino"
+[ -z "$(git -C "$TMP/repo" branch --list feature/offline)" ] || fail "$name: se creó la rama"
+[ -z "$(git -C "$TMP/repo" config --get-regexp '^branch\.feature/offline\.' || true)" ] || fail "$name: se escribió config de la rama"
+pass "$name"
