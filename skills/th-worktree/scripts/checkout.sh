@@ -3,7 +3,7 @@
 # shellcheck disable=SC2154 # $repo is set by resolve_repo in lib.sh
 
 checkout_worktree() {
-  local branch dest remote json
+  local branch dest remote json remote_heads
   case "${1:-}" in
     "") bad_usage "missing <branch>" ;;
     -h|--help) usage; exit 0 ;;
@@ -28,7 +28,8 @@ checkout_worktree() {
     git worktree add -q "$dest" "$branch" || die 1 "git worktree add failed"
   else
     if [ "$remote" = 1 ]; then
-      git ls-remote --heads origin "refs/heads/$branch" >/dev/null
+      remote_heads="$(git ls-remote --heads origin "refs/heads/$branch")"
+      [ -n "$remote_heads" ] || die 4 "branch not found on origin: $branch"
       fetch_origin_branch "$branch"
     fi
 
@@ -37,7 +38,7 @@ checkout_worktree() {
       git config "branch.$branch.remote" origin
       git config "branch.$branch.merge" "refs/heads/$branch"
     else
-      return 1
+      die 4 "branch not found: $branch (try --remote)"
     fi
   fi
 
