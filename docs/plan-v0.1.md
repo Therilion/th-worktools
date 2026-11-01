@@ -61,11 +61,13 @@ th-worktools/
 ├── CLAUDE.md                 # contiene solo: @AGENTS.md
 ├── README.md
 ├── docs/
-│   └── plan-v0.1.md          # este documento
-├── install.sh                # crea symlinks de skills y entrypoints
-├── verify.sh                 # comprueba que cada agente ve los skills
+│   ├── plan-v0.1.md          # este documento
+│   ├── th-worktree.md        # referencia de usuario de th-wt
+│   └── desarrollo.md         # guía de desarrollo y convenciones de tests
+├── install.sh                # crea symlinks de skills y entrypoints (pendiente, #12/#13)
+├── verify.sh                 # comprueba que cada agente ve los skills (pendiente, #12/#13)
 ├── examples/
-│   └── config/               # configuración de ejemplo, solo con valores ficticios
+│   └── config/               # configuración de ejemplo, solo con valores ficticios (pendiente, #7/#8)
 ├── skills/
 │   └── th-worktree/
 │       ├── SKILL.md
@@ -73,6 +75,7 @@ th-worktools/
 │           ├── th-wt         # entrypoint: usage, dependencias y despacho; carga solo el archivo del subcomando
 │           ├── lib.sh        # funciones compartidas: die, bad_usage, resolve_repo, rama por defecto de origin
 │           ├── new.sh        # subcomando new
+│           ├── checkout.sh   # subcomando checkout
 │           ├── list.sh       # subcomando list
 │           └── close.sh      # subcomando close
 ├── tests/
@@ -300,8 +303,8 @@ Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git
 | `new <rama> [--base <rama>]` | Rama nueva desde `origin/<rama>` (por defecto, la rama por defecto de `origin`) | No |
 | `checkout <rama> [--remote]` | Worktree de una rama existente, local o remota | No |
 | `pr <n>` | Worktree de un PR en `pr-reviews/pr-<n>/code` | No |
-| `list` | Worktrees del repo actual bajo la raíz, con su estado | No |
-| `close <rama\|pr-<n>> [--force]` | Cierra el worktree (ver abajo) | **Sí** |
+| `list [--remote]` | Worktrees del repo actual bajo la raíz, con su estado (`--remote` actualiza la rama por defecto de `origin` y consulta los PRs en GitHub) | No |
+| `close <rama\|pr-<n>> [--remote] [--force]` | Cierra el worktree (`--remote` considera mergeada la rama si su PR en GitHub está `MERGED` sin commits locales posteriores; ver abajo) | **Sí** |
 
 Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta directo. Cerrar sí lo es.
 
@@ -345,6 +348,8 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 `git worktree list --porcelain`, filtrado a los worktrees bajo `TH_WORKTREES_ROOT`, con estado: limpio o con cambios, mergeada o no.
 
 ### Borrador de `SKILL.md`
+
+> Borrador inicial; la versión vigente es [`skills/th-worktree/SKILL.md`](../skills/th-worktree/SKILL.md).
 
 ````markdown
 ---
@@ -444,13 +449,13 @@ Matriz: `macos-latest` y `ubuntu-latest`.
 
 ## 15. Definition of Done — v0.1
 
-- [ ] `th-worktree` crea worktrees para una rama nueva, para una rama existente y para un PR.
+- [ ] `th-worktree` crea worktrees para una rama nueva, para una rama existente y para un PR (parcial: `new` y `checkout` listos; falta `pr`, #5).
 - [ ] Al crear: aplica el `.conf` del repo (enlaza `.wiki`), instala dependencias e inicializa codegraph si está disponible.
-- [ ] Al cerrar: dry-run por defecto; con `--yes` ejecuta `codegraph uninit`, elimina el worktree y borra la rama si está mergeada.
-- [ ] Funciona invocado desde Claude Code y desde Antigravity en macOS.
+- [ ] Al cerrar: dry-run por defecto; con `--yes` ejecuta `codegraph uninit`, elimina el worktree y borra la rama si está mergeada (parcial: dry-run, eliminación del worktree y borrado de rama mergeada listos, también con `--remote`; falta `codegraph uninit`, #9).
+- [ ] Funciona invocado desde Claude Code y desde Antigravity en macOS (parcial: verificado en Claude Code; falta Antigravity, #10).
 - [ ] `git status` limpio en un worktree del repo del trabajo (la `.wiki` enlazada no aparece).
-- [ ] CI en verde en macOS y Ubuntu.
-- [ ] README con instalación en tres pasos y dependencias declaradas.
+- [x] CI en verde en macOS y Ubuntu.
+- [ ] README con instalación en tres pasos y dependencias declaradas (parcial: dependencias declaradas; falta la instalación con `install.sh`, #12/#13).
 
 Cuando todo esté marcado: tag `v0.1`, usarlo una semana y anotar lo que moleste. **Esa lista define la v0.2.**
 
