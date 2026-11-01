@@ -40,9 +40,7 @@ checkout_worktree() {
   git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch"
 
   resolve_repo
-  dest="$(worktrees_root)${branch//\//-}"
-
-  [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
+  worktree_dest "$branch"
 
   if git show-ref --verify --quiet "refs/heads/$branch"; then
     busy_path="$(find_worktree_for_branch "$branch")"
@@ -65,6 +63,6 @@ checkout_worktree() {
   fi
 
   if [ "$json" = 1 ]; then
-    jq -n --arg path "$dest" --arg branch "$branch" --arg repo "$repo" '{path: $path, branch: $branch, repo: $repo}'
+    print_created_json "$dest" "$branch"
   fi
 }

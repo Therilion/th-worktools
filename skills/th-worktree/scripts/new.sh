@@ -25,9 +25,7 @@ new_worktree() {
   [ -z "$base" ] || git check-ref-format "refs/heads/$base" || die 2 "invalid base branch: $base"
 
   resolve_repo
-  dest="$(worktrees_root)${branch//\//-}"
-
-  [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
+  worktree_dest "$branch"
 
   default="$(origin_default_branch)" || die 4 "cannot read origin (unreachable or no access)"
 
@@ -44,6 +42,6 @@ new_worktree() {
   git worktree add --no-track -q -b "$branch" "$dest" "origin/$base" || die 1 "git worktree add failed"
 
   if [ "$json" = 1 ]; then
-    jq -n --arg path "$dest" --arg branch "$branch" --arg repo "$repo" '{path: $path, branch: $branch, repo: $repo}'
+    print_created_json "$dest" "$branch"
   fi
 }
