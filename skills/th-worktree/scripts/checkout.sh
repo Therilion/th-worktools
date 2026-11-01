@@ -39,6 +39,7 @@ checkout_worktree() {
   done
 
   git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch"
+  [ "$branch" != HEAD ] || die 2 "invalid branch name: $branch"
 
   resolve_repo
   worktree_dest "$branch"

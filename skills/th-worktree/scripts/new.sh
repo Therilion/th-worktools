@@ -22,6 +22,7 @@ new_worktree() {
   done
 
   git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch"
+  [ "$branch" != HEAD ] || die 2 "invalid branch name: $branch"
   [ -z "$base" ] || git check-ref-format "refs/heads/$base" || die 2 "invalid base branch: $base"
 
   resolve_repo

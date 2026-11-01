@@ -158,3 +158,16 @@ err="$(cd "$TMP/repo" && PATH="$shim:$PATH" "$WT" checkout feature/busy-big 2>&1
 case "$err" in *"$TMP/busy-big"*) ;; *) fail "$name: el mensaje no menciona la ruta del worktree: [$err]" ;; esac
 [ ! -e "$HOME/.worktrees/acme/demo/feature-busy-big" ] || fail "$name: se creó el destino"
 pass "$name"
+
+name="rama llamada HEAD → exit 2 sin tocar la red ni crear nada"
+git -C "$TMP/repo" remote set-head origin main >/dev/null
+git -C "$TMP/repo" show-ref --verify --quiet refs/remotes/origin/HEAD || fail "$name: falta refs/remotes/origin/HEAD en el fixture"
+mv "$TMP/origin.git" "$TMP/origin.git.bak"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" checkout HEAD --remote 2>&1)" || rc=$?
+mv "$TMP/origin.git.bak" "$TMP/origin.git"
+[ "$rc" = 2 ] || fail "$name: exit=$rc, esperado 2: [$err]"
+case "$err" in *HEAD*) ;; *) fail "$name: el mensaje no menciona HEAD: [$err]" ;; esac
+[ ! -e "$HOME/.worktrees/acme/demo/HEAD" ] || fail "$name: se creó el destino"
+if git -C "$TMP/repo" show-ref --verify --quiet refs/heads/HEAD; then fail "$name: se creó la rama HEAD"; fi
+pass "$name"

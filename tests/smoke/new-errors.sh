@@ -165,3 +165,14 @@ for b in "main~1" "main^" "main@{1}"; do
   [ ! -e "$HOME/.worktrees/acme/demo/fix-badbase" ] || fail "$name: --base $b: se creó el destino"
 done
 pass "$name"
+
+name="rama llamada HEAD → exit 2 antes de tocar la red"
+mv "$TMP/origin.git" "$TMP/origin.git.bak"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" new HEAD 2>&1)" || rc=$?
+mv "$TMP/origin.git.bak" "$TMP/origin.git"
+[ "$rc" = 2 ] || fail "$name: exit=$rc, esperado 2: [$err]"
+case "$err" in *HEAD*) ;; *) fail "$name: el mensaje no menciona HEAD: [$err]" ;; esac
+[ ! -e "$HOME/.worktrees/acme/demo/HEAD" ] || fail "$name: se creó el destino"
+if git -C "$TMP/repo" show-ref --verify --quiet refs/heads/HEAD; then fail "$name: se creó la rama HEAD"; fi
+pass "$name"
