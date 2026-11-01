@@ -4,8 +4,9 @@
 
 # Returns the path of the worktree where branch $1 is checked out, or empty if none.
 find_worktree_for_branch() {
-  local target="refs/heads/$1" line path=""
-  git worktree list --porcelain | while IFS= read -r line; do
+  local target="refs/heads/$1" line path="" out
+  out="$(git worktree list --porcelain)"
+  while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
       "branch "*)
@@ -15,7 +16,7 @@ find_worktree_for_branch() {
         fi
         ;;
     esac
-  done
+  done <<<"$out"
 }
 
 checkout_worktree() {

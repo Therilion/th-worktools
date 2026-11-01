@@ -136,3 +136,25 @@ err="$(cd "$TMP/repo" && "$WT" checkout feature/retry 2>&1)" || rc=$?
 [ "$(git -C "$TMP/repo" config --get branch.feature/retry.merge)" = "refs/heads/feature/retry" ] || fail "$name: (reintento) branch.feature/retry.merge != refs/heads/feature/retry"
 
 pass "$name"
+
+name="rama abierta en otro worktree con un git worktree list enorme → exit 4 con la ruta, no 141"
+git -C "$TMP/repo" worktree add -q "$TMP/busy-big" -b feature/busy-big
+# git falso: `worktree list --porcelain` imprime la salida real (con el worktree ocupado al principio)
+# y luego cientos de miles de líneas de relleno, muy por encima del buffer del pipe.
+shim="$TMP/bin-list-enorme"
+mkdir -p "$shim"
+cat >"$shim/git" <<EOF2
+#!/usr/bin/env bash
+if [ "\${1:-}" = worktree ] && [ "\${2:-}" = list ] && [ "\${3:-}" = --porcelain ]; then
+  "$(command -v git)" "\$@" || exit \$?
+  exec awk 'BEGIN { for (i = 0; i < 300000; i++) printf "\nworktree /x/%d\nHEAD 0000000000000000000000000000000000000000\ndetached\n", i }'
+fi
+exec "$(command -v git)" "\$@"
+EOF2
+chmod +x "$shim/git"
+rc=0
+err="$(cd "$TMP/repo" && PATH="$shim:$PATH" "$WT" checkout feature/busy-big 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$err]"
+case "$err" in *"$TMP/busy-big"*) ;; *) fail "$name: el mensaje no menciona la ruta del worktree: [$err]" ;; esac
+[ ! -e "$HOME/.worktrees/acme/demo/feature-busy-big" ] || fail "$name: se creó el destino"
+pass "$name"
