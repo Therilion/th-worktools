@@ -18,7 +18,7 @@ Crea, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`, para
 | Subcomando | Qué hace |
 |---|---|
 | `new <rama> [--base <rama>]` | Worktree con una rama nueva |
-| `checkout <rama>` | Worktree de una rama existente, local o remota |
+| `checkout <rama> [--remote]` | Worktree de una rama existente, local o de `origin` (`--remote` la trae) |
 | `pr <n>` | Worktree de un PR de GitHub en `pr-reviews/pr-<n>/code` |
 | `list` | Worktrees del repo actual, con su estado |
 | `close <rama\|pr-<n>>` | Cierra el worktree; requiere `--yes` |
