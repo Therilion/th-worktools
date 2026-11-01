@@ -2,7 +2,7 @@
 
 Kit personal de skills y scripts para agentes de código, compatible con **Claude Code** y **Antigravity CLI**. Sigue el estándar Agent Skills (`SKILL.md`) y funciona en macOS y Linux.
 
-> **Estado:** en desarrollo, hacia la v0.1. Todavía no hay nada instalable.
+> **Estado:** en desarrollo, hacia la v0.1. Todavía no hay nada instalable (falta `install.sh`), pero `th-worktree` ya funciona con `new`, `checkout`, `list` y `close`.
 
 ## Principios
 
@@ -13,28 +13,30 @@ Kit personal de skills y scripts para agentes de código, compatible con **Claud
 
 ## v0.1: `th-worktree`
 
-Crea, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`, para trabajar en paralelo sin tocar el checkout principal.
+Crea, abre, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`, para trabajar en paralelo sin tocar el checkout principal.
 
-| Subcomando | Qué hace |
-|---|---|
-| `new <rama> [--base <rama>]` | Worktree con una rama nueva |
-| `checkout <rama> [--remote]` | Worktree de una rama existente, local o de `origin` (`--remote` la trae) |
-| `pr <n>` | Worktree de un PR de GitHub en `pr-reviews/pr-<n>/code` |
-| `list` | Worktrees del repo actual, con su estado |
-| `close <rama\|pr-<n>>` | Cierra el worktree; requiere `--yes` |
+| Subcomando | Qué hace | Estado |
+|---|---|---|
+| `new <branch> [--base <branch>] [--json]` | Worktree con una rama nueva | disponible |
+| `checkout <branch> [--remote] [--json]` | Worktree de una rama existente, local o de `origin` (`--remote` la trae) | disponible |
+| `pr <n>` | Worktree de un PR de GitHub en `pr-reviews/pr-<n>/code` | pendiente (#5) |
+| `list [--remote] [--json]` | Worktrees del repo actual, con su estado (`--remote` consulta `origin` y los PRs de GitHub) | disponible |
+| `close <branch> [--remote] [--yes] [--force] [--json]` | Cierra el worktree; requiere `--yes` (cerrar `pr-<n>` es parte de #5) | disponible |
 
-Al crear un worktree:
+Hoy, al crear un worktree solo se crean el worktree y la rama, nada más. Está previsto que al crear un worktree además:
 
-- instala las dependencias según el lockfile (pnpm o npm);
-- enlaza o copia los archivos ignorados que declares por repo (por ejemplo, `.wiki` o `.env`);
-- inicializa codegraph si está instalado.
+- instale las dependencias según el lockfile (pnpm o npm, #6);
+- enlace o copie los archivos ignorados que declares por repo (por ejemplo, `.wiki` o `.env`, #7);
+- inicialice codegraph si está instalado (#9).
 
-Se usa desde Claude Code (`/th-worktree new feature/login`), desde Antigravity en lenguaje natural o desde la terminal con `th-wt`.
+Hoy funciona desde Claude Code (`/th-worktree new feature/login`) y desde la terminal ejecutando el script con su ruta completa; Antigravity (#10) y `th-wt` en el `PATH` (#11) están pendientes.
+
+La referencia completa (subcomandos, red, códigos de salida y `--json`) está en [`docs/th-worktree.md`](docs/th-worktree.md).
 
 ## Requisitos
 
 - Requeridos: `git`, `jq`, bash 3.2 o superior.
-- Para PRs: `gh`.
+- Para `list --remote` y `close --remote` hoy (y para `pr` cuando exista): `gh`.
 - Opcional: `codegraph`.
 
 ## Hoja de ruta
@@ -46,7 +48,7 @@ Se usa desde Claude Code (`/th-worktree new feature/login`), desde Antigravity e
 | v0.3 | `th-pr-review`: revisión de PRs con mutation testing limitado al diff |
 | v0.4 | `th-integration-context`: contexto compartido entre repos |
 
-El detalle de las decisiones está en [`docs/plan-v0.1.md`](docs/plan-v0.1.md).
+El detalle de las decisiones está en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) y la guía de desarrollo y tests en [`docs/desarrollo.md`](docs/desarrollo.md).
 
 Las ramas de cada historia se integran en `main` con un merge commit hasta la historia 5; a partir de la historia 6 (`#6` del backlog) se integran con squash.
 
