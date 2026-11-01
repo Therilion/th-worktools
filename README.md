@@ -48,7 +48,7 @@ La referencia completa (subcomandos, red, códigos de salida y `--json`) está e
 | v0.3 | `th-pr-review`: revisión de PRs con mutation testing limitado al diff |
 | v0.4 | `th-integration-context`: contexto compartido entre repos |
 
-El detalle de las decisiones está en [`docs/plan-v0.1.md`](docs/plan-v0.1.md).
+El detalle de las decisiones está en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) y la guía de desarrollo y tests en [`docs/desarrollo.md`](docs/desarrollo.md).
 
 Las ramas de cada historia se integran en `main` con un merge commit hasta la historia 5; a partir de la historia 6 (`#6` del backlog) se integran con squash.
 
