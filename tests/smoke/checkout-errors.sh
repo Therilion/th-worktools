@@ -102,3 +102,37 @@ for b in "bad..name" "feature/x.lock"; do
 done
 mv "$TMP/origin.git.bak" "$TMP/origin.git"
 pass "$name"
+
+name="si git worktree add falla con una rama de origin, no queda la rama local y el reintento crea el worktree con upstream"
+root_dir="$HOME/.worktrees/acme/demo"
+dest="$root_dir/feature-retry"
+
+git clone -q "$REMOTE_URL" "$TMP/other-retry"
+git -C "$TMP/other-retry" checkout -q -b feature/retry
+git -C "$TMP/other-retry" commit -q --allow-empty -m retry
+git -C "$TMP/other-retry" push -q origin feature/retry
+git -C "$TMP/repo" fetch -q origin
+git -C "$TMP/repo" show-ref --verify --quiet refs/remotes/origin/feature/retry || fail "$name: falta refs/remotes/origin/feature/retry en el fixture"
+[ -z "$(git -C "$TMP/repo" branch --list feature/retry)" ] || fail "$name: el fixture ya tenía la rama local"
+
+# Primer intento: la raíz no es escribible, así que git worktree add falla.
+mkdir -p "$root_dir"
+chmod a-w "$root_dir"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" checkout feature/retry 2>&1)" || rc=$?
+chmod u+w "$root_dir"
+[ "$rc" != 0 ] || fail "$name: (primer intento) esperaba fallo y salió con exit 0"
+if git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/retry; then
+  fail "$name: (primer intento) quedó refs/heads/feature/retry: [$err]"
+fi
+[ -z "$(git -C "$TMP/repo" config --get-regexp '^branch\.feature/retry\.' || true)" ] || fail "$name: (primer intento) quedó config de la rama"
+
+# Reintento: ahora sí se puede escribir y debe quedar con upstream.
+rc=0
+err="$(cd "$TMP/repo" && "$WT" checkout feature/retry 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: (reintento) exit=$rc, esperado 0: [$err]"
+[ -d "$dest" ] || fail "$name: (reintento) no se creó $dest"
+[ "$(git -C "$TMP/repo" config --get branch.feature/retry.remote)" = "origin" ] || fail "$name: (reintento) branch.feature/retry.remote != origin"
+[ "$(git -C "$TMP/repo" config --get branch.feature/retry.merge)" = "refs/heads/feature/retry" ] || fail "$name: (reintento) branch.feature/retry.merge != refs/heads/feature/retry"
+
+pass "$name"

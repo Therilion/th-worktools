@@ -54,7 +54,11 @@ checkout_worktree() {
     fi
 
     if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
-      git worktree add --no-track -q -b "$branch" "$dest" "origin/$branch" || die 1 "git worktree add failed"
+      if ! git worktree add --no-track -q -b "$branch" "$dest" "origin/$branch"; then
+        # git creates the branch before failing; drop it so a retry does not take the no-upstream local path.
+        git branch -D -q "$branch" || true
+        die 1 "git worktree add failed"
+      fi
       git config "branch.$branch.remote" origin
       git config "branch.$branch.merge" "refs/heads/$branch"
     else
