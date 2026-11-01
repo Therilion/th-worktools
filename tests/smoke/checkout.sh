@@ -137,3 +137,20 @@ out="$(cd "$TMP/repo" && "$WT" checkout feature/json-co --json)" || fail "$name:
 expected="{\"branch\":\"feature/json-co\",\"path\":\"$HOME/.worktrees/acme/demo/feature-json-co\",\"repo\":\"acme/demo\"}"
 [ "$(printf '%s' "$out" | jq -S -c .)" = "$expected" ] || fail "$name: salida=[$out]"
 pass "$name"
+
+name="checkout de una rama de origin funciona aunque exista una rama local llamada origin/<rama>"
+git clone -q "$REMOTE_URL" "$TMP/other-amb"
+git -C "$TMP/other-amb" checkout -q -b feature/amb
+git -C "$TMP/other-amb" commit -q --allow-empty -m "amb commit"
+git -C "$TMP/other-amb" push -q origin feature/amb
+origin_commit="$(git -C "$TMP/origin.git" rev-parse refs/heads/feature/amb)"
+git -C "$TMP/repo" fetch -q origin
+git -C "$TMP/repo" branch origin/feature/amb main
+
+rc=0
+err="$(cd "$TMP/repo" && "$WT" checkout feature/amb 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$err]"
+dest="$HOME/.worktrees/acme/demo/feature-amb"
+[ "$(git -C "$dest" branch --show-current)" = "feature/amb" ] || fail "$name: rama incorrecta"
+[ "$(git -C "$dest" rev-parse HEAD)" = "$origin_commit" ] || fail "$name: no parte del commit de origin"
+pass "$name"

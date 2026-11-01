@@ -83,3 +83,16 @@ git -C "$TMP/origin.git" tag v-from-origin main
 (cd "$TMP/repo" && "$WT" new feature/no-tags) || fail "$name: th-wt new falló"
 [ -z "$(git -C "$TMP/repo" tag -l)" ] || fail "$name: new escribió tags: [$(git -C "$TMP/repo" tag -l)]"
 pass "$name"
+
+name="new --base funciona aunque exista una rama local llamada origin/<base>"
+git clone -q "$REMOTE_URL" "$TMP/other-amb"
+git -C "$TMP/other-amb" checkout -q -b release/amb
+git -C "$TMP/other-amb" commit -q --allow-empty -m "amb base commit"
+git -C "$TMP/other-amb" push -q origin release/amb
+git -C "$TMP/repo" branch origin/release/amb main
+err=0
+out="$(cd "$TMP/repo" && "$WT" new fix/amb --base release/amb 2>&1)" || err=$?
+[ "$err" = 0 ] || fail "$name: exit=$err, esperado 0: [$out]"
+dest="$HOME/.worktrees/acme/demo/fix-amb"
+[ "$(git -C "$dest" rev-parse HEAD)" = "$(git -C "$TMP/origin.git" rev-parse refs/heads/release/amb)" ] || fail "$name: no parte del commit de origin"
+pass "$name"
