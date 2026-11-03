@@ -60,10 +60,13 @@ close_worktree() {
   if [ "$missing" = false ] && out="$(git --no-optional-locks -C "$path" status --porcelain -z --ignored --untracked-files=normal 2>/dev/null | tr '\0' '\1')"; then
     ignored="$(printf '%s' "$out" | jq -R -s -c 'split("\u0001") | map(select(startswith("!! ")) | .[3:])')"
   elif [ "$missing" = false ]; then ignored=null; fi
-  unpushed="$(git rev-list --count "$oid" --not --remotes=origin)"
-  lost="$unpushed"
-  [ "$covered" = false ] || lost=0
-  [ "$is_pr" = false ] || lost="$after_pr"
+  # a PR worktree has no unpushed count: after_pr takes its place
+  if [ "$is_pr" = true ]; then lost="$after_pr" unpushed=null
+  else
+    unpushed="$(git rev-list --count "$oid" --not --remotes=origin)"
+    lost="$unpushed"
+    [ "$covered" = false ] || lost=0
+  fi
   if { [ "$dirty" = true ] || [ "$unreadable" = true ] || [ "$lost" != 0 ]; } && [ "$force" = 0 ]; then del_wt=false
   elif [ "$is_pr" = true ]; then del_br=true
   elif [ "$covered" = false ] && [ "$merged" = null ]; then kept="default branch unknown (try: git remote set-head origin -a)"

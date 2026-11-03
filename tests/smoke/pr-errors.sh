@@ -125,3 +125,18 @@ err="$(cd "$TMP/repo" && "$WT" pr 7 2>&1)" || rc=$?
 case "$err" in *"th-wt: PR #7 head changed"*) ;; *) fail "$name: mensaje inesperado: [$err]" ;; esac
 nothing_created || fail "$name: se creó algo"
 pass "$name"
+
+name="pr sale con 1 y no deja la rama review/pr-<n> si falla git worktree add"
+pr1="$(git -C "$TMP/origin.git" commit-tree -p main -m "pr 1" "main^{tree}")"
+git -C "$TMP/origin.git" update-ref refs/pull/1/head "$pr1"
+gh_pr 1 main "$pr1"
+# pr-reviews/pr-1 es un archivo: pasa las comprobaciones previas, pero git no puede crear pr-1/code
+mkdir -p "$HOME/.worktrees/acme/demo/pr-reviews"
+echo mio > "$HOME/.worktrees/acme/demo/pr-reviews/pr-1"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" pr 1 2>&1)" || rc=$?
+[ "$rc" = 1 ] || fail "$name: exit=$rc, esperado 1: [$err]"
+case "$err" in *"th-wt: git worktree add failed"*) ;; *) fail "$name: mensaje inesperado: [$err]" ;; esac
+[ -z "$(git -C "$TMP/repo" branch --list 'review/pr-1')" ] || fail "$name: quedó la rama review/pr-1"
+[ "$(cat "$HOME/.worktrees/acme/demo/pr-reviews/pr-1")" = mio ] || fail "$name: se modificó el archivo"
+pass "$name"
