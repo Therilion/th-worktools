@@ -124,7 +124,8 @@ close_worktree() {
     echo "  dirty:     ${dirty/null/unknown}"
     if [ "$is_pr" = true ]; then
       echo "  after PR:  ${after_pr/null/unknown} commits of yours"
-      [ -z "$created" ] || git log -10 --format='             %h %s' "$oid" --not "$created" --remotes=origin >&2
+      # --no-pager: stderr is the terminal, and git would open a pager there when run by hand
+      { [ -z "$created" ] || [ "$after_pr" = 0 ]; } || git --no-pager log -10 --format='             %h %s' "$oid" --not "$created" --remotes=origin >&2
     else
       echo "  unpushed:  $unpushed commits$([ "$covered" = false ] || [ "$unpushed" = 0 ] || echo " (all in the PR)")"
     fi

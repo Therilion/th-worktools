@@ -138,3 +138,25 @@ git -C "$dest" push -q origin HEAD:refs/heads/review-copia
 out="$(cd "$TMP/repo" && "$WT" close review/pr-22 --json 2>/dev/null)" || fail "$name: close --json falló"
 [ "$(printf '%s' "$out" | jq -c '[.after_pr, .delete.worktree]')" = '[0,true]' ] || fail "$name: tras el push: json=[$out]"
 pass "$name"
+
+name="close review/pr-<n> lista mis commits sin paginador, y no ejecuta git log si no hay ninguno"
+# git falso: anota sus argumentos y delega en el real. Sin TTY git no pagina, así que se comprueba que log siempre lleve --no-pager.
+mkdir -p "$TMP/shim"
+cat > "$TMP/shim/git" <<EOF2
+#!/usr/bin/env bash
+echo "\$*" >> "$TMP/git.calls"
+exec "$(command -v git)" "\$@"
+EOF2
+chmod +x "$TMP/shim/git"
+open_pr 30
+open_pr 31
+git -C "$HOME/.worktrees/acme/demo/pr-reviews/pr-30/code" commit -q --allow-empty -m "mi commit con commit-listado"
+rm -f "$TMP/git.calls"
+err="$(cd "$TMP/repo" && PATH="$TMP/shim:$PATH" "$WT" close review/pr-30 2>&1)" || fail "$name: close falló: [$err]"
+case "$err" in *"mi commit con commit-listado"*) ;; *) fail "$name: no lista mi commit: [$err]" ;; esac
+[ "$(grep -c '^log ' "$TMP/git.calls" || true)" = 0 ] || fail "$name: git log sin --no-pager: [$(grep '^log ' "$TMP/git.calls")]"
+[ "$(grep -c '^--no-pager log ' "$TMP/git.calls" || true)" = 1 ] || fail "$name: esperaba un git --no-pager log con 1 commit"
+rm -f "$TMP/git.calls"
+(cd "$TMP/repo" && PATH="$TMP/shim:$PATH" "$WT" close review/pr-31 >/dev/null 2>&1) || fail "$name: close falló sin commits"
+[ "$(grep -c ' log \|^log \|^--no-pager log ' "$TMP/git.calls" || true)" = 0 ] || fail "$name: ejecutó git log sin commits propios: [$(grep ' log \|^log ' "$TMP/git.calls")]"
+pass "$name"
