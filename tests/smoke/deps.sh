@@ -52,3 +52,11 @@ out="$(cd "$TMP/repo" && "$WT" new feature/both --base with-both --json 2>/dev/n
 dest="$HOME/.worktrees/acme/demo/feature-both"
 [ "$(cat "$TMP/pm.calls")" = "$dest pnpm install --frozen-lockfile" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
 [ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: salida=[$out]"
+pass "$name"
+
+name="new sin lockfile no ejecuta ningún gestor y devuelve deps: skipped"
+: > "$TMP/pm.calls"
+out="$(cd "$TMP/repo" && "$WT" new feature/nolock --json 2>/dev/null)" || fail "$name: th-wt new falló"
+[ ! -s "$TMP/pm.calls" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: salida=[$out]"
+pass "$name"
