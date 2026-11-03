@@ -129,12 +129,12 @@ gh_pr_from() {
   jq -n --arg o "$(git -C "$TMP/origin.git" rev-parse "refs/pull/$1/head")" --argjson n "$1" '{number: $n, title: "PR de prueba", headRefName: "x", baseRefName: "main", headRefOid: $o}' > "$TMP/gh.json"
 }
 
-name="pr con pnpm-lock.yaml ejecuta pnpm install --frozen-lockfile --ignore-scripts y devuelve deps: pnpm"
+name="pr con pnpm-lock.yaml ejecuta pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile (sin scripts ni .pnpmfile.cjs) y devuelve deps: pnpm"
 : > "$TMP/pm.calls"
 gh_pr_from 21 with-pnpm
 out="$(cd "$TMP/repo" && "$WT" pr 21 --json 2>/dev/null)" || fail "$name: th-wt pr falló"
 dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-21/code"
-[ "$(cat "$TMP/pm.calls")" = "$dest pnpm install --frozen-lockfile --ignore-scripts" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
+[ "$(cat "$TMP/pm.calls")" = "$dest pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
 [ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: salida=[$out]"
 pass "$name"
 
