@@ -322,10 +322,12 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 7. Si `TH_INSTALL_DEPS=1`, instalar dependencias según el lockfile:
    - `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`
    - `package-lock.json` → `npm ci`
-   - Cualquier otro: avisar y omitir (v0.1).
+   - Cualquier otro: omitir (v0.1).
+   - Si hay ambos lockfiles gana pnpm. Corre en el worktree, con la salida del gestor a stderr (stdout queda para `--json`) y `</dev/null`. En `pr` se añade `--ignore-scripts` (el PR puede ser código de un tercero).
+   - Si el gestor falla: se conserva el worktree, aviso por stderr, `deps: "failed"` y código `0`. Si hay lockfile pero el gestor no está en `PATH`: aviso por stderr, `deps: "skipped"` y código `0`.
 8. Si `TH_CODEGRAPH=auto` y codegraph está instalado, inicializarlo en el worktree (verificar los flags no interactivos de `codegraph init`).
 9. Mostrar un resumen. Con `--json`:
-   `{ "path", "branch", "repo", "linked": [], "copied": [], "deps": "pnpm|npm|skipped", "codegraph": true|false }`
+   `{ "path", "branch", "repo", "linked": [], "copied": [], "deps": "pnpm|npm|skipped|failed", "codegraph": true|false }`
 10. Indicar al usuario que abra **una sesión nueva del agente** en esa ruta.
 
 ### `close`
