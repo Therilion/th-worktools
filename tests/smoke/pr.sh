@@ -59,3 +59,13 @@ for want in "$HOME/.worktrees/acme/demo/pr-reviews/pr-9/code" "Añadir exportaci
   case "$err" in *"$want"*) ;; *) fail "$name: stderr no incluye [$want]: [$err]" ;; esac
 done
 pass "$name"
+
+name="pr <n> abre aunque pr-reviews/pr-<n>/ ya tenga otros archivos pero no code"
+origin_commit main refs/pull/10/head "trabajo del PR 10"
+echo '{"number":10,"title":"Reabrir","headRefName":"feat/reopen","baseRefName":"main"}' > "$TMP/gh.json"
+mkdir -p "$HOME/.worktrees/acme/demo/pr-reviews/pr-10"
+echo "notas" > "$HOME/.worktrees/acme/demo/pr-reviews/pr-10/report.md"
+(cd "$TMP/repo" && "$WT" pr 10 2>/dev/null) || fail "$name: th-wt pr falló"
+[ "$(git -C "$HOME/.worktrees/acme/demo/pr-reviews/pr-10/code" symbolic-ref --short HEAD)" = review/pr-10 ] || fail "$name: no se abrió el worktree"
+[ "$(cat "$HOME/.worktrees/acme/demo/pr-reviews/pr-10/report.md")" = notas ] || fail "$name: report.md cambió"
+pass "$name"
