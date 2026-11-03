@@ -38,9 +38,17 @@ worktree_dest() {
   [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
 }
 
-# Prints the created worktree object as JSON; needs $repo.
+# Installs the dependencies of worktree $1 from its lockfile; sets $deps.
+install_deps() {
+  deps=skipped
+  if [ -f "$1/pnpm-lock.yaml" ]; then
+    (cd "$1" && pnpm install --frozen-lockfile) && deps=pnpm
+  fi
+}
+
+# Prints the created worktree object as JSON; needs $repo and $deps.
 print_created_json() {
-  jq -n --arg path "$1" --arg branch "$2" --arg repo "$repo" '{path: $path, branch: $branch, repo: $repo}'
+  jq -n --arg path "$1" --arg branch "$2" --arg repo "$repo" --arg deps "${deps:-skipped}" '{path: $path, branch: $branch, repo: $repo, deps: $deps}'
 }
 
 # Local default branch (e.g. origin/main) from refs/remotes/origin/HEAD; empty if unset. Offline.
