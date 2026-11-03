@@ -43,6 +43,8 @@ install_deps() {
   deps=skipped
   if [ -f "$1/pnpm-lock.yaml" ]; then
     (cd "$1" && pnpm install --frozen-lockfile) && deps=pnpm
+  elif [ -f "$1/package-lock.json" ]; then
+    (cd "$1" && npm ci) && deps=npm
   fi
 }
 
