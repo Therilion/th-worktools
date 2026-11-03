@@ -106,3 +106,12 @@ for pm in pnpm npm; do
   grep -q "warning.*$pm" "$TMP/sin-$pm.err" || fail "$name: $pm: sin aviso en stderr: [$(cat "$TMP/sin-$pm.err")]"
 done
 pass "$name"
+
+name="checkout de una rama local con lockfile (sin --remote) instala las dependencias y devuelve deps"
+: > "$TMP/pm.calls"
+git -C "$TMP/repo" branch --no-track local-pnpm refs/remotes/origin/with-pnpm
+out="$(cd "$TMP/repo" && "$WT" checkout local-pnpm --json 2>/dev/null)" || fail "$name: th-wt checkout falló"
+dest="$HOME/.worktrees/acme/demo/local-pnpm"
+[ "$(cat "$TMP/pm.calls")" = "$dest pnpm install --frozen-lockfile" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: salida=[$out]"
+pass "$name"

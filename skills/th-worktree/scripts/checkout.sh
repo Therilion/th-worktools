@@ -56,6 +56,7 @@ checkout_worktree() {
       die 4 "branch not found: $branch (try --remote)"
     fi
   fi
+  install_deps "$dest"
 
   if [ "$json" = 1 ]; then
     print_created_json "$dest" "$branch"
