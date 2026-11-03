@@ -72,3 +72,11 @@ out="$(cd "$TMP/repo" && FAKE_PM_OUT=1 "$WT" new feature/stdout --base with-pnpm
 [ "$(jq -s length <<<"$out")" = 1 ] && [ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: stdout=[$out]"
 grep -q "junk de pnpm en stdout" "$TMP/stdout.err" || fail "$name: la salida del gestor no llegó a stderr: [$(cat "$TMP/stdout.err")]"
 pass "$name"
+
+name="el gestor no recibe el stdin del llamador"
+: > "$TMP/pm.calls"
+rm -f "$TMP/pm.stdin"
+(cd "$TMP/repo" && echo "texto del llamador" | FAKE_PM_STDIN=1 "$WT" new feature/stdin --base with-pnpm 2>/dev/null) || fail "$name: th-wt new falló"
+[ -s "$TMP/pm.calls" ] || fail "$name: el gestor no se ejecutó"
+[ "$(cat "$TMP/pm.stdin")" = "stdin=[]" ] || fail "$name: el gestor leyó [$(cat "$TMP/pm.stdin")]"
+pass "$name"
