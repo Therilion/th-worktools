@@ -137,3 +137,12 @@ dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-21/code"
 [ "$(cat "$TMP/pm.calls")" = "$dest pnpm install --frozen-lockfile --ignore-scripts" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
 [ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: salida=[$out]"
 pass "$name"
+
+name="pr con package-lock.json ejecuta npm ci --ignore-scripts y devuelve deps: npm"
+: > "$TMP/pm.calls"
+gh_pr_from 22 with-npm
+out="$(cd "$TMP/repo" && "$WT" pr 22 --json 2>/dev/null)" || fail "$name: th-wt pr falló"
+dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-22/code"
+[ "$(cat "$TMP/pm.calls")" = "$dest npm ci --ignore-scripts" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = npm ] || fail "$name: salida=[$out]"
+pass "$name"
