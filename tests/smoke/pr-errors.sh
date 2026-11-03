@@ -26,3 +26,14 @@ done
 [ ! -e "$TMP/gh.calls" ] || fail "$name: llamó a gh"
 [ -z "$(git -C "$TMP/repo" branch --list 'review/*')" ] || fail "$name: se creó una rama review/*"
 pass "$name"
+
+name="pr sin gh sale con 3 y no crea nada"
+mkdir -p "$TMP/nogh"
+for tool in env bash git jq sed awk cat; do ln -sf "$(command -v "$tool")" "$TMP/nogh/$tool"; done
+rc=0
+err="$(cd "$TMP/repo" && PATH="$TMP/nogh" "$WT" pr 7 2>&1)" || rc=$?
+[ "$rc" = 3 ] || fail "$name: exit=$rc, esperado 3: [$err]"
+case "$err" in *"th-wt: missing dependency: gh"*) ;; *) fail "$name: mensaje inesperado: [$err]" ;; esac
+[ ! -e "$HOME/.worktrees" ] || fail "$name: se creó $HOME/.worktrees"
+[ -z "$(git -C "$TMP/repo" branch --list 'review/*')" ] || fail "$name: se creó una rama review/*"
+pass "$name"

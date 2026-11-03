@@ -19,6 +19,7 @@ pr_worktree() {
 
   resolve_repo
   dest="$(worktrees_root)pr-reviews/pr-$n/code"
+  command -v gh >/dev/null || die 3 "missing dependency: gh"
 
   meta="$(gh pr view "$n" -R "$repo" --json number,title,headRefName,baseRefName)"
   base="$(jq -r .baseRefName <<<"$meta")"
