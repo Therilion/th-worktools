@@ -32,10 +32,10 @@ rc=0
 [ ! -e "$HOME/.worktrees/acme/demo/feature-bad-opt" ] || fail "$name: se creó el destino"
 pass "$name"
 
-name="new/checkout/list/close con --help o -h → exit 0, uso en stdout, stderr vacío, también fuera de un repo, sin crear nada"
+name="new/checkout/list/pr/close con --help o -h → exit 0, uso en stdout, stderr vacío, también fuera de un repo, sin crear nada"
 mkdir -p "$TMP/norepo"
 for dir in "$TMP/repo" "$TMP/norepo"; do
-  for sub in new checkout list close; do
+  for sub in new checkout list pr close; do
     for flag in --help -h; do
       rc=0
       out="$(cd "$dir" && "$WT" "$sub" "$flag" 2>"$TMP/help.err")" || rc=$?

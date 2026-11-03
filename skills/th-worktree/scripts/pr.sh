@@ -5,7 +5,11 @@
 pr_worktree() {
   local n json=0 dest meta oid base
   n="${1:-}"
-  shift || true
+  case "$n" in
+    -h|--help) usage; exit 0 ;;
+    ""|*[!0-9]*|0*) bad_usage "<n> must be a positive integer without leading zeros: ${n:-(missing)}" ;;
+  esac
+  shift
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1; shift ;;
