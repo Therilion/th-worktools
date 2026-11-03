@@ -19,6 +19,8 @@ pr_worktree() {
 
   resolve_repo
   dest="$(worktrees_root)pr-reviews/pr-$n/code"
+  [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
+  ! git show-ref --verify --quiet "refs/heads/review/pr-$n" || die 4 "branch already exists: review/pr-$n"
   command -v gh >/dev/null || die 3 "missing dependency: gh"
 
   meta="$(gh pr view "$n" -R "$repo" --json number,title,headRefName,baseRefName)" || die 4 "PR not found, not authenticated, or no access?"

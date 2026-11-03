@@ -82,3 +82,31 @@ err="$(cd "$TMP/repo" && "$WT" pr 7 2>&1)" || rc=$?
 case "$err" in *"th-wt: fetch of origin/gone-base failed"*) ;; *) fail "$name: base inexistente: mensaje inesperado: [$err]" ;; esac
 nothing_created || fail "$name: base inexistente: se creó algo"
 pass "$name"
+
+name="pr sale con 4 sin llamar a gh ni modificar nada si pr-reviews/pr-<n>/code o la rama review/pr-<n> ya existen"
+rm -f "$TMP/gh.calls"
+echo '{"number":7,"title":"t","headRefName":"h","baseRefName":"main"}' > "$TMP/gh.json"
+taken="$HOME/.worktrees/acme/demo/pr-reviews/pr-7/code"
+mkdir -p "$taken"
+echo mio > "$taken/notas.txt"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" pr 7 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: ruta ocupada: exit=$rc, esperado 4: [$err]"
+case "$err" in *"th-wt: destination already exists: $taken"*) ;; *) fail "$name: ruta ocupada: mensaje inesperado: [$err]" ;; esac
+# lo local va antes que la dependencia: sin gh también sale 4, no 3
+rc=0
+err="$(cd "$TMP/repo" && PATH="$TMP/nogh" "$WT" pr 7 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: ruta ocupada sin gh: exit=$rc, esperado 4: [$err]"
+[ "$(cat "$taken/notas.txt")" = mio ] || fail "$name: se modificó la ruta ocupada"
+[ -z "$(git -C "$TMP/repo" branch --list 'review/*')" ] || fail "$name: se creó una rama review/*"
+rm -r "$HOME/.worktrees"
+git -C "$TMP/repo" branch review/pr-8 main
+branch_oid="$(git -C "$TMP/repo" rev-parse review/pr-8)"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" pr 8 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: rama existente: exit=$rc, esperado 4: [$err]"
+case "$err" in *"th-wt: branch already exists: review/pr-8"*) ;; *) fail "$name: rama existente: mensaje inesperado: [$err]" ;; esac
+[ "$(git -C "$TMP/repo" rev-parse review/pr-8)" = "$branch_oid" ] || fail "$name: la rama cambió"
+[ ! -e "$HOME/.worktrees" ] || fail "$name: se creó $HOME/.worktrees"
+[ ! -e "$TMP/gh.calls" ] || fail "$name: llamó a gh: [$(cat "$TMP/gh.calls")]"
+pass "$name"
