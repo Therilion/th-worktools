@@ -13,7 +13,10 @@ cat "$TMP/gh.json"
 EOF2
 chmod +x "$TMP/bin/gh"
 export PATH="$TMP/bin:$PATH"
-echo '{"number":7,"title":"t","headRefName":"h","baseRefName":"main"}' > "$TMP/gh.json"
+# Escribe en el gh falso el PR $1 (base $2, headRefOid $3).
+gh_pr() { jq -n --argjson n "$1" --arg b "$2" --arg o "$3" '{number: $n, title: "t", headRefName: "h", baseRefName: $b, headRefOid: $o}' > "$TMP/gh.json"; }
+ZERO=0000000000000000000000000000000000000000
+gh_pr 7 main "$ZERO"
 
 name="pr con <n> ausente o que no es un entero positivo sin ceros a la izquierda sale con 2 sin crear nada"
 for n in "" abc 0 05 1.5 -1 1a; do
@@ -49,7 +52,7 @@ err="$(cd "$TMP/repo" && PATH="$TMP/badgh:$PATH" "$WT" pr 7 2>&1)" || rc=$?
 case "$err" in *"th-wt: PR not found, not authenticated, or no access?"*) ;; *) fail "$name: gh fallando: mensaje inesperado: [$err]" ;; esac
 case "$err" in *"Could not resolve to a PullRequest"*) ;; *) fail "$name: gh fallando: falta el mensaje de gh: [$err]" ;; esac
 nothing_created || fail "$name: gh fallando: se creó algo"
-for bad in 'not json' '[]' '{"number":7,"title":"t","headRefName":"h"}' '{"number":"7","title":"t","headRefName":"h","baseRefName":"main"}' '{"number":7,"title":"t","headRefName":"h","baseRefName":"a..b"}' '{"number":7,"title":"t","headRefName":"h","baseRefName":""}'; do
+for bad in 'not json' '[]' '{"number":7,"title":"t","headRefName":"h"}' '{"number":7,"title":"t","headRefName":"h","baseRefName":"main"}' '{"number":7,"title":"t","headRefName":"h","baseRefName":"main","headRefOid":"zzz"}' '{"number":"7","title":"t","headRefName":"h","baseRefName":"main"}' '{"number":7,"title":"t","headRefName":"h","baseRefName":"a..b"}' '{"number":7,"title":"t","headRefName":"h","baseRefName":""}'; do
   echo "$bad" > "$TMP/gh.json"
   rc=0
   err="$(cd "$TMP/repo" && "$WT" pr 7 2>&1)" || rc=$?
@@ -61,7 +64,7 @@ pass "$name"
 
 name="pr sale con 4 y no crea nada si origin no se puede leer, el PR no tiene head o la base no está en origin"
 git -C "$TMP/origin.git" update-ref refs/pull/7/head "$(git -C "$TMP/origin.git" commit-tree -p main -m pr "main^{tree}")"
-echo '{"number":7,"title":"t","headRefName":"h","baseRefName":"main"}' > "$TMP/gh.json"
+gh_pr 7 main "$(git -C "$TMP/origin.git" rev-parse refs/pull/7/head)"
 mv "$TMP/origin.git" "$TMP/origin.gone"
 rc=0
 err="$(cd "$TMP/repo" && "$WT" pr 7 2>&1)" || rc=$?
@@ -69,13 +72,13 @@ mv "$TMP/origin.gone" "$TMP/origin.git"
 [ "$rc" = 4 ] || fail "$name: origin inaccesible: exit=$rc, esperado 4: [$err]"
 case "$err" in *"th-wt: fetch of PR #7 failed"*) ;; *) fail "$name: origin inaccesible: mensaje inesperado: [$err]" ;; esac
 nothing_created || fail "$name: origin inaccesible: se creó algo"
-echo '{"number":8,"title":"t","headRefName":"h","baseRefName":"main"}' > "$TMP/gh.json"
+gh_pr 8 main "$ZERO"
 rc=0
 err="$(cd "$TMP/repo" && "$WT" pr 8 2>&1)" || rc=$?
 [ "$rc" = 4 ] || fail "$name: PR sin head: exit=$rc, esperado 4: [$err]"
 case "$err" in *"th-wt: fetch of PR #8 failed"*) ;; *) fail "$name: PR sin head: mensaje inesperado: [$err]" ;; esac
 nothing_created || fail "$name: PR sin head: se creó algo"
-echo '{"number":7,"title":"t","headRefName":"h","baseRefName":"gone-base"}' > "$TMP/gh.json"
+gh_pr 7 gone-base "$(git -C "$TMP/origin.git" rev-parse refs/pull/7/head)"
 rc=0
 err="$(cd "$TMP/repo" && "$WT" pr 7 2>&1)" || rc=$?
 [ "$rc" = 4 ] || fail "$name: base inexistente: exit=$rc, esperado 4: [$err]"
@@ -85,7 +88,7 @@ pass "$name"
 
 name="pr sale con 4 sin llamar a gh ni modificar nada si pr-reviews/pr-<n>/code o la rama review/pr-<n> ya existen"
 rm -f "$TMP/gh.calls"
-echo '{"number":7,"title":"t","headRefName":"h","baseRefName":"main"}' > "$TMP/gh.json"
+gh_pr 7 main "$ZERO"
 taken="$HOME/.worktrees/acme/demo/pr-reviews/pr-7/code"
 mkdir -p "$taken"
 echo mio > "$taken/notas.txt"
@@ -109,4 +112,16 @@ case "$err" in *"th-wt: branch already exists: review/pr-8"*) ;; *) fail "$name:
 [ "$(git -C "$TMP/repo" rev-parse review/pr-8)" = "$branch_oid" ] || fail "$name: la rama cambió"
 [ ! -e "$HOME/.worktrees" ] || fail "$name: se creó $HOME/.worktrees"
 [ ! -e "$TMP/gh.calls" ] || fail "$name: llamó a gh: [$(cat "$TMP/gh.calls")]"
+pass "$name"
+
+name="pr sale con 4 y no crea nada si el commit traído no es el headRefOid que informa gh"
+rm -f "$TMP/gh.calls"
+git -C "$TMP/repo" branch -q -D review/pr-8 # la dejó el caso anterior
+main_tip="$(git -C "$TMP/origin.git" rev-parse main)"
+gh_pr 7 main "$main_tip"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" pr 7 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$err]"
+case "$err" in *"th-wt: PR #7 head changed"*) ;; *) fail "$name: mensaje inesperado: [$err]" ;; esac
+nothing_created || fail "$name: se creó algo"
 pass "$name"

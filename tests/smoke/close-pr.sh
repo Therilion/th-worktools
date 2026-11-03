@@ -16,7 +16,7 @@ export PATH="$TMP/bin:$PATH"
 # Abre el PR $1 (un commit hijo de main solo en refs/pull/$1/head) y deja un report.md al lado del código.
 open_pr() {
   git -C "$TMP/origin.git" update-ref "refs/pull/$1/head" "$(git -C "$TMP/origin.git" commit-tree -p main -m "trabajo del PR $1" "main^{tree}")"
-  echo "{\"number\":$1,\"title\":\"PR $1\",\"headRefName\":\"feat/x$1\",\"baseRefName\":\"main\"}" > "$TMP/gh.json"
+  jq -n --arg o "$(git -C "$TMP/origin.git" rev-parse "refs/pull/$1/head")" --argjson n "$1" '{number: $n, title: "PR \($n)", headRefName: "feat/x\($n)", baseRefName: "main", headRefOid: $o}' > "$TMP/gh.json"
   (cd "$TMP/repo" && "$WT" pr "$1" 2>/dev/null) || fail "th-wt pr $1 falló"
   echo "notas" > "$HOME/.worktrees/acme/demo/pr-reviews/pr-$1/report.md"
 }
@@ -110,4 +110,31 @@ out="$(cd "$TMP/repo" && "$WT" close review/x --json 2>/dev/null)" || fail "$nam
 (cd "$TMP/repo" && "$WT" close review/x --yes 2>/dev/null) || fail "$name: close --yes falló"
 [ ! -e "$xdest" ] || fail "$name: no se borró el worktree"
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/x || fail "$name: se borró la rama no mergeada"
+pass "$name"
+
+name="una rama que no es review/pr-<n> dentro de pr-reviews/pr-<n>/code se cierra con las reglas normales, no con las de PR"
+open_pr 20
+git -C "$HOME/.worktrees/acme/demo/pr-reviews/pr-20/code" switch -q -c fix-en-pr
+out="$(cd "$TMP/repo" && "$WT" close fix-en-pr --json 2>/dev/null)" || fail "$name: close --json falló"
+[ "$(printf '%s' "$out" | jq -c '[has("kept"), has("after_pr"), .unpushed, .delete.worktree]')" = '[false,false,1,false]' ] || fail "$name: json=[$out]"
+pass "$name"
+
+name="close review/pr-<n> lista en kept también los archivos cuyo nombre parece una opción de echo"
+open_pr 21
+touch "$HOME/.worktrees/acme/demo/pr-reviews/pr-21/-n" "$HOME/.worktrees/acme/demo/pr-reviews/pr-21/.oculto"
+out="$(cd "$TMP/repo" && "$WT" close review/pr-21 --json 2>/dev/null)" || fail "$name: close --json falló"
+[ "$(printf '%s' "$out" | jq -c '.kept | sort')" = '["-n",".oculto","report.md"]' ] || fail "$name: json=[$out]"
+pass "$name"
+
+name="close review/pr-<n> cuenta como míos solo los commits que no están en origin: un merge de la base cuenta 1, y pusheado deja de contar"
+open_pr 22
+dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-22/code"
+git -C "$TMP/origin.git" update-ref refs/heads/main "$(git -C "$TMP/origin.git" commit-tree -p main -m "main avanzó" "main^{tree}")"
+git -C "$TMP/repo" fetch -q origin
+git -C "$dest" merge -q --no-edit origin/main >/dev/null
+out="$(cd "$TMP/repo" && "$WT" close review/pr-22 --json 2>/dev/null)" || fail "$name: close --json falló"
+[ "$(printf '%s' "$out" | jq -c '[.after_pr, .delete.worktree]')" = '[1,false]' ] || fail "$name: tras el merge: json=[$out]"
+git -C "$dest" push -q origin HEAD:refs/heads/review-copia
+out="$(cd "$TMP/repo" && "$WT" close review/pr-22 --json 2>/dev/null)" || fail "$name: close --json falló"
+[ "$(printf '%s' "$out" | jq -c '[.after_pr, .delete.worktree]')" = '[0,true]' ] || fail "$name: tras el push: json=[$out]"
 pass "$name"

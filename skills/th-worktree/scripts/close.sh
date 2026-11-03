@@ -6,13 +6,21 @@
 pr_dir_names() {
   local f
   for f in "$1"/* "$1"/.[!.]* "$1"/..?*; do
-    { [ -e "$f" ] || [ -L "$f" ]; } && [ "${f##*/}" != code ] && echo "${f##*/}"
+    { [ -e "$f" ] || [ -L "$f" ]; } && [ "${f##*/}" != code ] && printf '%s\n' "${f##*/}"
   done
   return 0
 }
 
 # Prints the commit branch $1 was created at (its oldest reflog entry); nothing without a reflog, or if expiry dropped the creation entry (the oldest left is then a later commit).
 branch_creation_oid() { git reflog show --format='%H %gs' "refs/heads/$1" 2>/dev/null | tail -1 | awk '$2 == "branch:" && $3 == "Created" { print $1 }'; }
+
+# True if branch $1 is review/pr-<n> and $2 is the PR worktree path for that same <n> under root $3.
+is_pr_worktree() {
+  local n="${1#review/pr-}"
+  [ "$n" != "$1" ] || return 1
+  case "$n" in ""|*[!0-9]*|0*) return 1 ;; esac
+  [ "$2" = "${3}pr-reviews/pr-$n/code" ]
+}
 
 close_worktree() {
   local branch="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out unreadable=false kept="" del_wt=true del_br=false what is_pr=false left=[] created="" after_pr=null
@@ -40,10 +48,14 @@ close_worktree() {
   # covered: the PR was merged and no local commit came after it, so unpushed commits are in the PR
   IFS=$'\t' read -r dirty merged missing covered pr path < <(jq -r '[.dirty, .merged, .missing, (.pr.state == "MERGED" and .pr.ahead == false), (.pr | tojson), .path] | map(tostring) | join("\t")' <<<"$row")
   [ "$dirty" != null ] || [ "$missing" = true ] || unreadable=true
-  # a PR worktree is told by its path, not by the branch name; the other files in pr-reviews/pr-<n>/ outlive it
-  case "$path" in "$root"pr-reviews/pr-[1-9]*/code) is_pr=true; left="$(pr_dir_names "${path%/code}" | jq -R -s -c 'split("\n") | map(select(length > 0))')"; created="$(branch_creation_oid "$branch")" ;; esac
-  # commits of mine after the PR: from the branch's creation (first reflog entry) to its tip; unknown (null) without a reflog
-  [ -z "$created" ] || after_pr="$(git rev-list --count "$oid" --not "$created" 2>/dev/null)" || after_pr=null
+  # a PR worktree is review/pr-<n> at pr-reviews/pr-<n>/code; the other files in pr-reviews/pr-<n>/ outlive it
+  if is_pr_worktree "$branch" "$path" "$root"; then
+    is_pr=true
+    left="$(pr_dir_names "${path%/code}" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
+    created="$(branch_creation_oid "$branch")"
+  fi
+  # commits of mine after the PR: from the branch's creation (first reflog entry) to its tip, minus what origin already has (a merged-in base, or pushed work); unknown (null) without a reflog
+  [ -z "$created" ] || after_pr="$(git rev-list --count "$oid" --not "$created" --remotes=origin 2>/dev/null)" || after_pr=null
   # ignored files are deleted with the directory but never block; only names are read (directories come collapsed). -z: git does not quote names; tr because $(...) drops NUL bytes
   if [ "$missing" = false ] && out="$(git --no-optional-locks -C "$path" status --porcelain -z --ignored --untracked-files=normal 2>/dev/null | tr '\0' '\1')"; then
     ignored="$(printf '%s' "$out" | jq -R -s -c 'split("\u0001") | map(select(startswith("!! ")) | .[3:])')"
@@ -109,7 +121,7 @@ close_worktree() {
     echo "  dirty:     ${dirty/null/unknown}"
     if [ "$is_pr" = true ]; then
       echo "  after PR:  ${after_pr/null/unknown} commits of yours"
-      [ -z "$created" ] || git log -10 --format='             %h %s' "$oid" --not "$created" >&2
+      [ -z "$created" ] || git log -10 --format='             %h %s' "$oid" --not "$created" --remotes=origin >&2
     else
       echo "  unpushed:  $unpushed commits$([ "$covered" = false ] || [ "$unpushed" = 0 ] || echo " (all in the PR)")"
     fi
