@@ -339,7 +339,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 3. `git worktree remove <ruta>` (con `--force` solo si se pasó explícitamente).
 4. Rama:
    - Normal: si está contenida en la rama por defecto de `origin` (mismo criterio que `list`), `git update-ref -d refs/heads/<rama> <oid>`, que falla si la rama se movió. No se usa `git branch -d` porque compara contra el HEAD local, que suele estar atrasado, y rechaza ramas ya mergeadas. Si no está contenida (o no se sabe), se conserva y se avisa; **no se fuerza**.
-   - Worktree de PR (`pr-reviews/pr-<n>/code`, por la ruta): se borra siempre `review/pr-<n>` (es solo una copia local del PR remoto). Bloquean `dirty` y los commits propios posteriores a la creación de la rama (primera entrada de su reflog; sin reflog, desconocido).
+   - Worktree de PR (`pr-reviews/pr-<n>/code`, por la ruta): se borra `review/pr-<n>` (es solo una copia local del PR remoto), salvo con `--force` y commits propios posteriores al PR (o desconocidos): ahí se conserva. Bloquean `dirty` y los commits propios posteriores a la creación de la rama (primera entrada de su reflog; sin reflog, desconocido).
 5. Sin `git worktree prune`: `git worktree remove` ya limpia su propio registro, incluso si el directorio ya no existe, y `prune` borraría también el registro de otros worktrees con el directorio faltante.
 6. PRs: eliminar `pr-reviews/pr-<n>/` solo si quedó vacío. Los demás archivos de `pr-<n>/` (p. ej. `report.md`) los gestionará `th-pr-review` (v0.3); `close` no los toca.
 

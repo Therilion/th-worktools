@@ -50,7 +50,7 @@ rm "$HOME/.worktrees/acme/demo/pr-reviews/pr-8/report.md"
 [ -d "$HOME/.worktrees/acme/demo/pr-reviews/pr-7" ] || fail "$name: se borró pr-reviews/pr-7/, que tiene report.md"
 pass "$name"
 
-name="close review/pr-<n> con commits míos posteriores al PR bloquea sin --force, el plan los muestra y --force cierra"
+name="close review/pr-<n> con commits míos posteriores al PR bloquea sin --force, el plan los muestra y --force cierra el worktree pero conserva la rama con ellos"
 open_pr 9
 dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-9/code"
 git -C "$dest" commit -q --allow-empty -m "mi arreglo sobre el PR"
@@ -64,9 +64,12 @@ err="$(cd "$TMP/repo" && "$WT" close review/pr-9 --yes 2>&1)" || rc=$?
 [ "$rc" = 4 ] || fail "$name: --yes sin --force: exit=$rc, esperado 4: [$err]"
 [ -d "$dest" ] || fail "$name: --yes sin --force borró el worktree"
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-9 || fail "$name: --yes sin --force borró la rama"
-(cd "$TMP/repo" && "$WT" close review/pr-9 --yes --force 2>/dev/null) || fail "$name: --force falló"
+out="$(cd "$TMP/repo" && "$WT" close review/pr-9 --force --json 2>/dev/null)" || fail "$name: --force --json falló"
+[ "$(printf '%s' "$out" | jq -c '.delete')" = '{"worktree":true,"branch":false}' ] || fail "$name: el plan con --force: json=[$out]"
+err="$(cd "$TMP/repo" && "$WT" close review/pr-9 --yes --force 2>&1)" || fail "$name: --force falló: [$err]"
+case "$err" in *"branch review/pr-9 kept: it may have commits of yours after the PR"*) ;; *) fail "$name: --force no avisa de que conserva la rama: [$err]" ;; esac
 [ ! -e "$dest" ] || fail "$name: --force no borró el worktree"
-git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-9 && fail "$name: --force no borró la rama"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-9 || fail "$name: --force borró la rama con mis commits"
 pass "$name"
 
 name="close review/pr-<n> con cambios sin commitear o sin saber si hay commits míos (sin reflog, o con su primera entrada expirada) bloquea sin --force"
@@ -92,6 +95,7 @@ open_pr 11
 rm "$(reflog_of review/pr-11)"
 blocked review/pr-11 '[false,null,false]' "cannot tell whether you have commits after the PR"
 (cd "$TMP/repo" && "$WT" close review/pr-11 --yes --force 2>/dev/null) || fail "$name: --force sin reflog falló"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-11 || fail "$name: --force sin reflog borró una rama que puede tener commits míos"
 
 open_pr 12
 git -C "$HOME/.worktrees/acme/demo/pr-reviews/pr-12/code" commit -q --allow-empty -m "mi commit"

@@ -68,7 +68,9 @@ close_worktree() {
     [ "$covered" = false ] || lost=0
   fi
   if { [ "$dirty" = true ] || [ "$unreadable" = true ] || [ "$lost" != 0 ]; } && [ "$force" = 0 ]; then del_wt=false
-  elif [ "$is_pr" = true ]; then del_br=true
+  elif [ "$is_pr" = true ] && [ "$lost" = 0 ]; then del_br=true
+  # only reachable with --force: the branch may hold commits of mine that nothing else has
+  elif [ "$is_pr" = true ]; then kept="it may have commits of yours after the PR"
   elif [ "$covered" = false ] && [ "$merged" = null ]; then kept="default branch unknown (try: git remote set-head origin -a)"
   elif [ "$covered" = false ] && [ "$merged" = false ]; then kept="not contained in $default$([ "$remote" = false ] || jq -r 'if . == null then " and it has no PR" elif .state == "MERGED" and .ahead == true then " and it has local commits after its merged PR #\(.number)" elif .state == "MERGED" then " and the head of its merged PR #\(.number) is not fetched locally" else " and its PR #\(.number) is \(.state)" end' <<<"$pr")"
   # a branch checked out elsewhere must survive: update-ref would leave that worktree on a dangling branch

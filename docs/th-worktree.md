@@ -222,8 +222,8 @@ Muestra el plan de cierre (dry-run por defecto) o cierra (con `--yes`) el worktr
 
 **Worktrees de PR (`pr-reviews/pr-<n>/code`):** `close review/pr-<n>` aplica reglas propias. Un worktree es de PR si su rama es `review/pr-<n>` y está en `pr-reviews/pr-<n>/code` con la misma `<n>`; cualquier otra combinación (una rama `review/…` creada con `new`, o otra rama activada dentro de `pr-reviews/pr-<n>/code`) se cierra con las reglas normales.
 
-- La rama `review/pr-<n>` se borra siempre (es solo una copia local del PR): no se mira `merged` ni `unpushed`. El plan lo dice.
-- Bloquean sin `--force`: cambios sin commitear (`dirty`) y commits tuyos posteriores al PR (`after_pr > 0`). Se cuentan desde la creación de la rama (primera entrada de su reflog), sin los que ya están en alguna rama de `origin` (un merge de la base dentro del worktree solo cuenta tu commit de merge; lo que pusheaste deja de contar); sin reflog, o si la primera entrada ya no es la de creación, `after_pr` es `null` y también bloquea. En vez de `unpushed`, el plan muestra esos commits (hasta 10).
+- La rama `review/pr-<n>` se borra (es solo una copia local del PR): no se mira `merged` ni `unpushed`. El plan lo dice. Excepción: con `--force` y `after_pr` distinto de `0` (o `null`) se cierra el worktree pero se conserva la rama, porque puede tener commits tuyos que nada más contiene (`kept: it may have commits of yours after the PR`). Bórrala tú con `git branch -D review/pr-<n>`; mientras exista, `pr <n>` sale con `4`.
+- Bloquean sin `--force`: cambios sin commitear (`dirty`) y commits tuyos posteriores al PR (`after_pr > 0`). Se cuentan desde la creación de la rama (primera entrada de su reflog), sin los que ya están en alguna rama de `origin` (un merge de la base dentro del worktree solo cuenta tu commit de merge; lo que pusheaste deja de contar). Los commits que traigas a mano (por ejemplo las novedades de un PR de fork con `git pull origin pull/<n>/head`) nunca llegan a `origin/*` y cuentan como tuyos: el cierre se bloquea y hace falta `--force`, que en ese caso conserva la rama; sin reflog, o si la primera entrada ya no es la de creación, `after_pr` es `null` y también bloquea. En vez de `unpushed`, el plan muestra esos commits (hasta 10).
 - Tras `git worktree remove` se borra `pr-reviews/pr-<n>/` solo si quedó vacío (`rmdir`, nunca `rm -r`). El plan y el `--json` listan en `kept` los nombres que se conservan.
 
 **Flags:**
@@ -470,7 +470,7 @@ Devuelven el mismo esquema en dry-run (sin `--yes`) y al ejecutar (con `--yes`):
 | `after_pr` | `integer \| null` | Commits tuyos posteriores al PR (desde la creación de la rama) que no están en ninguna rama de `origin`. `null` = no se pudo saber (sin reflog, o expiró la entrada de creación); bloquea sin `--force`. |
 | `kept` | `string[]` | Nombres de los archivos de `pr-reviews/pr-<n>/` que se conservan (por ejemplo `["report.md"]`). |
 
-`delete.branch` es `true` siempre que el worktree se pueda borrar.
+`delete.branch` es `true` si el worktree se puede borrar y `after_pr` es `0`; con `--force` y `after_pr` distinto de `0` (o `null`) es `false`.
 
 ### Significado de cada `null` y de `missing`
 
