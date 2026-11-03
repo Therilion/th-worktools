@@ -80,3 +80,14 @@ rm -f "$TMP/pm.stdin"
 [ -s "$TMP/pm.calls" ] || fail "$name: el gestor no se ejecutó"
 [ "$(cat "$TMP/pm.stdin")" = "stdin=[]" ] || fail "$name: el gestor leyó [$(cat "$TMP/pm.stdin")]"
 pass "$name"
+
+name="si el gestor falla, new sale con 0, conserva el worktree, avisa en stderr y devuelve deps: failed"
+: > "$TMP/pm.calls"
+rc=0
+out="$(cd "$TMP/repo" && FAKE_PM_FAIL=1 "$WT" new feature/fail --base with-pnpm --json 2>"$TMP/fail.err")" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
+[ -s "$TMP/pm.calls" ] || fail "$name: el gestor no se ejecutó"
+[ -d "$HOME/.worktrees/acme/demo/feature-fail" ] || fail "$name: no se conservó el worktree"
+[ "$(jq -r .deps <<<"$out")" = failed ] || fail "$name: salida=[$out]"
+grep -q "warning" "$TMP/fail.err" || fail "$name: sin aviso en stderr: [$(cat "$TMP/fail.err")]"
+pass "$name"

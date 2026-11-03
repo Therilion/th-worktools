@@ -38,13 +38,26 @@ worktree_dest() {
   [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
 }
 
-# Installs the dependencies of worktree $1 from its lockfile; sets $deps.
+# Installs the dependencies of worktree $1 from its lockfile (extra args go to the package manager); sets $deps. A failed install only warns: the worktree is already there.
 install_deps() {
+  local dest="$1" pm sub
+  shift
   deps=skipped
-  if [ -f "$1/pnpm-lock.yaml" ]; then
-    (cd "$1" && pnpm install --frozen-lockfile >&2 </dev/null) && deps=pnpm
-  elif [ -f "$1/package-lock.json" ]; then
-    (cd "$1" && npm ci >&2 </dev/null) && deps=npm
+  if [ -f "$dest/pnpm-lock.yaml" ]; then
+    pm=pnpm
+    sub=(install --frozen-lockfile)
+  elif [ -f "$dest/package-lock.json" ]; then
+    pm=npm
+    sub=(ci)
+  else
+    return 0
+  fi
+  # stdout is reserved for --json and there is no terminal to answer prompts
+  if (cd "$dest" && "$pm" "${sub[@]}" "$@" >&2 </dev/null); then
+    deps="$pm"
+  else
+    deps=failed
+    echo "th-wt: warning: $pm install failed in $dest; run it there manually" >&2
   fi
 }
 
