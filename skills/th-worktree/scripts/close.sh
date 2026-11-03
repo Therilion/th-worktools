@@ -2,8 +2,17 @@
 # shellcheck source=lib.sh source-path=SCRIPTDIR
 # shellcheck disable=SC2154 # $repo is set by resolve_repo in lib.sh
 
+# Names in pr-reviews/pr-<n>/ (dir $1) other than code, one per line.
+pr_dir_names() {
+  local f
+  for f in "$1"/* "$1"/.[!.]* "$1"/..?*; do
+    { [ -e "$f" ] || [ -L "$f" ]; } && [ "${f##*/}" != code ] && echo "${f##*/}"
+  done
+  return 0
+}
+
 close_worktree() {
-  local branch="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out unreadable=false kept="" del_wt=true del_br=false what
+  local branch="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out unreadable=false kept="" del_wt=true del_br=false what is_pr=false left=[]
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1 ;;
@@ -28,14 +37,17 @@ close_worktree() {
   # covered: the PR was merged and no local commit came after it, so unpushed commits are in the PR
   IFS=$'\t' read -r dirty merged missing covered pr path < <(jq -r '[.dirty, .merged, .missing, (.pr.state == "MERGED" and .pr.ahead == false), (.pr | tojson), .path] | map(tostring) | join("\t")' <<<"$row")
   [ "$dirty" != null ] || [ "$missing" = true ] || unreadable=true
+  # a PR worktree is told by its path, not by the branch name; the other files in pr-reviews/pr-<n>/ outlive it
+  case "$path" in "$root"pr-reviews/pr-[1-9]*/code) is_pr=true; left="$(pr_dir_names "${path%/code}" | jq -R -s -c 'split("\n") | map(select(length > 0))')" ;; esac
   # ignored files are deleted with the directory but never block; only names are read (directories come collapsed). -z: git does not quote names; tr because $(...) drops NUL bytes
   if [ "$missing" = false ] && out="$(git --no-optional-locks -C "$path" status --porcelain -z --ignored --untracked-files=normal 2>/dev/null | tr '\0' '\1')"; then
     ignored="$(printf '%s' "$out" | jq -R -s -c 'split("\u0001") | map(select(startswith("!! ")) | .[3:])')"
   elif [ "$missing" = false ]; then ignored=null; fi
   unpushed="$(git rev-list --count "$oid" --not --remotes=origin)"
   lost="$unpushed"
-  [ "$covered" = false ] || lost=0
+  { [ "$covered" = false ] && [ "$is_pr" = false ]; } || lost=0
   if { [ "$dirty" = true ] || [ "$unreadable" = true ] || [ "$lost" != 0 ]; } && [ "$force" = 0 ]; then del_wt=false
+  elif [ "$is_pr" = true ]; then del_br=true
   elif [ "$covered" = false ] && [ "$merged" = null ]; then kept="default branch unknown (try: git remote set-head origin -a)"
   elif [ "$covered" = false ] && [ "$merged" = false ]; then kept="not contained in $default$([ "$remote" = false ] || jq -r 'if . == null then " and it has no PR" elif .state == "MERGED" and .ahead == true then " and it has local commits after its merged PR #\(.number)" elif .state == "MERGED" then " and the head of its merged PR #\(.number) is not fetched locally" else " and its PR #\(.number) is \(.state)" end' <<<"$pr")"
   # a branch checked out elsewhere must survive: update-ref would leave that worktree on a dangling branch
@@ -68,9 +80,10 @@ close_worktree() {
   fi
   if [ "$json" = 1 ]; then
     jq -n --arg path "$path" --arg branch "$branch" --argjson merged "$merged" --argjson dirty "$dirty" --argjson missing "$missing" --argjson ignored "$ignored" \
-      --argjson unpushed "$unpushed" --argjson wt "$del_wt" --argjson br "$del_br" --argjson remote "$remote" --argjson pr "$pr" \
+      --argjson unpushed "$unpushed" --argjson wt "$del_wt" --argjson br "$del_br" --argjson remote "$remote" --argjson pr "$pr" --argjson is_pr "$is_pr" --argjson left "${left:-[]}" \
       '{path: $path, branch: $branch, merged: $merged, dirty: $dirty, missing: $missing, ignored: $ignored, unpushed: $unpushed, delete: {worktree: $wt, branch: $br}}
-       + if $remote then {pr: $pr} else {} end'
+       + if $remote then {pr: $pr} else {} end
+       + if $is_pr then {kept: $left} else {} end'
     return 0
   fi
   if [ "$del_wt" = false ]; then what="nothing (blocked: $why)"
@@ -88,6 +101,7 @@ close_worktree() {
       echo "  pr:        $(jq -r --arg d "${default#origin/}" --arg m "$merged" 'if . == null then (if $m == "true" then "not checked (already contained in \($d))" else "none" end) else "#\(.number) \(.state) (base \(.base)\(if .base != $d then ", not the default branch" else "" end))\(if .ahead == null then ", PR head not fetched" elif .ahead then ", local commits after it" else "" end)" end' <<<"$pr")"
     fi
     echo "  ignored:   $(jq -r 'if . == null then "unknown" elif length == 0 then "none" else join(", ") end' <<<"$ignored")"
+    [ "$is_pr" = false ] || echo "  kept:      $(jq -r 'if length == 0 then "none" else join(", ") end' <<<"${left:-[]}") (in ${path%/code})"
     echo "  delete:    $what"
     if [ "$yes" = 1 ]; then echo "closed $path"; else echo "Dry run: nothing deleted. Add --yes to close."; fi
   } >&2
