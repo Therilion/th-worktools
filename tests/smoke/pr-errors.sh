@@ -58,3 +58,27 @@ for bad in 'not json' '[]' '{"number":7,"title":"t","headRefName":"h"}' '{"numbe
   nothing_created || fail "$name: salida [$bad]: se creó algo"
 done
 pass "$name"
+
+name="pr sale con 4 y no crea nada si origin no se puede leer, el PR no tiene head o la base no está en origin"
+git -C "$TMP/origin.git" update-ref refs/pull/7/head "$(git -C "$TMP/origin.git" commit-tree -p main -m pr "main^{tree}")"
+echo '{"number":7,"title":"t","headRefName":"h","baseRefName":"main"}' > "$TMP/gh.json"
+mv "$TMP/origin.git" "$TMP/origin.gone"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" pr 7 2>&1)" || rc=$?
+mv "$TMP/origin.gone" "$TMP/origin.git"
+[ "$rc" = 4 ] || fail "$name: origin inaccesible: exit=$rc, esperado 4: [$err]"
+case "$err" in *"th-wt: fetch of PR #7 failed"*) ;; *) fail "$name: origin inaccesible: mensaje inesperado: [$err]" ;; esac
+nothing_created || fail "$name: origin inaccesible: se creó algo"
+echo '{"number":8,"title":"t","headRefName":"h","baseRefName":"main"}' > "$TMP/gh.json"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" pr 8 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: PR sin head: exit=$rc, esperado 4: [$err]"
+case "$err" in *"th-wt: fetch of PR #8 failed"*) ;; *) fail "$name: PR sin head: mensaje inesperado: [$err]" ;; esac
+nothing_created || fail "$name: PR sin head: se creó algo"
+echo '{"number":7,"title":"t","headRefName":"h","baseRefName":"gone-base"}' > "$TMP/gh.json"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" pr 7 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: base inexistente: exit=$rc, esperado 4: [$err]"
+case "$err" in *"th-wt: fetch of origin/gone-base failed"*) ;; *) fail "$name: base inexistente: mensaje inesperado: [$err]" ;; esac
+nothing_created || fail "$name: base inexistente: se creó algo"
+pass "$name"

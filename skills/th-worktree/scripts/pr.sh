@@ -26,10 +26,10 @@ pr_worktree() {
   base="$(jq -r .baseRefName <<<"$meta")"
   # base goes into a refspec: refuse anything git would not accept as a branch name
   git check-ref-format "refs/heads/$base" || die 4 "unexpected output from gh pr view"
-  git fetch -q --no-tags origin "refs/pull/$n/head"
+  git fetch -q --no-tags origin "refs/pull/$n/head" || die 4 "fetch of PR #$n failed (origin unreachable, no access, or the PR has no head ref)"
   # read before the base fetch below overwrites FETCH_HEAD
   oid="$(git rev-parse FETCH_HEAD)"
-  fetch_origin_branch "$base"
+  fetch_origin_branch "$base" || die 4 "fetch of origin/$base failed"
   git worktree add --no-track -q -b "review/pr-$n" "$dest" "$oid"
 
   if [ "$json" = 1 ]; then
