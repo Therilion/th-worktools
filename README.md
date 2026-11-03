@@ -23,7 +23,7 @@ Crea, abre, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`
 | `list [--remote] [--json]` | Worktrees del repo actual, con su estado (`--remote` consulta `origin` y los PRs de GitHub) | disponible |
 | `close <branch> [--remote] [--yes] [--force] [--json]` | Cierra el worktree; requiere `--yes`. Para un PR: `close review/pr-<n>` | disponible |
 
-Hoy, al crear un worktree (`new`, `checkout`, `pr`) se crean el worktree y la rama y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci` (en `pr`, con `--ignore-scripts`). Está previsto que además:
+Hoy, al crear un worktree (`new`, `checkout`, `pr`) se crean el worktree y la rama y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci` (en `pr`, con `--ignore-scripts` y, en pnpm, `--ignore-pnpmfile`). Está previsto que además:
 
 - enlace o copie los archivos ignorados que declares por repo (por ejemplo, `.wiki` o `.env`, #7);
 - inicialice codegraph si está instalado (#9).
@@ -60,6 +60,8 @@ Ideas que quedan fuera de la versión en curso.
 - Que `--base` acepte tags y SHAs (hoy es siempre `origin/<rama>`).
 - Resumen legible de `new` en la terminal, sin necesidad de `--json`.
 - Instalar dependencias de otros gestores al crear un worktree (hoy, en #6, solo pnpm y npm): yarn (`--immutable` en Yarn 2+, `--frozen-lockfile` en Yarn 1; distinguir la versión con `.yarnrc.yml` o `packageManager`), bun (`bun.lock`/`bun.lockb`), Rust (`Cargo.lock` → `cargo fetch --locked`, que no ejecuta `build.rs` y serviría también en `pr`) y Python (`uv.lock` → `uv sync --locked`; `poetry.lock` → `poetry install`). `requirements.txt` no es un lockfile: omitirlo. Verificar los flags en las versiones instaladas.
+- `th-wt pr`, dependencias de un PR de terceros: verificar si pnpm (≥9.7, `manage-package-manager-versions`) o corepack descargan y ejecutan la versión de pnpm que declara `packageManager` en el `package.json` del PR, y desactivarlo si es así.
+- `th-wt pr`, dependencias de un PR de terceros: verificar si `npm ci --ignore-scripts` ejecuta igualmente el script `prepare` de las dependencias que vienen de git.
 - `th-wt new`/`checkout`: ramas distintas con el mismo nombre normalizado (`feature/a-b` y `feature-a/b` → `feature-a-b`) chocan; la segunda sale con «destination already exists» sin decir qué rama ocupa la ruta.
 - Evitar prompts que bloqueen al agente más allá del de la terminal de git (ya desactivado con `GIT_TERMINAL_PROMPT=0`): askpass (`GIT_ASKPASS`, `core.askPass`, `SSH_ASKPASS`) y SSH (clave de host desconocida, passphrase; `BatchMode`), sin pisar el `core.sshCommand` del usuario.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.

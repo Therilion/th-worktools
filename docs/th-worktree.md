@@ -156,7 +156,7 @@ Abre el PR `<n>` de GitHub del repo (también uno abierto desde un fork) en `~/.
 
 Si `pr-reviews/pr-<n>/` ya existe con otros archivos (por ejemplo `report.md`) pero sin `code`, se abre igual.
 
-**Dependencias:** tras crear el worktree instala las dependencias como `new`, pero **sin scripts de ciclo de vida** (`pnpm install --frozen-lockfile --ignore-scripts` / `npm ci --ignore-scripts`), porque el PR puede ser código de un tercero. Los paquetes que necesitan `postinstall` (por ejemplo `esbuild` o binarios nativos) pueden no funcionar; si confías en el PR, repite la instalación a mano en el worktree.
+**Dependencias:** tras crear el worktree instala las dependencias como `new`, pero **sin ejecutar código del repo** (`pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile` / `npm ci --ignore-scripts`: ni scripts de ciclo de vida ni `.pnpmfile.cjs`), porque el PR puede ser código de un tercero. Los paquetes que necesitan `postinstall` (por ejemplo `esbuild` o binarios nativos) pueden no funcionar; si confías en el PR, repite la instalación a mano en el worktree.
 
 **Salida:** con `--json`, el objeto de `new` más `pr`; sin `--json`, ruta, PR (número y título), rama del PR y base por stderr, con los caracteres de control del título y de las ramas (que escribe el autor del PR) sustituidos por espacios. Para actualizar un worktree de PR cuando recibe commits nuevos, ciérralo y vuelve a abrirlo.
 
@@ -342,7 +342,7 @@ Tras crear el worktree, `th-wt` busca un lockfile en su raíz (si hay `pnpm-lock
 
 | Lockfile | Comando (en `new` y `checkout`) | En `pr` |
 |---|---|---|
-| `pnpm-lock.yaml` | `pnpm install --frozen-lockfile` | con `--ignore-scripts` |
+| `pnpm-lock.yaml` | `pnpm install --frozen-lockfile` | con `--ignore-scripts --ignore-pnpmfile` |
 | `package-lock.json` | `npm ci` | con `--ignore-scripts` |
 | otro / ninguno | no se instala (`deps: "skipped"`) | igual |
 
