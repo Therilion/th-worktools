@@ -67,7 +67,7 @@ install_deps() {
 
 # Prints the created worktree object as JSON; needs $repo and $deps.
 print_created_json() {
-  jq -n --arg path "$1" --arg branch "$2" --arg repo "$repo" --arg deps "${deps:-skipped}" '{path: $path, branch: $branch, repo: $repo, deps: $deps}'
+  jq -n --arg path "$1" --arg branch "$2" --arg repo "$repo" --arg deps "$deps" '{path: $path, branch: $branch, repo: $repo, deps: $deps}'
 }
 
 # Local default branch (e.g. origin/main) from refs/remotes/origin/HEAD; empty if unset. Offline.

@@ -115,3 +115,25 @@ dest="$HOME/.worktrees/acme/demo/local-pnpm"
 [ "$(cat "$TMP/pm.calls")" = "$dest pnpm install --frozen-lockfile" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
 [ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: salida=[$out]"
 pass "$name"
+
+# gh falso para pr: devuelve $TMP/gh.json.
+cat > "$TMP/bin/gh" <<EOF2
+#!/usr/bin/env bash
+cat "$TMP/gh.json"
+EOF2
+chmod +x "$TMP/bin/gh"
+
+# Abre el PR $1 cuyo head es la rama $2 de origin.
+gh_pr_from() {
+  git -C "$TMP/origin.git" update-ref "refs/pull/$1/head" "refs/heads/$2"
+  jq -n --arg o "$(git -C "$TMP/origin.git" rev-parse "refs/pull/$1/head")" --argjson n "$1" '{number: $n, title: "PR de prueba", headRefName: "x", baseRefName: "main", headRefOid: $o}' > "$TMP/gh.json"
+}
+
+name="pr con pnpm-lock.yaml ejecuta pnpm install --frozen-lockfile --ignore-scripts y devuelve deps: pnpm"
+: > "$TMP/pm.calls"
+gh_pr_from 21 with-pnpm
+out="$(cd "$TMP/repo" && "$WT" pr 21 --json 2>/dev/null)" || fail "$name: th-wt pr falló"
+dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-21/code"
+[ "$(cat "$TMP/pm.calls")" = "$dest pnpm install --frozen-lockfile --ignore-scripts" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: salida=[$out]"
+pass "$name"
