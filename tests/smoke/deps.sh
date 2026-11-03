@@ -4,12 +4,16 @@ set -euo pipefail
 # shellcheck source=../lib.sh source-path=SCRIPTDIR
 . "$(dirname "$0")/../lib.sh"
 
-# pnpm y npm falsos: anotan "<cwd> <args>" en $TMP/pm.calls; nunca se ejecuta un gestor real.
+# pnpm y npm falsos: anotan "<cwd> <gestor> <args>" en $TMP/pm.calls; nunca se ejecuta un gestor real.
+# FAKE_PM_OUT=1 imprime basura en stdout, FAKE_PM_STDIN=1 anota su stdin en $TMP/pm.stdin, FAKE_PM_FAIL=1 sale con 1.
 mkdir -p "$TMP/bin"
 for pm in pnpm npm; do
   cat > "$TMP/bin/$pm" <<EOF2
 #!/usr/bin/env bash
 echo "\$PWD $pm \$*" >> "$TMP/pm.calls"
+[ -z "\${FAKE_PM_OUT:-}" ] || echo "junk de $pm en stdout"
+[ -z "\${FAKE_PM_STDIN:-}" ] || echo "stdin=[\$(cat)]" >> "$TMP/pm.stdin"
+[ -z "\${FAKE_PM_FAIL:-}" ] || exit 1
 EOF2
   chmod +x "$TMP/bin/$pm"
 done
@@ -59,4 +63,12 @@ name="new sin lockfile no ejecuta ningún gestor y devuelve deps: skipped"
 out="$(cd "$TMP/repo" && "$WT" new feature/nolock --json 2>/dev/null)" || fail "$name: th-wt new falló"
 [ ! -s "$TMP/pm.calls" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
 [ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: salida=[$out]"
+pass "$name"
+
+name="la salida del gestor va a stderr: con --json, stdout es un solo objeto JSON válido"
+: > "$TMP/pm.calls"
+out="$(cd "$TMP/repo" && FAKE_PM_OUT=1 "$WT" new feature/stdout --base with-pnpm --json 2>"$TMP/stdout.err")" || fail "$name: th-wt new falló"
+[ -s "$TMP/pm.calls" ] || fail "$name: el gestor no se ejecutó"
+[ "$(jq -s length <<<"$out")" = 1 ] && [ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: stdout=[$out]"
+grep -q "junk de pnpm en stdout" "$TMP/stdout.err" || fail "$name: la salida del gestor no llegó a stderr: [$(cat "$TMP/stdout.err")]"
 pass "$name"
