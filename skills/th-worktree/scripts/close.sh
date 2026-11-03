@@ -66,6 +66,8 @@ close_worktree() {
     [ "$del_wt" = true ] || die 4 "$why (use --force to close anyway)"
     if [ "$force" = 1 ]; then git worktree remove --force "$path" || die 4 "git could not remove $path (see git's message above)"
     else git worktree remove "$path" || die 4 "git could not remove $path (see git's message above)"; fi
+    # rmdir only removes an empty directory: anything else in pr-reviews/pr-<n>/ stays
+    [ "$is_pr" = false ] || rmdir "${path%/code}" 2>/dev/null || true
     if [ "$del_br" = true ]; then
       # update-ref only deletes if the branch still points at $oid; otherwise a commit arrived meanwhile
       if err="$(git update-ref -d "refs/heads/$branch" "$oid" 2>&1)"; then

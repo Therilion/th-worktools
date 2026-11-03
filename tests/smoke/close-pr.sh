@@ -41,3 +41,11 @@ git -C "$TMP/repo" worktree list --porcelain | grep -F "$dest" >/dev/null && fai
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-7 && fail "$name: sigue la rama"
 [ "$(cat "$HOME/.worktrees/acme/demo/pr-reviews/pr-7/report.md")" = notas ] || fail "$name: report.md no se conservó"
 pass "$name"
+
+name="close review/pr-<n> --yes borra pr-reviews/pr-<n>/ solo si queda vacío"
+open_pr 8
+rm "$HOME/.worktrees/acme/demo/pr-reviews/pr-8/report.md"
+(cd "$TMP/repo" && "$WT" close review/pr-8 --yes 2>/dev/null) || fail "$name: close --yes falló"
+[ ! -e "$HOME/.worktrees/acme/demo/pr-reviews/pr-8" ] || fail "$name: sigue pr-reviews/pr-8/"
+[ -d "$HOME/.worktrees/acme/demo/pr-reviews/pr-7" ] || fail "$name: se borró pr-reviews/pr-7/, que tiene report.md"
+pass "$name"
