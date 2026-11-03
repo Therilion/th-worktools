@@ -49,3 +49,22 @@ rm "$HOME/.worktrees/acme/demo/pr-reviews/pr-8/report.md"
 [ ! -e "$HOME/.worktrees/acme/demo/pr-reviews/pr-8" ] || fail "$name: sigue pr-reviews/pr-8/"
 [ -d "$HOME/.worktrees/acme/demo/pr-reviews/pr-7" ] || fail "$name: se borró pr-reviews/pr-7/, que tiene report.md"
 pass "$name"
+
+name="close review/pr-<n> con commits míos posteriores al PR bloquea sin --force, el plan los muestra y --force cierra"
+open_pr 9
+dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-9/code"
+git -C "$dest" commit -q --allow-empty -m "mi arreglo sobre el PR"
+out="$(cd "$TMP/repo" && "$WT" close review/pr-9 --json 2>/dev/null)" || fail "$name: close --json falló"
+[ "$(printf '%s' "$out" | jq -c '[.after_pr, has("unpushed"), .delete]')" = '[1,false,{"worktree":false,"branch":false}]' ] || fail "$name: json=[$out]"
+err="$(cd "$TMP/repo" && "$WT" close review/pr-9 2>&1)" || fail "$name: close falló: [$err]"
+case "$err" in *"mi arreglo sobre el PR"*) ;; *) fail "$name: el plan no muestra mi commit: [$err]" ;; esac
+case "$err" in *"blocked: 1 commit(s) of yours after the PR"*) ;; *) fail "$name: el plan no dice por qué bloquea: [$err]" ;; esac
+rc=0
+err="$(cd "$TMP/repo" && "$WT" close review/pr-9 --yes 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: --yes sin --force: exit=$rc, esperado 4: [$err]"
+[ -d "$dest" ] || fail "$name: --yes sin --force borró el worktree"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-9 || fail "$name: --yes sin --force borró la rama"
+(cd "$TMP/repo" && "$WT" close review/pr-9 --yes --force 2>/dev/null) || fail "$name: --force falló"
+[ ! -e "$dest" ] || fail "$name: --force no borró el worktree"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-9 && fail "$name: --force no borró la rama"
+pass "$name"

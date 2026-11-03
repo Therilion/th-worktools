@@ -11,8 +11,11 @@ pr_dir_names() {
   return 0
 }
 
+# Prints the commit branch $1 was created at (its oldest reflog entry); nothing without a reflog.
+branch_creation_oid() { git reflog show --format=%H "refs/heads/$1" 2>/dev/null | tail -1; }
+
 close_worktree() {
-  local branch="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out unreadable=false kept="" del_wt=true del_br=false what is_pr=false left=[]
+  local branch="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out unreadable=false kept="" del_wt=true del_br=false what is_pr=false left=[] created="" after_pr=null
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1 ;;
@@ -38,14 +41,17 @@ close_worktree() {
   IFS=$'\t' read -r dirty merged missing covered pr path < <(jq -r '[.dirty, .merged, .missing, (.pr.state == "MERGED" and .pr.ahead == false), (.pr | tojson), .path] | map(tostring) | join("\t")' <<<"$row")
   [ "$dirty" != null ] || [ "$missing" = true ] || unreadable=true
   # a PR worktree is told by its path, not by the branch name; the other files in pr-reviews/pr-<n>/ outlive it
-  case "$path" in "$root"pr-reviews/pr-[1-9]*/code) is_pr=true; left="$(pr_dir_names "${path%/code}" | jq -R -s -c 'split("\n") | map(select(length > 0))')" ;; esac
+  case "$path" in "$root"pr-reviews/pr-[1-9]*/code) is_pr=true; left="$(pr_dir_names "${path%/code}" | jq -R -s -c 'split("\n") | map(select(length > 0))')"; created="$(branch_creation_oid "$branch")" ;; esac
+  # commits of mine after the PR: from the branch's creation (first reflog entry) to its tip; unknown (null) without a reflog
+  [ -z "$created" ] || after_pr="$(git rev-list --count "$oid" --not "$created" 2>/dev/null)" || after_pr=null
   # ignored files are deleted with the directory but never block; only names are read (directories come collapsed). -z: git does not quote names; tr because $(...) drops NUL bytes
   if [ "$missing" = false ] && out="$(git --no-optional-locks -C "$path" status --porcelain -z --ignored --untracked-files=normal 2>/dev/null | tr '\0' '\1')"; then
     ignored="$(printf '%s' "$out" | jq -R -s -c 'split("\u0001") | map(select(startswith("!! ")) | .[3:])')"
   elif [ "$missing" = false ]; then ignored=null; fi
   unpushed="$(git rev-list --count "$oid" --not --remotes=origin)"
   lost="$unpushed"
-  { [ "$covered" = false ] && [ "$is_pr" = false ]; } || lost=0
+  [ "$covered" = false ] || lost=0
+  [ "$is_pr" = false ] || lost="$after_pr"
   if { [ "$dirty" = true ] || [ "$unreadable" = true ] || [ "$lost" != 0 ]; } && [ "$force" = 0 ]; then del_wt=false
   elif [ "$is_pr" = true ]; then del_br=true
   elif [ "$covered" = false ] && [ "$merged" = null ]; then kept="default branch unknown (try: git remote set-head origin -a)"
@@ -56,7 +62,10 @@ close_worktree() {
   else del_br=true; fi
   if [ "$del_wt" = false ]; then
     [ "$dirty" != true ] || why="uncommitted changes"
-    [ "$lost" = 0 ] || why="${why:+$why and }$lost unpushed commit(s)"
+    if [ "$lost" = 0 ]; then :
+    elif [ "$is_pr" = false ]; then why="${why:+$why and }$lost unpushed commit(s)"
+    elif [ "$lost" = null ]; then why="${why:+$why and }cannot tell whether you have commits after the PR"
+    else why="${why:+$why and }$lost commit(s) of yours after the PR"; fi
     [ -z "$why" ] || why="$why in $path"
     [ "$unreadable" = false ] || why="${why:+$why; }cannot read git status of $path"
   fi
@@ -82,10 +91,11 @@ close_worktree() {
   fi
   if [ "$json" = 1 ]; then
     jq -n --arg path "$path" --arg branch "$branch" --argjson merged "$merged" --argjson dirty "$dirty" --argjson missing "$missing" --argjson ignored "$ignored" \
-      --argjson unpushed "$unpushed" --argjson wt "$del_wt" --argjson br "$del_br" --argjson remote "$remote" --argjson pr "$pr" --argjson is_pr "$is_pr" --argjson left "${left:-[]}" \
+      --argjson unpushed "$unpushed" --argjson wt "$del_wt" --argjson br "$del_br" --argjson remote "$remote" --argjson pr "$pr" --argjson is_pr "$is_pr" --argjson left "${left:-[]}" --argjson after "$after_pr" \
       '{path: $path, branch: $branch, merged: $merged, dirty: $dirty, missing: $missing, ignored: $ignored, unpushed: $unpushed, delete: {worktree: $wt, branch: $br}}
        + if $remote then {pr: $pr} else {} end
-       + if $is_pr then {kept: $left} else {} end'
+       + if $is_pr then {kept: $left, after_pr: $after} else {} end
+       | if $is_pr then del(.unpushed) else . end'
     return 0
   fi
   if [ "$del_wt" = false ]; then what="nothing (blocked: $why)"
@@ -97,7 +107,12 @@ close_worktree() {
     [ "$missing" = false ] || echo "  missing:   directory already gone; closing only cleans git's registration"
     echo "  merged:    ${merged/null/unknown}"
     echo "  dirty:     ${dirty/null/unknown}"
-    echo "  unpushed:  $unpushed commits$([ "$covered" = false ] || [ "$unpushed" = 0 ] || echo " (all in the PR)")"
+    if [ "$is_pr" = true ]; then
+      echo "  after PR:  ${after_pr/null/unknown} commits of yours"
+      [ -z "$created" ] || git log -10 --format='             %h %s' "$oid" --not "$created" >&2
+    else
+      echo "  unpushed:  $unpushed commits$([ "$covered" = false ] || [ "$unpushed" = 0 ] || echo " (all in the PR)")"
+    fi
     if [ "$remote" = true ]; then
       # a branch already contained in the default one is not looked up (same as list --remote)
       echo "  pr:        $(jq -r --arg d "${default#origin/}" --arg m "$merged" 'if . == null then (if $m == "true" then "not checked (already contained in \($d))" else "none" end) else "#\(.number) \(.state) (base \(.base)\(if .base != $d then ", not the default branch" else "" end))\(if .ahead == null then ", PR head not fetched" elif .ahead then ", local commits after it" else "" end)" end' <<<"$pr")"
