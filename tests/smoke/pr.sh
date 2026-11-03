@@ -48,3 +48,14 @@ dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-8/code"
 [ "$(git -C "$dest" rev-parse HEAD)" = "$fork_oid" ] || fail "$name: el worktree no está en el último commit del PR"
 [ "$(git -C "$TMP/repo" for-each-ref --format='%(refname)' | grep -vx 'refs/heads/review/pr-8')" = "$refs_before" ] || fail "$name: se escribieron otras refs"
 pass "$name"
+
+name="pr <n> sin --json informa ruta, título, rama del PR y base por stderr"
+origin_commit main refs/pull/9/head "trabajo del PR 9"
+echo '{"number":9,"title":"Añadir exportación","headRefName":"feat/export","baseRefName":"main"}' > "$TMP/gh.json"
+out="$(cd "$TMP/repo" && "$WT" pr 9 2>"$TMP/pr9.err")" || fail "$name: th-wt pr falló"
+[ -z "$out" ] || fail "$name: escribió a stdout: [$out]"
+err="$(cat "$TMP/pr9.err")"
+for want in "$HOME/.worktrees/acme/demo/pr-reviews/pr-9/code" "Añadir exportación" "feat/export" "main"; do
+  case "$err" in *"$want"*) ;; *) fail "$name: stderr no incluye [$want]: [$err]" ;; esac
+done
+pass "$name"

@@ -26,5 +26,7 @@ pr_worktree() {
 
   if [ "$json" = 1 ]; then
     print_created_json "$dest" "review/pr-$n" | jq -c --argjson m "$meta" '. + {pr: {number: $m.number, title: $m.title, head: $m.headRefName, base: $m.baseRefName}}'
+  else
+    jq -r --arg path "$dest" '"  path:   \($path)\n  PR:     #\(.number) \(.title)\n  branch: \(.headRefName)\n  base:   \(.baseRefName)"' <<<"$meta" >&2
   fi
 }
