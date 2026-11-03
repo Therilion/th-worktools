@@ -58,7 +58,7 @@ El workflow se ejecuta en cada `push` a `main` y en cada `pull_request`:
 
 ### Estructura y patrón de cada archivo
 
-- **Un archivo por tema en `tests/smoke/`:** cada archivo (`cli.sh`, `no-prompt.sh`, `new.sh`, `new-errors.sh`, `checkout.sh`, `checkout-errors.sh`, `list.sh`, `list-remote.sh`, `close.sh`, `close-remote.sh`) es ejecutado por `tests/smoke.sh` en un subproceso propio con su propio entorno temporal.
+- **Un archivo por tema en `tests/smoke/`:** cada archivo (`cli.sh`, `no-prompt.sh`, `new.sh`, `new-errors.sh`, `checkout.sh`, `checkout-errors.sh`, `list.sh`, `list-remote.sh`, `close.sh`, `close-remote.sh`, `pr.sh`, `pr-errors.sh`, `close-pr.sh`) es ejecutado por `tests/smoke.sh` en un subproceso propio con su propio entorno temporal.
 - **Carga de la fixture:** todo archivo en `tests/smoke/` empieza con `set -euo pipefail` y carga [`tests/lib.sh`](../tests/lib.sh):
   ```bash
   # shellcheck source=../lib.sh source-path=SCRIPTDIR

@@ -19,9 +19,9 @@ Crea, abre, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`
 |---|---|---|
 | `new <branch> [--base <branch>] [--json]` | Worktree con una rama nueva | disponible |
 | `checkout <branch> [--remote] [--json]` | Worktree de una rama existente, local o de `origin` (`--remote` la trae) | disponible |
-| `pr <n>` | Worktree de un PR de GitHub en `pr-reviews/pr-<n>/code` | pendiente (#5) |
+| `pr <n> [--json]` | Worktree de un PR de GitHub (también de un fork) en `pr-reviews/pr-<n>/code`, en la rama `review/pr-<n>` | disponible |
 | `list [--remote] [--json]` | Worktrees del repo actual, con su estado (`--remote` consulta `origin` y los PRs de GitHub) | disponible |
-| `close <branch> [--remote] [--yes] [--force] [--json]` | Cierra el worktree; requiere `--yes` (cerrar `pr-<n>` es parte de #5) | disponible |
+| `close <branch> [--remote] [--yes] [--force] [--json]` | Cierra el worktree; requiere `--yes`. Para un PR: `close review/pr-<n>` | disponible |
 
 Hoy, al crear un worktree solo se crean el worktree y la rama, nada más. Está previsto que al crear un worktree además:
 
@@ -60,7 +60,6 @@ Ideas que quedan fuera de la versión en curso.
 - Que `--base` acepte tags y SHAs (hoy es siempre `origin/<rama>`).
 - Resumen legible de `new` en la terminal, sin necesidad de `--json`.
 - `th-wt new`/`checkout`: ramas distintas con el mismo nombre normalizado (`feature/a-b` y `feature-a/b` → `feature-a-b`) chocan; la segunda sale con «destination already exists» sin decir qué rama ocupa la ruta.
-- `th-wt new`/`checkout`: una rama llamada `pr-reviews` crea el directorio reservado para los PRs (#5); rechazarla con código `2`.
 - Evitar prompts que bloqueen al agente más allá del de la terminal de git (ya desactivado con `GIT_TERMINAL_PROMPT=0`): askpass (`GIT_ASKPASS`, `core.askPass`, `SSH_ASKPASS`) y SSH (clave de host desconocida, passphrase; `BatchMode`), sin pisar el `core.sshCommand` del usuario.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.
 - Lint de skills más estricto: `description`, `disable-model-invocation` en los skills con efectos secundarios e invocaciones de scripts sin la ruta completa.

@@ -1,6 +1,6 @@
 ---
 name: th-worktree
-description: Crea un git worktree para una rama nueva o abre uno para una rama existente (local o de origin) en ~/.worktrees, sin tocar el checkout principal, lista los worktrees del repo con su estado, también contra origin y los PRs de GitHub, y cierra un worktree mostrando antes qué se borra. Úsalo solo cuando el usuario pida explícitamente crear, abrir, listar o cerrar worktrees.
+description: Crea un git worktree para una rama nueva o abre uno para una rama existente (local o de origin) en ~/.worktrees, sin tocar el checkout principal, abre un PR de GitHub en su propio worktree para revisarlo, lista los worktrees del repo con su estado, también contra origin y los PRs de GitHub, y cierra un worktree mostrando antes qué se borra. Úsalo solo cuando el usuario pida explícitamente crear, abrir, revisar un PR, listar o cerrar worktrees.
 disable-model-invocation: true
 ---
 
@@ -15,18 +15,23 @@ Ejecuta el script siempre con la ruta completa de la tabla: no está en el PATH 
 | Crear rama nueva | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" new <rama> [--base <rama>] --json` |
 | Trabajar en una rama existente (local o ya traída de origin) | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" checkout <rama> --json` |
 | Traer de origin una rama que no está en local | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" checkout <rama> --remote --json` |
+| Revisar un PR (también de un fork) | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" pr <n> --json` |
 | Ver worktrees | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" list --json` |
 | Saber qué worktrees se pueden cerrar | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" list --remote --json` |
 | Cerrar un worktree | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" close <rama> --json` (ver reglas) |
+| Cerrar el worktree de un PR ("cierra el PR 5") | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" close review/pr-<n> --json` (ver reglas) |
 | Cerrar una rama mergeada con squash, o en otra base | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" close <rama> --remote --json` (ver reglas) |
 
 Argumentos recibidos: $ARGUMENTS
 
 ## Reglas
 
-- Al terminar `new` o `checkout`: informar la ruta y sugerir abrir una sesión nueva del agente ahí.
+- Al terminar `new`, `checkout` o `pr`: informar la ruta y sugerir abrir una sesión nueva del agente ahí. Con `pr`, informa también el título, la rama del PR (`pr.head`) y su base (`pr.base`); la rama local es `review/pr-<n>`, sin upstream.
+- `pr`: siempre lee `origin` y usa `gh` (sin `gh` sale `3`; PR inexistente, sin acceso a GitHub u `origin`, o la ruta `pr-reviews/pr-<n>/code` o la rama `review/pr-<n>` ya existen: sale `4` y no se crea nada; `<n>` no numérico: `2`). Si ya existen, dile al usuario el motivo y no lo repitas; para reabrirlo hay que cerrarlo antes. No actualiza un worktree de PR cuando el PR recibe commits nuevos: se cierra y se vuelve a abrir.
 - `checkout`: sin `--remote` no usa la red; una rama local se abre tal cual (no se actualiza aunque `origin` vaya por delante) y una rama solo remota sale de la copia ya traída. Si sale con `4` sugiriendo `--remote`, pregunta al usuario antes de repetirlo con `--remote`. Si la rama ya está abierta en otro worktree, el mensaje trae su ruta: dásela al usuario.
 - `close`: ejecuta primero **sin** `--yes` y muestra el plan al usuario: ruta, rama, `merged`, `dirty`, `unpushed` (commits que no están en ninguna rama de `origin`) y qué se borra (`delete`). Repite el comando con `--yes` solo tras su confirmación explícita. La rama por defecto de `origin` nunca se borra: `close` quita solo su worktree.
+- `close review/pr-<n>`: el worktree es de PR por su ruta (`pr-reviews/pr-<n>/code`); la rama `review/pr-<n>` se borra siempre, aunque no esté mergeada ni pusheada, así que no hay `merged` ni `unpushed` que mirar: el plan trae `after_pr` (commits tuyos posteriores al PR; `null` = no se pudo saber) y `kept` (archivos de `pr-reviews/pr-<n>/` que se conservan, p. ej. `report.md`; solo se borra el directorio si queda vacío). Muéstraselos al usuario. `dirty` y `after_pr` distinto de `0` (o `null`) bloquean sin `--force`; explica por qué y no fuerces salvo que el usuario lo pida. Una rama `review/…` creada con `new` no es de PR: se cierra con las reglas normales.
+- `new` y `checkout` rechazan con `2` las ramas cuyo nombre normalizado es `pr-reviews` (`pr-reviews`, `pr/reviews`): es el directorio reservado de los PRs.
 - `close --force` solo si el usuario lo pide: cierra aunque haya cambios sin commitear o commits sin push, que se pierden con el directorio (la rama no mergeada se conserva). Tras un merge con squash y la rama remota borrada, todos los commits salen como sin push: explícaselo antes de que decida forzar.
 - `close --remote`: úsalo cuando `close` conserve la rama o bloquee por commits sin push tras un merge con squash, o cuando `list --remote` muestre un PR `MERGED` con `ahead: false`. Consulta el PR de esa rama (mismos requisitos y errores que `list --remote`: sin `gh` sale `3`, sin acceso `4`, y no se borra nada). Muestra siempre `pr` (número, estado y **base**) antes de pedir confirmación: si la base no es la rama por defecto, el trabajo llegó a otra rama y el usuario debe confirmarlo. Solo un PR `MERGED` con `ahead: false` cambia el plan: los commits sin push están en el PR y no bloquean, y la rama se borra. `dirty` sigue bloqueando. `pr: null` con `merged: true`: la rama ya está contenida y no se consultó el PR (el texto dice `not checked`); no es "sin PR". Con PR `OPEN`/`CLOSED`, sin PR, `ahead: true` o `ahead: null`, el plan es el de `close` sin `--remote`: explica por qué.
 - `close`, campos que pueden no ser booleanos: `missing: true` = el directorio ya no existe, cerrar solo limpia el registro de git (no bloquea por `dirty`); `dirty: null` = no se pudo leer el estado, no lo presentes como limpio (bloquea sin `--force`); `merged: null` = desconocido (mismas causas que en `list`), la rama se conserva: transmite la sugerencia `git remote set-head origin -a`.
