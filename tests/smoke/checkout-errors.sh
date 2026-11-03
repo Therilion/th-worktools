@@ -171,3 +171,17 @@ case "$err" in *HEAD*) ;; *) fail "$name: el mensaje no menciona HEAD: [$err]" ;
 [ ! -e "$HOME/.worktrees/acme/demo/HEAD" ] || fail "$name: se creó el destino"
 if git -C "$TMP/repo" show-ref --verify --quiet refs/heads/HEAD; then fail "$name: se creó la rama HEAD"; fi
 pass "$name"
+
+name="checkout con una rama cuyo nombre normalizado es pr-reviews → exit 2 aunque exista en local, sin tocar la red ni crear nada"
+git -C "$TMP/repo" branch pr-reviews main
+git -C "$TMP/repo" branch pr/reviews main
+mv "$TMP/origin.git" "$TMP/origin.git.bak"
+for b in pr-reviews pr/reviews; do
+  rc=0
+  err="$(cd "$TMP/repo" && "$WT" checkout "$b" --remote 2>&1)" || rc=$?
+  [ "$rc" = 2 ] || { mv "$TMP/origin.git.bak" "$TMP/origin.git"; fail "$name: $b: exit=$rc, esperado 2: [$err]"; }
+  case "$err" in *pr-reviews*) ;; *) mv "$TMP/origin.git.bak" "$TMP/origin.git"; fail "$name: $b: el mensaje no menciona pr-reviews: [$err]" ;; esac
+done
+mv "$TMP/origin.git.bak" "$TMP/origin.git"
+[ ! -e "$HOME/.worktrees/acme/demo/pr-reviews" ] || fail "$name: se creó el destino"
+pass "$name"

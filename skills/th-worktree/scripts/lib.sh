@@ -31,7 +31,10 @@ worktrees_root() { printf '%s' "$HOME/.worktrees/$repo/"; }
 
 # Sets $dest for branch $1 and checks it does not already exist; needs $repo.
 worktree_dest() {
-  dest="$(worktrees_root)${1//\//-}"
+  local name="${1//\//-}"
+  # pr-reviews/ holds the PR worktrees; the check is on the normalized name so pr/reviews is reserved too
+  [ "$name" != pr-reviews ] || die 2 "reserved branch name: $1 (pr-reviews is where PR worktrees live)"
+  dest="$(worktrees_root)$name"
   [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
 }
 

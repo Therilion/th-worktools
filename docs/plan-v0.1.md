@@ -304,7 +304,7 @@ Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git
 | `checkout <rama> [--remote]` | Worktree de una rama existente, local o remota | No |
 | `pr <n>` | Worktree de un PR en `pr-reviews/pr-<n>/code` | No |
 | `list [--remote]` | Worktrees del repo actual bajo la raíz, con su estado (`--remote` actualiza la rama por defecto de `origin` y consulta los PRs en GitHub) | No |
-| `close <rama\|pr-<n>> [--remote] [--force]` | Cierra el worktree (`--remote` considera mergeada la rama si su PR en GitHub está `MERGED` sin commits locales posteriores; ver abajo) | **Sí** |
+| `close <rama> [--remote] [--force]` (un PR: `close review/pr-<n>`) | Cierra el worktree (`--remote` considera mergeada la rama si su PR en GitHub está `MERGED` sin commits locales posteriores; ver abajo) | **Sí** |
 
 Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta directo. Cerrar sí lo es.
 
@@ -317,7 +317,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 5. Crear el worktree:
    - `new`: `git worktree add --no-track -b <rama> <ruta> origin/<base>` (`--no-track`: la rama nueva no debe seguir a `origin/<base>`, o un `git push` iría a la rama base)
    - `checkout`: si la rama es local, `git worktree add <ruta> <rama>` sin red. Si no, sale de `origin/<rama>` (con `--remote`, primero `ls-remote` y el mismo fetch explícito; sin `--remote`, la copia ya traída): `git worktree add --no-track -b <rama> <ruta> origin/<rama>` y el upstream (`branch.<rama>.remote`/`.merge`) se escribe a mano, porque `--track` falla en clones `--single-branch`.
-   - `pr`: `git fetch origin pull/<n>/head:th/pr-<n>` y luego `git worktree add <ruta> th/pr-<n>`. Metadatos con `gh pr view <n> --json number,title,headRefName,baseRefName`.
+   - `pr`: `git fetch -q --no-tags origin refs/pull/<n>/head` (solo `FETCH_HEAD`) y `git worktree add --no-track -b review/pr-<n> <ruta> <oid>`. Metadatos con `gh pr view <n> -R <owner>/<repo> --json number,title,headRefName,baseRefName`.
 6. Aplicar el `.conf` del repo (`link` / `copy`, validados).
 7. Si `TH_INSTALL_DEPS=1`, instalar dependencias según el lockfile:
    - `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`
@@ -339,9 +339,9 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 3. `git worktree remove <ruta>` (con `--force` solo si se pasó explícitamente).
 4. Rama:
    - Normal: si está contenida en la rama por defecto de `origin` (mismo criterio que `list`), `git update-ref -d refs/heads/<rama> <oid>`, que falla si la rama se movió. No se usa `git branch -d` porque compara contra el HEAD local, que suele estar atrasado, y rechaza ramas ya mergeadas. Si no está contenida (o no se sabe), se conserva y se avisa; **no se fuerza**.
-   - `th/pr-*`: `git branch -D` (es solo una copia local del PR remoto).
+   - Worktree de PR (`pr-reviews/pr-<n>/code`, por la ruta): se borra `review/pr-<n>` (es solo una copia local del PR remoto), salvo con `--force` y commits propios posteriores al PR (o desconocidos): ahí se conserva. Bloquean `dirty` y los commits propios posteriores a la creación de la rama (primera entrada de su reflog; sin reflog, desconocido).
 5. Sin `git worktree prune`: `git worktree remove` ya limpia su propio registro, incluso si el directorio ya no existe, y `prune` borraría también el registro de otros worktrees con el directorio faltante.
-6. PRs: eliminar `pr-reviews/pr-<n>/` solo si quedó vacío. El directorio `review/` lo gestionará `th-pr-review` (v0.3); `close` no lo toca.
+6. PRs: eliminar `pr-reviews/pr-<n>/` solo si quedó vacío. Los demás archivos de `pr-<n>/` (p. ej. `report.md`) los gestionará `th-pr-review` (v0.3); `close` no los toca.
 
 ### `list`
 
@@ -372,7 +372,7 @@ Script (ruta relativa a la carpeta de este SKILL.md, no al repo actual):
 | Trabajar en rama existente | `th-wt checkout <rama> --json` |
 | Revisar un PR | `th-wt pr <n> --json` |
 | Ver worktrees | `th-wt list --json` |
-| Cerrar | `th-wt close <rama\|pr-<n>>` (ver reglas) |
+| Cerrar | `th-wt close <rama>` (un PR: `close review/pr-<n>`; ver reglas) |
 
 Argumentos recibidos: $ARGUMENTS
 
@@ -467,7 +467,7 @@ Cuando todo esté marcado: tag `v0.1`, usarlo una semana y anotar lo que moleste
 |---|---|
 | **v0.1** | `th-worktree` + instalación + CI |
 | v0.2 | `th-repo-context`: índice de documentación generado al vuelo (`find -L`, título y primer párrafo por documento) y selección de lo relevante |
-| v0.3 | `th-pr-review`: `pr-reviews/pr-<n>/{code,review}`, Stryker limitado a los archivos del diff, salida de tests resumida, comentarios en una sola review vía `gh api` con confirmación |
+| v0.3 | `th-pr-review`: `pr-reviews/pr-<n>/{code,report.md,…}`, Stryker limitado a los archivos del diff, salida de tests resumida, comentarios en una sola review vía `gh api` con confirmación |
 | v0.4 | `th-integration-context`: documento de contexto entre repos, fuera de los repos |
 | Después | Skills de desarrollo, empaquetado como plugin (`th:…`), GitLab |
 
