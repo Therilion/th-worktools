@@ -68,3 +68,34 @@ git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-9 || fail "$na
 [ ! -e "$dest" ] || fail "$name: --force no borró el worktree"
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-9 && fail "$name: --force no borró la rama"
 pass "$name"
+
+name="close review/pr-<n> con cambios sin commitear o sin saber si hay commits míos (sin reflog, o con su primera entrada expirada) bloquea sin --force"
+blocked() { # <rama> <json esperado de [dirty, after_pr, delete.worktree]> <fragmento del plan>
+  local out err rc=0
+  out="$(cd "$TMP/repo" && "$WT" close "$1" --json 2>/dev/null)" || fail "$name: $1: close --json falló"
+  [ "$(printf '%s' "$out" | jq -c '[.dirty, .after_pr, .delete.worktree]')" = "$2" ] || fail "$name: $1: json=[$out]"
+  err="$(cd "$TMP/repo" && "$WT" close "$1" 2>&1)" || fail "$name: $1: close falló: [$err]"
+  case "$err" in *"$3"*) ;; *) fail "$name: $1: el plan no dice [$3]: [$err]" ;; esac
+  err="$(cd "$TMP/repo" && "$WT" close "$1" --yes 2>&1)" || rc=$?
+  [ "$rc" = 4 ] || fail "$name: $1: --yes sin --force: exit=$rc, esperado 4: [$err]"
+  git -C "$TMP/repo" show-ref --verify --quiet "refs/heads/$1" || fail "$name: $1: --yes sin --force borró la rama"
+}
+reflog_of() { printf '%s' "$TMP/repo/.git/logs/refs/heads/$1"; }
+
+open_pr 10
+echo "sin commitear" > "$HOME/.worktrees/acme/demo/pr-reviews/pr-10/code/nuevo.txt"
+blocked review/pr-10 '[true,0,false]' "uncommitted changes"
+(cd "$TMP/repo" && "$WT" close review/pr-10 --yes --force 2>/dev/null) || fail "$name: --force con cambios falló"
+[ ! -e "$HOME/.worktrees/acme/demo/pr-reviews/pr-10/code" ] || fail "$name: --force no cerró el worktree con cambios"
+
+open_pr 11
+rm "$(reflog_of review/pr-11)"
+blocked review/pr-11 '[false,null,false]' "cannot tell whether you have commits after the PR"
+(cd "$TMP/repo" && "$WT" close review/pr-11 --yes --force 2>/dev/null) || fail "$name: --force sin reflog falló"
+
+open_pr 12
+git -C "$HOME/.worktrees/acme/demo/pr-reviews/pr-12/code" commit -q --allow-empty -m "mi commit"
+# sin la entrada de creación, la primera que queda ya es mi commit: contarlo desde ahí daría 0
+sed '1d' "$(reflog_of review/pr-12)" > "$TMP/reflog.cut" && cp "$TMP/reflog.cut" "$(reflog_of review/pr-12)"
+blocked review/pr-12 '[false,null,false]' "cannot tell whether you have commits after the PR"
+pass "$name"

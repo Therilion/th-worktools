@@ -11,8 +11,8 @@ pr_dir_names() {
   return 0
 }
 
-# Prints the commit branch $1 was created at (its oldest reflog entry); nothing without a reflog.
-branch_creation_oid() { git reflog show --format=%H "refs/heads/$1" 2>/dev/null | tail -1; }
+# Prints the commit branch $1 was created at (its oldest reflog entry); nothing without a reflog, or if expiry dropped the creation entry (the oldest left is then a later commit).
+branch_creation_oid() { git reflog show --format='%H %gs' "refs/heads/$1" 2>/dev/null | tail -1 | awk '$2 == "branch:" && $3 == "Created" { print $1 }'; }
 
 close_worktree() {
   local branch="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out unreadable=false kept="" del_wt=true del_br=false what is_pr=false left=[] created="" after_pr=null
