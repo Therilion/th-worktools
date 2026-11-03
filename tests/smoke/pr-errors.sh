@@ -37,3 +37,24 @@ case "$err" in *"th-wt: missing dependency: gh"*) ;; *) fail "$name: mensaje ine
 [ ! -e "$HOME/.worktrees" ] || fail "$name: se creó $HOME/.worktrees"
 [ -z "$(git -C "$TMP/repo" branch --list 'review/*')" ] || fail "$name: se creó una rama review/*"
 pass "$name"
+
+name="pr sale con 4 y no crea nada si gh falla o devuelve algo inesperado"
+nothing_created() { [ ! -e "$HOME/.worktrees" ] && [ -z "$(git -C "$TMP/repo" branch --list 'review/*')" ]; }
+mkdir -p "$TMP/badgh"
+printf '#!/usr/bin/env bash\necho "GraphQL: Could not resolve to a PullRequest with the number of 7." >&2\nexit 1\n' > "$TMP/badgh/gh"
+chmod +x "$TMP/badgh/gh"
+rc=0
+err="$(cd "$TMP/repo" && PATH="$TMP/badgh:$PATH" "$WT" pr 7 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: gh fallando: exit=$rc, esperado 4: [$err]"
+case "$err" in *"th-wt: PR not found, not authenticated, or no access?"*) ;; *) fail "$name: gh fallando: mensaje inesperado: [$err]" ;; esac
+case "$err" in *"Could not resolve to a PullRequest"*) ;; *) fail "$name: gh fallando: falta el mensaje de gh: [$err]" ;; esac
+nothing_created || fail "$name: gh fallando: se creó algo"
+for bad in 'not json' '[]' '{"number":7,"title":"t","headRefName":"h"}' '{"number":"7","title":"t","headRefName":"h","baseRefName":"main"}' '{"number":7,"title":"t","headRefName":"h","baseRefName":"a..b"}' '{"number":7,"title":"t","headRefName":"h","baseRefName":""}'; do
+  echo "$bad" > "$TMP/gh.json"
+  rc=0
+  err="$(cd "$TMP/repo" && "$WT" pr 7 2>&1)" || rc=$?
+  [ "$rc" = 4 ] || fail "$name: salida [$bad]: exit=$rc, esperado 4: [$err]"
+  case "$err" in *"th-wt: unexpected output from gh pr view"*) ;; *) fail "$name: salida [$bad]: mensaje inesperado: [$err]" ;; esac
+  nothing_created || fail "$name: salida [$bad]: se creó algo"
+done
+pass "$name"

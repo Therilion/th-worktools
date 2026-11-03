@@ -21,8 +21,11 @@ pr_worktree() {
   dest="$(worktrees_root)pr-reviews/pr-$n/code"
   command -v gh >/dev/null || die 3 "missing dependency: gh"
 
-  meta="$(gh pr view "$n" -R "$repo" --json number,title,headRefName,baseRefName)"
+  meta="$(gh pr view "$n" -R "$repo" --json number,title,headRefName,baseRefName)" || die 4 "PR not found, not authenticated, or no access?"
+  jq -e 'type == "object" and (.number | type == "number") and all(.title, .headRefName, .baseRefName; type == "string") and (.baseRefName | length > 0)' <<<"$meta" >/dev/null 2>&1 || die 4 "unexpected output from gh pr view"
   base="$(jq -r .baseRefName <<<"$meta")"
+  # base goes into a refspec: refuse anything git would not accept as a branch name
+  git check-ref-format "refs/heads/$base" || die 4 "unexpected output from gh pr view"
   git fetch -q --no-tags origin "refs/pull/$n/head"
   # read before the base fetch below overwrites FETCH_HEAD
   oid="$(git rev-parse FETCH_HEAD)"
