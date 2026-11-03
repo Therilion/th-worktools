@@ -32,3 +32,12 @@ printf '%s\n' "$err" | grep -E '^ +kept: +.*report\.md' >/dev/null || fail "$nam
 [ -d "$dest" ] || fail "$name: el dry run borró el worktree"
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-7 || fail "$name: el dry run borró la rama"
 pass "$name"
+
+name="close review/pr-<n> --yes borra worktree y rama y conserva report.md"
+dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-7/code"
+(cd "$TMP/repo" && "$WT" close review/pr-7 --yes 2>/dev/null) || fail "$name: close --yes falló"
+[ ! -e "$dest" ] || fail "$name: sigue el worktree"
+git -C "$TMP/repo" worktree list --porcelain | grep -F "$dest" >/dev/null && fail "$name: git sigue registrando el worktree"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-7 && fail "$name: sigue la rama"
+[ "$(cat "$HOME/.worktrees/acme/demo/pr-reviews/pr-7/report.md")" = notas ] || fail "$name: report.md no se conservó"
+pass "$name"
