@@ -52,6 +52,10 @@ install_deps() {
   else
     return 0
   fi
+  if ! command -v "$pm" >/dev/null; then
+    echo "th-wt: warning: $pm not found in PATH; skipping dependency install in $dest" >&2
+    return 0
+  fi
   # stdout is reserved for --json and there is no terminal to answer prompts
   if (cd "$dest" && "$pm" "${sub[@]}" "$@" >&2 </dev/null); then
     deps="$pm"

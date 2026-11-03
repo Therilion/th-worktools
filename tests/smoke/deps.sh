@@ -91,3 +91,18 @@ out="$(cd "$TMP/repo" && FAKE_PM_FAIL=1 "$WT" new feature/fail --base with-pnpm 
 [ "$(jq -r .deps <<<"$out")" = failed ] || fail "$name: salida=[$out]"
 grep -q "warning" "$TMP/fail.err" || fail "$name: sin aviso en stderr: [$(cat "$TMP/fail.err")]"
 pass "$name"
+
+name="con lockfile y sin el gestor en PATH, new avisa en stderr y devuelve deps: skipped"
+# PATH mínimo sin pnpm ni npm (en CI el npm real existe en el PATH normal).
+shim="$TMP/bin-sin-gestor"
+mkdir -p "$shim"
+for t in bash git jq awk sed; do ln -s "$(command -v "$t")" "$shim/$t"; done
+for pm in pnpm npm; do
+  rc=0
+  out="$(cd "$TMP/repo" && PATH="$shim" "$WT" new "feature/sin-$pm" --base "with-$pm" --json 2>"$TMP/sin-$pm.err")" || rc=$?
+  [ "$rc" = 0 ] || fail "$name: $pm: exit=$rc, esperado 0"
+  [ -d "$HOME/.worktrees/acme/demo/feature-sin-$pm" ] || fail "$name: $pm: no se creó el worktree"
+  [ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: $pm: salida=[$out]"
+  grep -q "warning.*$pm" "$TMP/sin-$pm.err" || fail "$name: $pm: sin aviso en stderr: [$(cat "$TMP/sin-$pm.err")]"
+done
+pass "$name"
