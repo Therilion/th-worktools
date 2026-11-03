@@ -99,3 +99,15 @@ git -C "$HOME/.worktrees/acme/demo/pr-reviews/pr-12/code" commit -q --allow-empt
 sed '1d' "$(reflog_of review/pr-12)" > "$TMP/reflog.cut" && cp "$TMP/reflog.cut" "$(reflog_of review/pr-12)"
 blocked review/pr-12 '[false,null,false]' "cannot tell whether you have commits after the PR"
 pass "$name"
+
+name="una rama review/x creada con new se cierra como una rama normal: se conserva si no está mergeada"
+(cd "$TMP/repo" && "$WT" new review/x >/dev/null 2>&1) || fail "$name: th-wt new falló"
+xdest="$HOME/.worktrees/acme/demo/review-x"
+git -C "$xdest" commit -q --allow-empty -m "trabajo propio"
+git -C "$xdest" push -q origin HEAD:refs/heads/review/x
+out="$(cd "$TMP/repo" && "$WT" close review/x --json 2>/dev/null)" || fail "$name: close --json falló"
+[ "$(printf '%s' "$out" | jq -c '[.delete, has("kept"), has("after_pr"), .unpushed]')" = '[{"worktree":true,"branch":false},false,false,0]' ] || fail "$name: json=[$out]"
+(cd "$TMP/repo" && "$WT" close review/x --yes 2>/dev/null) || fail "$name: close --yes falló"
+[ ! -e "$xdest" ] || fail "$name: no se borró el worktree"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/x || fail "$name: se borró la rama no mergeada"
+pass "$name"
