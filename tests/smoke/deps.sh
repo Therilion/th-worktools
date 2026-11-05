@@ -157,3 +157,13 @@ out="$(cd "$TMP/repo" && "$WT" new feature/yarn --base with-yarn --json 2>"$TMP/
 [ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: salida=[$out]"
 grep -q "warning.*yarn.lock" "$TMP/yarn.err" || fail "$name: sin aviso en stderr: [$(cat "$TMP/yarn.err")]"
 pass "$name"
+
+name="checkout de una rama solo remota con lockfile instala las dependencias"
+: > "$TMP/pm.calls"
+git -C "$TMP/repo" fetch -q origin
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/with-pnpm && fail "$name: with-pnpm ya existe en local"
+out="$(cd "$TMP/repo" && "$WT" checkout with-pnpm --json 2>/dev/null)" || fail "$name: th-wt checkout falló"
+dest="$HOME/.worktrees/acme/demo/with-pnpm"
+[ "$(cat "$TMP/pm.calls")" = "$dest pnpm install --frozen-lockfile" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: salida=[$out]"
+pass "$name"
