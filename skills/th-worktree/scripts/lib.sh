@@ -38,8 +38,9 @@ worktree_dest() {
   [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
 }
 
-# Sets $pm and $sub (the install command) from the lockfile in worktree $1; $pm stays empty if there is none.
+# Sets $pm and $sub (the install command) from the lockfile in worktree $1; $pm stays empty if there is none (warns about lockfiles of other managers).
 detect_pm() {
+  local f
   pm=""
   if [ -f "$1/pnpm-lock.yaml" ]; then
     pm=pnpm
@@ -47,6 +48,10 @@ detect_pm() {
   elif [ -f "$1/package-lock.json" ]; then
     pm=npm
     sub=(ci)
+  else
+    for f in yarn.lock bun.lock bun.lockb Cargo.lock uv.lock poetry.lock; do
+      [ ! -f "$1/$f" ] || echo "th-wt: warning: unsupported lockfile $f; dependencies not installed in $1" >&2
+    done
   fi
 }
 

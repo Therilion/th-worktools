@@ -146,3 +146,14 @@ for pm in pnpm npm; do
   n=$((n + 1))
 done
 pass "$name"
+
+name="new con un lockfile no soportado (yarn.lock) no ejecuta ningún gestor, avisa en stderr y devuelve deps: skipped"
+: > "$TMP/pm.calls"
+push_branch with-yarn "$TMP/other/yarn.lock"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" new feature/yarn --base with-yarn --json 2>"$TMP/yarn.err")" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
+[ ! -s "$TMP/pm.calls" ] || fail "$name: se ejecutó un gestor: [$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: salida=[$out]"
+grep -q "warning.*yarn.lock" "$TMP/yarn.err" || fail "$name: sin aviso en stderr: [$(cat "$TMP/yarn.err")]"
+pass "$name"
