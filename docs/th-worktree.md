@@ -114,7 +114,7 @@ Crea un worktree en `~/.worktrees/<owner>/<repo>/<rama-normalizada>` para una ra
 - **Si `<branch>` ya existe como rama local (`refs/heads/<branch>`):** abre el worktree directamente en ese commit local, sin consultar `origin` y sin mover la rama (aunque se pase `--remote` y `origin/<branch>` haya avanzado).
 - **Si `<branch>` no existe en local:** busca `refs/remotes/origin/<branch>` (con `--remote`, antes verifica que exista en `origin` y hace fetch de esa rama). Crea la rama local en ese commit y configura su upstream a `origin/<branch>` (`branch.<branch>.remote = origin` y `branch.<branch>.merge = refs/heads/<branch>`).
 
-Después instala las dependencias si hay lockfile (ver «Instalación de dependencias»). Sin `--json`, `checkout` solo escribe en stderr lo que escriba el gestor de paquetes y los avisos; en stdout no imprime nada.
+Después instala las dependencias si hay lockfile (ver «Instalación de dependencias»), salvo en una rama `review/pr-*` (copia local de un PR, p. ej. conservada por `close review/pr-<n> --force`): se trata como `pr` y no instala (`deps: "skipped"`, con el aviso del comando a mano). Sin `--json`, `checkout` solo escribe en stderr lo que escriba el gestor de paquetes y los avisos; en stdout no imprime nada.
 
 **Flags:**
 
@@ -347,10 +347,13 @@ Tras crear el worktree, `th-wt` busca un lockfile en su raíz (si hay `pnpm-lock
 | `yarn.lock`, `bun.lock`, `bun.lockb`, `Cargo.lock`, `uv.lock`, `poetry.lock` | no se instala; avisa por stderr con el nombre del archivo (`deps: "skipped"`) | igual |
 | ninguno | no se instala (`deps: "skipped"`) | igual |
 
+En `checkout`, una rama `review/pr-*` sigue la columna «En `pr`».
+
 - El gestor se ejecuta con el worktree como directorio de trabajo, con su salida redirigida a **stderr** (stdout queda para el objeto `--json`) y con stdin cerrado (`/dev/null`), así que nunca espera una respuesta.
 - Si el gestor sale con error, `th-wt` conserva el worktree, avisa por stderr y sale con `0`; `deps` vale `"failed"`. Se puede repetir la instalación a mano en el worktree.
 - Si hay lockfile pero `pnpm` / `npm` no está en `PATH`, avisa por stderr, no instala y sale con `0`; `deps` vale `"skipped"`.
 - Sin `--json`, el gestor escribe igualmente en stderr.
+- La instalación puede tardar minutos; quien invoque `new` o `checkout` debe usar un timeout largo. Si se corta, el worktree ya existe: instala a mano dentro de él en vez de repetir el comando.
 
 ### `pr --json`
 
