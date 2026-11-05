@@ -322,8 +322,8 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 7. Si `TH_INSTALL_DEPS=1`, instalar dependencias según el lockfile:
    - `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`
    - `package-lock.json` → `npm ci`
-   - Cualquier otro: omitir (v0.1).
-   - Si hay ambos lockfiles gana pnpm. Corre en el worktree, con la salida del gestor a stderr (stdout queda para `--json`) y `</dev/null`. En `pr` se añade `--ignore-scripts` y, con pnpm, `--ignore-pnpmfile` (`.pnpmfile.cjs` se ejecuta aunque no haya scripts), porque el PR puede ser código de un tercero.
+   - Cualquier otro: avisar por stderr y omitir (v0.1); se avisa el nombre de `yarn.lock`, `bun.lock`, `bun.lockb`, `Cargo.lock`, `uv.lock` o `poetry.lock` si existe.
+   - Si hay ambos lockfiles gana pnpm. Corre en el worktree, con la salida del gestor a stderr (stdout queda para `--json`) y `</dev/null`. `pr` **no instala** (`deps: "skipped"`): el `.npmrc` y el `packageManager` del PR controlan el gestor y la instalación ejecutaría código de un tercero (`--ignore-scripts` no basta); solo avisa por stderr con el comando a ejecutar a mano (`pnpm install --frozen-lockfile` / `npm ci`) si hay un lockfile soportado.
    - Si el gestor falla: se conserva el worktree, aviso por stderr, `deps: "failed"` y código `0`. Si hay lockfile pero el gestor no está en `PATH`: aviso por stderr, `deps: "skipped"` y código `0`.
 8. Si `TH_CODEGRAPH=auto` y codegraph está instalado, inicializarlo en el worktree (verificar los flags no interactivos de `codegraph init`).
 9. Mostrar un resumen. Con `--json`:

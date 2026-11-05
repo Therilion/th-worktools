@@ -21,10 +21,10 @@ Usage: th-wt new <branch> [--base <branch>] [--json]
        th-wt close <branch> [--remote] [--yes] [--force] [--json]
        th-wt [new|checkout|list|pr|close] -h | --help
 
-new       Create a git worktree for a new branch under ~/.worktrees.
-checkout  Create a git worktree for an existing branch under ~/.worktrees (local data only; --remote also fetches the branch from origin when it is not local).
+new       Create a git worktree for a new branch under ~/.worktrees, then install its dependencies from the lockfile (pnpm-lock.yaml or package-lock.json; uses the network).
+checkout  Create a git worktree for an existing branch under ~/.worktrees, then install its dependencies from the lockfile (uses the network). Without --remote, origin is not queried; --remote also fetches the branch from origin when it is not local.
 list      Show this repo's worktrees under ~/.worktrees (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
-pr        Create a git worktree for GitHub PR <n> under ~/.worktrees, on a local branch review/pr-<n> (needs gh; always reads origin).
+pr        Create a git worktree for GitHub PR <n> under ~/.worktrees, on a local branch review/pr-<n> (needs gh; always reads origin). Does not install dependencies: the PR code is untrusted.
 close     Remove the worktree of <branch> under ~/.worktrees and its branch if merged. Dry-run unless --yes; --remote also queries the branch's GitHub PR (like list --remote): a merged PR with no later local commits counts as merged. --force also closes with uncommitted changes or unpushed commits.
 USAGE
 }
