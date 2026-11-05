@@ -23,9 +23,8 @@ Crea, abre, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`
 | `list [--remote] [--json]` | Worktrees del repo actual, con su estado (`--remote` consulta `origin` y los PRs de GitHub) | disponible |
 | `close <branch> [--remote] [--yes] [--force] [--json]` | Cierra el worktree; requiere `--yes`. Para un PR: `close review/pr-<n>` | disponible |
 
-Hoy, al crear un worktree solo se crean el worktree y la rama, nada más. Está previsto que al crear un worktree además:
+Hoy, al crear un worktree con `new` o `checkout` se crean el worktree y la rama y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci`. `pr` nunca instala dependencias: el código del PR es de un tercero (avisa con el comando para hacerlo a mano). Está previsto que además:
 
-- instale las dependencias según el lockfile (pnpm o npm, #6);
 - enlace o copie los archivos ignorados que declares por repo (por ejemplo, `.wiki` o `.env`, #7);
 - inicialice codegraph si está instalado (#9).
 
@@ -60,9 +59,11 @@ Ideas que quedan fuera de la versión en curso.
 - Derivar `<owner>/<repo>` también de remotes `ssh://`, con puerto o con barra final (hoy solo `git@host:` y `https://`).
 - Que `--base` acepte tags y SHAs (hoy es siempre `origin/<rama>`).
 - Resumen legible de `new` en la terminal, sin necesidad de `--json`.
-- Instalar dependencias de otros gestores al crear un worktree (hoy, en #6, solo pnpm y npm): yarn (`--immutable` en Yarn 2+, `--frozen-lockfile` en Yarn 1; distinguir la versión con `.yarnrc.yml` o `packageManager`), bun (`bun.lock`/`bun.lockb`), Rust (`Cargo.lock` → `cargo fetch --locked`, que no ejecuta `build.rs` y serviría también en `pr`) y Python (`uv.lock` → `uv sync --locked`; `poetry.lock` → `poetry install`). `requirements.txt` no es un lockfile: omitirlo. Verificar los flags en las versiones instaladas.
-- Instalar dependencias solo si se pide, con un flag (p. ej. `--deps`) en todo comando que crea un worktree (`new`, `checkout`, `pr`), en vez de instalar por defecto.
+- Instalar dependencias de otros gestores al crear un worktree (hoy, en #6, solo pnpm y npm): yarn (`--immutable` en Yarn 2+, `--frozen-lockfile` en Yarn 1; distinguir la versión con `.yarnrc.yml` o `packageManager`), bun (`bun.lock`/`bun.lockb`), Rust (`Cargo.lock` → `cargo fetch --locked`, que no ejecuta `build.rs`; no vale para `pr`: lee el `.cargo/config.toml` del PR) y Python (`uv.lock` → `uv sync --locked`; `poetry.lock` → `poetry install`). `requirements.txt` no es un lockfile: omitirlo. Verificar los flags en las versiones instaladas.
+- Instalar dependencias solo si se pide, con un flag (p. ej. `--deps`) en todo comando que crea un worktree (`new`, `checkout`, `pr`), en vez de instalar por defecto. En `pr` (hoy nunca instala: el `.npmrc` y el `packageManager` del PR controlan el gestor), quizá solo para PRs del mismo repo o dentro de un contenedor.
 - Investigar si se puede detectar un riesgo antes de instalar (p. ej. revisar `.npmrc`, `packageManager`, `.pnpmfile.cjs`, scripts de ciclo de vida o dependencias de git, o usar herramientas de auditoría de paquetes), sabiendo que ninguna comprobación cubre los vectores que aparezcan después.
+- `new`/`checkout`: el `prepare` del proyecto (p. ej. husky) puede escribir `core.hooksPath` en la config compartida del repo; documentarlo o evaluarlo.
+- Verificar el aviso de descarga de corepack con stdin en `/dev/null` (`new`/`checkout`): si bloquea, fijar `COREPACK_ENABLE_DOWNLOAD_PROMPT`.
 - `th-wt new`/`checkout`: ramas distintas con el mismo nombre normalizado (`feature/a-b` y `feature-a/b` → `feature-a-b`) chocan; la segunda sale con «destination already exists» sin decir qué rama ocupa la ruta.
 - Evitar prompts que bloqueen al agente más allá del de la terminal de git (ya desactivado con `GIT_TERMINAL_PROMPT=0`): askpass (`GIT_ASKPASS`, `core.askPass`, `SSH_ASKPASS`) y SSH (clave de host desconocida, passphrase; `BatchMode`), sin pisar el `core.sshCommand` del usuario.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.

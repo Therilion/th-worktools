@@ -2,7 +2,7 @@
 
 `th-wt` (`skills/th-worktree/scripts/th-wt`) es el script del skill `th-worktree`. Crea, abre (también un PR de GitHub), lista y cierra git worktrees del repositorio actual sin modificar el checkout principal.
 
-> **Estado en v0.1:** están implementados `new`, `checkout`, `pr`, `list` y `close`. Quedan pendientes la instalación automática de dependencias (#6), los enlaces y copias por repo `.conf` (#7), la configuración y raíz configurable (#8), la integración con `codegraph` (#9), el enlace de `th-wt` en `PATH` (#11) y `install.sh` / `verify.sh` (#12, #13). Hoy el script se invoca con su ruta completa: `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt"`.
+> **Estado en v0.1:** están implementados `new`, `checkout`, `pr`, `list` y `close`. También instalan las dependencias según el lockfile (#6). Quedan pendientes los enlaces y copias por repo `.conf` (#7), la configuración y raíz configurable (#8), la integración con `codegraph` (#9), el enlace de `th-wt` en `PATH` (#11) y `install.sh` / `verify.sh` (#12, #13). Hoy el script se invoca con su ruta completa: `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt"`.
 
 ---
 
@@ -72,14 +72,14 @@ th-wt new <branch> [--base <branch>] [--json]
 
 Crea un worktree en `~/.worktrees/<owner>/<repo>/<rama-normalizada>` con una rama nueva `<branch>` creada a partir de `origin/<base>` (por defecto, la rama por defecto de `origin`). `<branch>` debe ir como primer argumento, antes de las opciones.
 
-La rama nueva se crea con `--no-track` para que no siga a `origin/<base>` como upstream. Sin `--json`, `new` no imprime nada en caso de éxito.
+La rama nueva se crea con `--no-track` para que no siga a `origin/<base>` como upstream. Sin `--json`, `new` no imprime nada en caso de éxito (salvo lo que escriba el gestor de paquetes, ver «Instalación de dependencias»).
 
 **Flags:**
 
 | Flag | Efecto |
 |---|---|
 | `--base <branch>` | Crea la rama desde `origin/<branch>` en lugar de la rama por defecto de `origin`. Debe ser un nombre de rama válido en `origin` (sin el prefijo `origin/`, tags, SHAs ni expresiones como `main~1`). |
-| `--json` | Escribe en stdout un objeto JSON con `path`, `branch` y `repo`. |
+| `--json` | Escribe en stdout un objeto JSON con `path`, `branch`, `repo` y `deps`. |
 
 **Ejemplos:**
 
@@ -111,17 +111,17 @@ th-wt checkout <branch> [--remote] [--json]
 
 Crea un worktree en `~/.worktrees/<owner>/<repo>/<rama-normalizada>` para una rama existente. `<branch>` debe ir como primer argumento.
 
-- **Si `<branch>` ya existe como rama local (`refs/heads/<branch>`):** abre el worktree directamente en ese commit local, sin usar la red ni mover la rama (aunque se pase `--remote` y `origin/<branch>` haya avanzado).
+- **Si `<branch>` ya existe como rama local (`refs/heads/<branch>`):** abre el worktree directamente en ese commit local, sin consultar `origin` y sin mover la rama (aunque se pase `--remote` y `origin/<branch>` haya avanzado).
 - **Si `<branch>` no existe en local:** busca `refs/remotes/origin/<branch>` (con `--remote`, antes verifica que exista en `origin` y hace fetch de esa rama). Crea la rama local en ese commit y configura su upstream a `origin/<branch>` (`branch.<branch>.remote = origin` y `branch.<branch>.merge = refs/heads/<branch>`).
 
-Sin `--json`, `checkout` no imprime nada en caso de éxito.
+Después instala las dependencias si hay lockfile (ver «Instalación de dependencias»), salvo en una rama `review/pr-*` (copia local de un PR, p. ej. conservada por `close review/pr-<n> --force`): se trata como `pr` y no instala (`deps: "skipped"`, con el aviso del comando a mano). Sin `--json`, `checkout` solo escribe en stderr lo que escriba el gestor de paquetes y los avisos; en stdout no imprime nada.
 
 **Flags:**
 
 | Flag | Efecto |
 |---|---|
 | `--remote` | Si la rama no existe en local, la consulta y descarga de `origin` antes de crear el worktree. Si la rama ya existe en local, no tiene efecto. |
-| `--json` | Escribe en stdout un objeto JSON con `path`, `branch` y `repo`. |
+| `--json` | Escribe en stdout un objeto JSON con `path`, `branch`, `repo` y `deps`. |
 
 **Ejemplos:**
 
@@ -155,6 +155,8 @@ Abre el PR `<n>` de GitHub del repo (también uno abierto desde un fork) en `~/.
 **Orden de las comprobaciones:** primero las locales (sin red): `<n>` entero positivo sin ceros a la izquierda (código `2`), la ruta `pr-reviews/pr-<n>/code` libre y la rama `review/pr-<n>` inexistente (código `4`) y `gh` instalado (código `3`). Luego la red: `gh pr view`, `git fetch origin refs/pull/<n>/head` (solo `FETCH_HEAD`, no escribe refs) y el fetch de `origin/<base>`. El commit traído debe coincidir con el `headRefOid` que informa `gh` (`FETCH_HEAD` es estado compartido y el PR puede recibir un push entre las dos llamadas); si no, sale con `4` y conviene repetir. Si algo falla no se crea nada.
 
 Si `pr-reviews/pr-<n>/` ya existe con otros archivos (por ejemplo `report.md`) pero sin `code`, se abre igual.
+
+**Dependencias:** `pr` **no instala dependencias** (`deps: "skipped"`): el PR puede ser código de un tercero y la instalación lo ejecutaría (el `.npmrc` y el `packageManager` del PR controlan el gestor, y además hay scripts de ciclo de vida y `.pnpmfile.cjs`; `--ignore-scripts` no basta). Si hay un lockfile soportado, avisa por stderr con el comando a ejecutar a mano en el worktree si confías en el PR (`pnpm install --frozen-lockfile` / `npm ci`).
 
 **Salida:** con `--json`, el objeto de `new` más `pr`; sin `--json`, ruta, PR (número y título), rama del PR y base por stderr, con los caracteres de control del título y de las ramas (que escribe el autor del PR) sustituidos por espacios. Para actualizar un worktree de PR cuando recibe commits nuevos, ciérralo y vuelve a abrirlo.
 
@@ -270,10 +272,14 @@ El acceso a la red es explícito:
 | Subcomando | ¿Cuándo usa la red? | Operaciones de red | ¿Requiere `gh`? |
 |---|---|---|---|
 | `new` | **Siempre** | `git ls-remote --symref origin HEAD`, `git ls-remote --heads origin refs/heads/<branch>` y `git fetch -q --no-tags origin +refs/heads/<base>:refs/remotes/origin/<base>` | No |
-| `checkout` | **Solo con `--remote`** y solo si la rama no existe en local (`refs/heads/<branch>`) | `git ls-remote --heads origin refs/heads/<branch>` y `git fetch -q --no-tags origin +refs/heads/<branch>:refs/remotes/origin/<branch>` | No |
+| `checkout` | **Con `--remote`** y solo si la rama no existe en local (`refs/heads/<branch>`) para consultar `origin`; **además, siempre que haya lockfile**, para instalar dependencias (acceso al registro de paquetes) | `git ls-remote --heads origin refs/heads/<branch>` y `git fetch -q --no-tags origin +refs/heads/<branch>:refs/remotes/origin/<branch>`; instalación con `pnpm` / `npm` | No |
 | `list` | **Solo con `--remote`** | `git ls-remote --symref origin HEAD`, `git fetch -q --no-tags origin +refs/heads/<default>:refs/remotes/origin/<default>` y `gh pr list -R <owner>/<repo> --state all --limit 100 ...` | Sí (con `--remote`) |
 | `pr` | **Siempre** | `gh pr view <n> -R <owner>/<repo> --json number,title,headRefName,baseRefName,headRefOid`, `git fetch -q --no-tags origin refs/pull/<n>/head` y `git fetch -q --no-tags origin +refs/heads/<base>:refs/remotes/origin/<base>` | Sí |
 | `close` | **Solo con `--remote`** | Igual que `list --remote`, pero filtrando en `gh pr list` con `--limit 1000 --head <branch>` | Sí (con `--remote`) |
+
+### Instalación de dependencias
+
+`new` y `checkout` instalan las dependencias del worktree con `pnpm` o `npm`, que usan la red (registro de paquetes) aunque el subcomando no la use por otra vía. Es la única red que usa `checkout` sin `--remote`. Estas llamadas no escriben ninguna ref de git. `pr` no instala dependencias.
 
 ### Refs que escribe
 
@@ -319,14 +325,35 @@ Devuelven el mismo esquema:
 | `path` | `string` | Ruta absoluta del worktree creado (`~/.worktrees/<owner>/<repo>/<rama-normalizada>`). |
 | `branch` | `string` | Nombre real de la rama en git. |
 | `repo` | `string` | `<owner>/<repo>` derivado de `origin`. |
+| `deps` | `string` | Resultado de la instalación de dependencias: `"pnpm"`, `"npm"` (instaladas), `"skipped"` (sin lockfile soportado, el gestor no está en `PATH`, o es `pr`) o `"failed"` (el gestor salió con error). |
 
 ```json
 {
   "path": "/Users/alice/.worktrees/acme/demo/feature-login",
   "branch": "feature/login",
-  "repo": "acme/demo"
+  "repo": "acme/demo",
+  "deps": "pnpm"
 }
 ```
+
+#### Instalación de dependencias
+
+Tras crear el worktree, `th-wt` busca un lockfile en su raíz (si hay `pnpm-lock.yaml` y `package-lock.json`, gana pnpm):
+
+| Lockfile | Comando (en `new` y `checkout`) | En `pr` |
+|---|---|---|
+| `pnpm-lock.yaml` | `pnpm install --frozen-lockfile` | no se ejecuta; el aviso lo sugiere para hacerlo a mano |
+| `package-lock.json` | `npm ci` | no se ejecuta; el aviso lo sugiere para hacerlo a mano |
+| `yarn.lock`, `bun.lock`, `bun.lockb`, `Cargo.lock`, `uv.lock`, `poetry.lock` | no se instala; avisa por stderr con el nombre del archivo (`deps: "skipped"`) | igual |
+| ninguno | no se instala (`deps: "skipped"`) | igual |
+
+En `checkout`, una rama `review/pr-*` sigue la columna «En `pr`».
+
+- El gestor se ejecuta con el worktree como directorio de trabajo, con su salida redirigida a **stderr** (stdout queda para el objeto `--json`) y con stdin cerrado (`/dev/null`), así que nunca espera una respuesta.
+- Si el gestor sale con error, `th-wt` conserva el worktree, avisa por stderr y sale con `0`; `deps` vale `"failed"`. Se puede repetir la instalación a mano en el worktree.
+- Si hay lockfile pero `pnpm` / `npm` no está en `PATH`, avisa por stderr, no instala y sale con `0`; `deps` vale `"skipped"`.
+- Sin `--json`, el gestor escribe igualmente en stderr.
+- La instalación puede tardar minutos; quien invoque `new` o `checkout` debe usar un timeout largo. Si se corta, el worktree ya existe: instala a mano dentro de él en vez de repetir el comando.
 
 ### `pr --json`
 
@@ -337,6 +364,7 @@ El objeto de `new --json` más `pr`:
 | `path` | `string` | `~/.worktrees/<owner>/<repo>/pr-reviews/pr-<n>/code`. |
 | `branch` | `string` | `review/pr-<n>`. |
 | `repo` | `string` | `<owner>/<repo>` derivado de `origin`. |
+| `deps` | `string` | Igual que en `new --json` (en `pr`, siempre `"skipped"`). |
 | `pr` | `object` | `{number, title, head, base}`: número, título, rama del PR (`head`) y su base. |
 
 ### `list --json` y `list --remote --json`

@@ -41,6 +41,7 @@ new_worktree() {
   fi
   fetch_origin_branch "$base" || die 4 "base branch not found on origin (or fetch failed): $base"
   git worktree add --no-track -q -b "$branch" "$dest" "refs/remotes/origin/$base" || die 1 "git worktree add failed"
+  install_deps "$dest"
 
   if [ "$json" = 1 ]; then
     print_created_json "$dest" "$branch"
