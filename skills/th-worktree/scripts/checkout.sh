@@ -56,7 +56,8 @@ checkout_worktree() {
       die 4 "branch not found: $branch (try --remote)"
     fi
   fi
-  install_deps "$dest"
+  # review/pr-* is a local copy of a PR (kept by close --force): same rule as pr
+  case "$branch" in review/pr-*) skip_pr_deps "$dest" ;; *) install_deps "$dest" ;; esac
 
   if [ "$json" = 1 ]; then
     print_created_json "$dest" "$branch"

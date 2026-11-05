@@ -167,3 +167,17 @@ dest="$HOME/.worktrees/acme/demo/with-pnpm"
 [ "$(cat "$TMP/pm.calls")" = "$dest pnpm install --frozen-lockfile" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
 [ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: salida=[$out]"
 pass "$name"
+
+name="checkout de una rama review/pr-* con lockfile no ejecuta ningún gestor, devuelve deps: skipped y avisa con el comando para instalar a mano"
+: > "$TMP/pm.calls"
+git -C "$TMP/repo" fetch -q origin
+git -C "$TMP/repo" branch --no-track review/pr-31 refs/remotes/origin/with-npm
+rc=0
+out="$(cd "$TMP/repo" && "$WT" checkout review/pr-31 --json 2>"$TMP/co-pr.err")" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
+dest="$HOME/.worktrees/acme/demo/review-pr-31"
+[ -d "$dest" ] || fail "$name: no se creó el worktree"
+[ ! -s "$TMP/pm.calls" ] || fail "$name: se ejecutó un gestor: [$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: salida=[$out]"
+grep -qF "warning: dependencies not installed: PR code is untrusted; if you trust it, run 'npm ci' in $dest" "$TMP/co-pr.err" || fail "$name: aviso incorrecto: [$(cat "$TMP/co-pr.err")]"
+pass "$name"
