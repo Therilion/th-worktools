@@ -60,6 +60,9 @@ Ideas que quedan fuera de la versión en curso.
 - Derivar `<owner>/<repo>` también de remotes `ssh://`, con puerto o con barra final (hoy solo `git@host:` y `https://`).
 - Que `--base` acepte tags y SHAs (hoy es siempre `origin/<rama>`).
 - Resumen legible de `new` en la terminal, sin necesidad de `--json`.
+- Instalar dependencias de otros gestores al crear un worktree (hoy, en #6, solo pnpm y npm): yarn (`--immutable` en Yarn 2+, `--frozen-lockfile` en Yarn 1; distinguir la versión con `.yarnrc.yml` o `packageManager`), bun (`bun.lock`/`bun.lockb`), Rust (`Cargo.lock` → `cargo fetch --locked`, que no ejecuta `build.rs` y serviría también en `pr`) y Python (`uv.lock` → `uv sync --locked`; `poetry.lock` → `poetry install`). `requirements.txt` no es un lockfile: omitirlo. Verificar los flags en las versiones instaladas.
+- Instalar dependencias solo si se pide, con un flag (p. ej. `--deps`) en todo comando que crea un worktree (`new`, `checkout`, `pr`), en vez de instalar por defecto.
+- Investigar si se puede detectar un riesgo antes de instalar (p. ej. revisar `.npmrc`, `packageManager`, `.pnpmfile.cjs`, scripts de ciclo de vida o dependencias de git, o usar herramientas de auditoría de paquetes), sabiendo que ninguna comprobación cubre los vectores que aparezcan después.
 - `th-wt new`/`checkout`: ramas distintas con el mismo nombre normalizado (`feature/a-b` y `feature-a/b` → `feature-a-b`) chocan; la segunda sale con «destination already exists» sin decir qué rama ocupa la ruta.
 - Evitar prompts que bloqueen al agente más allá del de la terminal de git (ya desactivado con `GIT_TERMINAL_PROMPT=0`): askpass (`GIT_ASKPASS`, `core.askPass`, `SSH_ASKPASS`) y SSH (clave de host desconocida, passphrase; `BatchMode`), sin pisar el `core.sshCommand` del usuario.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.
