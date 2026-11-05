@@ -38,21 +38,24 @@ worktree_dest() {
   [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
 }
 
-# Installs the dependencies of worktree $1 from its lockfile; sets $deps. $2 = untrusted: run no code from the repo (no lifecycle scripts, no .pnpmfile.cjs). A failed install only warns: the worktree is already there.
-install_deps() {
-  local dest="$1" untrusted="${2:-}" pm sub
-  deps=skipped
-  if [ -f "$dest/pnpm-lock.yaml" ]; then
+# Sets $pm and $sub (the install command) from the lockfile in worktree $1; $pm stays empty if there is none.
+detect_pm() {
+  pm=""
+  if [ -f "$1/pnpm-lock.yaml" ]; then
     pm=pnpm
     sub=(install --frozen-lockfile)
-    [ -z "$untrusted" ] || sub+=(--ignore-scripts --ignore-pnpmfile)
-  elif [ -f "$dest/package-lock.json" ]; then
+  elif [ -f "$1/package-lock.json" ]; then
     pm=npm
     sub=(ci)
-    [ -z "$untrusted" ] || sub+=(--ignore-scripts)
-  else
-    return 0
   fi
+}
+
+# Installs the dependencies of worktree $1 from its lockfile; sets $deps. A failed install only warns: the worktree is already there.
+install_deps() {
+  local dest="$1" pm sub
+  deps=skipped
+  detect_pm "$dest"
+  [ -n "$pm" ] || return 0
   if ! command -v "$pm" >/dev/null; then
     echo "th-wt: warning: $pm not found in PATH; skipping dependency install in $dest" >&2
     return 0
@@ -64,6 +67,14 @@ install_deps() {
     deps=failed
     echo "th-wt: warning: $pm install failed in $dest; run it there manually" >&2
   fi
+}
+
+# PR worktrees never install: the PR's own .npmrc, packageManager and scripts would run its author's code. Sets $deps and tells how to install by hand.
+skip_pr_deps() {
+  local dest="$1" pm sub
+  deps=skipped
+  detect_pm "$dest"
+  [ -z "$pm" ] || echo "th-wt: warning: dependencies not installed: PR code is untrusted; if you trust it, run '$pm ${sub[*]}' in $dest" >&2
 }
 
 # Prints the created worktree object as JSON; needs $repo and $deps.

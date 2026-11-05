@@ -39,8 +39,7 @@ pr_worktree() {
     git branch -D -q "review/pr-$n" || true
     die 1 "git worktree add failed"
   fi
-  # the PR may be third-party code
-  install_deps "$dest" untrusted
+  skip_pr_deps "$dest"
 
   if [ "$json" = 1 ]; then
     print_created_json "$dest" "review/pr-$n" | jq -c --argjson m "$meta" '. + {pr: {number: $m.number, title: $m.title, head: $m.headRefName, base: $m.baseRefName}}'

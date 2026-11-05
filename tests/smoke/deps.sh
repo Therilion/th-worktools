@@ -129,20 +129,20 @@ gh_pr_from() {
   jq -n --arg o "$(git -C "$TMP/origin.git" rev-parse "refs/pull/$1/head")" --argjson n "$1" '{number: $n, title: "PR de prueba", headRefName: "x", baseRefName: "main", headRefOid: $o}' > "$TMP/gh.json"
 }
 
-name="pr con pnpm-lock.yaml ejecuta pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile (sin scripts ni .pnpmfile.cjs) y devuelve deps: pnpm"
-: > "$TMP/pm.calls"
-gh_pr_from 21 with-pnpm
-out="$(cd "$TMP/repo" && "$WT" pr 21 --json 2>/dev/null)" || fail "$name: th-wt pr falló"
-dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-21/code"
-[ "$(cat "$TMP/pm.calls")" = "$dest pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
-[ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: salida=[$out]"
-pass "$name"
-
-name="pr con package-lock.json ejecuta npm ci --ignore-scripts y devuelve deps: npm"
-: > "$TMP/pm.calls"
-gh_pr_from 22 with-npm
-out="$(cd "$TMP/repo" && "$WT" pr 22 --json 2>/dev/null)" || fail "$name: th-wt pr falló"
-dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-22/code"
-[ "$(cat "$TMP/pm.calls")" = "$dest npm ci --ignore-scripts" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
-[ "$(jq -r .deps <<<"$out")" = npm ] || fail "$name: salida=[$out]"
+name="pr con lockfile no ejecuta ningún gestor, devuelve deps: skipped y avisa en stderr con el comando para instalar a mano"
+n=21
+for pm in pnpm npm; do
+  case "$pm" in pnpm) cmd="pnpm install --frozen-lockfile" ;; npm) cmd="npm ci" ;; esac
+  : > "$TMP/pm.calls"
+  gh_pr_from "$n" "with-$pm"
+  rc=0
+  out="$(cd "$TMP/repo" && "$WT" pr "$n" --json 2>"$TMP/pr$n.err")" || rc=$?
+  [ "$rc" = 0 ] || fail "$name: $pm: exit=$rc, esperado 0"
+  dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-$n/code"
+  [ -d "$dest" ] || fail "$name: $pm: no se creó el worktree"
+  [ ! -s "$TMP/pm.calls" ] || fail "$name: $pm: se ejecutó un gestor: [$(cat "$TMP/pm.calls")]"
+  [ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: $pm: salida=[$out]"
+  grep -qF "warning: dependencies not installed: PR code is untrusted; if you trust it, run '$cmd' in $dest" "$TMP/pr$n.err" || fail "$name: $pm: aviso incorrecto: [$(cat "$TMP/pr$n.err")]"
+  n=$((n + 1))
+done
 pass "$name"
