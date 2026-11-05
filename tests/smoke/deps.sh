@@ -69,7 +69,7 @@ name="la salida del gestor va a stderr: con --json, stdout es un solo objeto JSO
 : > "$TMP/pm.calls"
 out="$(cd "$TMP/repo" && FAKE_PM_OUT=1 "$WT" new feature/stdout --base with-pnpm --json 2>"$TMP/stdout.err")" || fail "$name: th-wt new falló"
 [ -s "$TMP/pm.calls" ] || fail "$name: el gestor no se ejecutó"
-[ "$(jq -s length <<<"$out")" = 1 ] && [ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: stdout=[$out]"
+{ [ "$(jq -s length <<<"$out")" = 1 ] && [ "$(jq -r .deps <<<"$out")" = pnpm ]; } || fail "$name: stdout=[$out]"
 grep -q "junk de pnpm en stdout" "$TMP/stdout.err" || fail "$name: la salida del gestor no llegó a stderr: [$(cat "$TMP/stdout.err")]"
 pass "$name"
 
