@@ -452,7 +452,7 @@ Matriz: `macos-latest` y `ubuntu-latest`.
 ## 15. Definition of Done — v0.1
 
 - [ ] `th-worktree` crea worktrees para una rama nueva, para una rama existente y para un PR (parcial: `new` y `checkout` listos; falta `pr`, #5).
-- [ ] Al crear: aplica el `.conf` del repo (enlaza `.wiki`), instala dependencias e inicializa codegraph si está disponible.
+- [ ] Al crear: aplica el `.conf` del repo (enlaza `.wiki`), instala dependencias e inicializa codegraph si está disponible (parcial: instalación de dependencias lista; faltan el `.conf` del repo, #7, y codegraph, #9).
 - [ ] Al cerrar: dry-run por defecto; con `--yes` ejecuta `codegraph uninit`, elimina el worktree y borra la rama si está mergeada (parcial: dry-run, eliminación del worktree y borrado de rama mergeada listos, también con `--remote`; falta `codegraph uninit`, #9).
 - [ ] Funciona invocado desde Claude Code y desde Antigravity en macOS (parcial: verificado en Claude Code; falta Antigravity, #10).
 - [ ] `git status` limpio en un worktree del repo del trabajo (la `.wiki` enlazada no aparece).
