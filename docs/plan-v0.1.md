@@ -77,6 +77,7 @@ th-worktools/
 │           ├── new.sh        # subcomando new
 │           ├── checkout.sh   # subcomando checkout
 │           ├── list.sh       # subcomando list
+│           ├── pr.sh         # subcomando pr
 │           └── close.sh      # subcomando close
 ├── tests/
 │   ├── smoke.sh              # ejecuta tests/smoke/*.sh, cada uno en un repo temporal propio
