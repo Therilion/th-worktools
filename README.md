@@ -35,7 +35,7 @@ La referencia completa (subcomandos, red, códigos de salida y `--json`) está e
 ## Requisitos
 
 - Requeridos: `git`, `jq`, bash 3.2 o superior.
-- Para `list --remote` y `close --remote` hoy (y para `pr` cuando exista): `gh`.
+- Para `pr`, `list --remote` y `close --remote`: `gh`.
 - Opcional: `codegraph`.
 
 ## Hoja de ruta
