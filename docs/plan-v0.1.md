@@ -206,25 +206,25 @@ Formato `CLAVE=valor`, una por línea; `#` para comentarios.
 
 ### Por repo: `repos/<owner>/<repo>.conf`
 
-`<owner>/<repo>` se deriva del remote `origin` (ver más abajo). Sin este archivo, **no se enlaza ni se copia nada**.
+`<owner>/<repo>` se deriva del remote `origin` (ver más abajo). Sin este archivo, **no se enlaza nada**. `pr` (y `checkout` de una rama `review/pr-*`) nunca lo aplica: el código del PR podría leer los `.env` enlazados.
 
 ```
 # ~/.config/th-worktools/repos/mi-org/mi-repo.conf
 link .wiki
 link .env
-copy .env.local
 ```
 
 | Acción | Efecto |
 |---|---|
 | `link <ruta>` | Symlink desde el worktree hacia `<ruta>` en el checkout principal |
-| `copy <ruta>` | Copia independiente (solo si el worktree necesita valores distintos) |
 
-**Validaciones (si alguna falla, el script aborta antes de modificar nada):**
+No hay `copy`: multiplicaría secretos en disco, y una lista de nombres prohibidos nunca está completa (idea en el README).
 
-1. Ruta relativa: sin `/` inicial ni segmentos `..`.
+**Validaciones (si alguna falla, no se enlaza nada, se deshace el worktree recién creado, y la rama si la creó el comando, y sale con `4`):**
+
+1. Acción `link`; ruta relativa: sin `/` inicial ni segmentos `..`.
 2. Debe existir en el checkout principal.
-3. **Debe estar ignorada por git** (`git check-ignore -q <ruta>`). Así nunca se enlaza un archivo versionado y no hay riesgo de commitearlo.
+3. **Debe estar ignorada por git en el worktree nuevo** (`git check-ignore -q <ruta>` antes de crear el enlace: git la ve como archivo, igual que al symlink, y usa el `.gitignore` de la rama abierta). Así nunca se enlaza un archivo versionado y no hay riesgo de commitearlo.
 4. Rutas exactas, sin globs (v0.1).
 
 ### Derivación de `<owner>/<repo>`
@@ -257,14 +257,15 @@ copy .env.local
 **Decisiones:**
 
 1. **Opt-in por repo.** Por defecto no se toca ningún `.env`.
-2. **Preferir `link` sobre `copy`:** queda una sola copia del secreto en disco, y al borrar el worktree solo desaparece el enlace. `copy` solo cuando el worktree necesita valores distintos (otro puerto, otra base de datos); el script lo advierte.
-3. **Validación con `git check-ignore`** (§7).
-4. **Los scripts nunca imprimen contenido**; el dry-run lista solo nombres.
-5. **Bloquear la lectura por parte de los agentes**, en la configuración de usuario (§13). Es una mitigación, no una garantía: un comando que ejecuta la aplicación igual carga las variables.
+2. **Solo `link`, nunca copias:** queda una sola copia del secreto en disco, y al borrar el worktree solo desaparece el enlace (`git worktree remove` no sigue el symlink). Un worktree no puede tener valores propios (otro puerto, otra base de datos); idea en el README.
+3. **`pr` no aplica el `.conf`:** el código de un PR (de un fork, de un tercero) podría leer los secretos enlazados.
+4. **Validación con `git check-ignore`** (§7).
+5. **Los scripts nunca imprimen contenido**; el dry-run lista solo nombres.
+6. **Bloquear la lectura por parte de los agentes**, en la configuración de usuario (§13). Es una mitigación, no una garantía: un comando que ejecuta la aplicación igual carga las variables.
 
 ### Gitignore y symlinks
 
-Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git un symlink es un archivo. Para los directorios enlazados, agregar la entrada **sin barra** al `.git/info/exclude` del repo. Ese archivo es local y se comparte entre todos los worktrees.
+Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git un symlink es un archivo. Para los directorios enlazados, la entrada va **sin barra** (en el `.gitignore` o en el `.git/info/exclude` del repo, que es local y se comparte entre todos los worktrees). Lo agrega el usuario: el script no lo escribe, solo rechaza la entrada (§7) y el agente sugiere la línea.
 
 ### Repo público
 
@@ -319,7 +320,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
    - `new`: `git worktree add --no-track -b <rama> <ruta> origin/<base>` (`--no-track`: la rama nueva no debe seguir a `origin/<base>`, o un `git push` iría a la rama base)
    - `checkout`: si la rama es local, `git worktree add <ruta> <rama>` sin red. Si no, sale de `origin/<rama>` (con `--remote`, primero `ls-remote` y el mismo fetch explícito; sin `--remote`, la copia ya traída): `git worktree add --no-track -b <rama> <ruta> origin/<rama>` y el upstream (`branch.<rama>.remote`/`.merge`) se escribe a mano, porque `--track` falla en clones `--single-branch`.
    - `pr`: `git fetch -q --no-tags origin refs/pull/<n>/head` (solo `FETCH_HEAD`) y `git worktree add --no-track -b review/pr-<n> <ruta> <oid>`. Metadatos con `gh pr view <n> -R <owner>/<repo> --json number,title,headRefName,baseRefName`.
-6. Aplicar el `.conf` del repo (`link` / `copy`, validados).
+6. Aplicar el `.conf` del repo (`link`, validados), salvo en `pr` y en `checkout` de `review/pr-*`.
 7. Si `TH_INSTALL_DEPS=1`, instalar dependencias según el lockfile:
    - `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`
    - `package-lock.json` → `npm ci`
@@ -328,7 +329,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
    - Si el gestor falla: se conserva el worktree, aviso por stderr, `deps: "failed"` y código `0`. Si hay lockfile pero el gestor no está en `PATH`: aviso por stderr, `deps: "skipped"` y código `0`.
 8. Si `TH_CODEGRAPH=auto` y codegraph está instalado, inicializarlo en el worktree (verificar los flags no interactivos de `codegraph init`).
 9. Mostrar un resumen. Con `--json`:
-   `{ "path", "branch", "repo", "linked": [], "copied": [], "deps": "pnpm|npm|skipped|failed", "codegraph": true|false }`
+   `{ "path", "branch", "repo", "linked": [], "deps": "pnpm|npm|skipped|failed", "codegraph": true|false }`
 10. Indicar al usuario que abra **una sesión nueva del agente** en esa ruta.
 
 ### `close`

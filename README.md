@@ -25,7 +25,7 @@ Crea, abre, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`
 
 Hoy, al crear un worktree con `new` o `checkout` se crean el worktree y la rama y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci`. `pr` nunca instala dependencias: el código del PR es de un tercero (avisa con el comando para hacerlo a mano). Está previsto que además:
 
-- enlace o copie los archivos ignorados que declares por repo (por ejemplo, `.wiki` o `.env`, #7);
+- enlace los archivos ignorados que declares por repo (por ejemplo, `.wiki` o `.env`, #7);
 - inicialice codegraph si está instalado (#9).
 
 Hoy funciona desde Claude Code (`/th-worktree new feature/login`) y desde la terminal ejecutando el script con su ruta completa; Antigravity (#10) y `th-wt` en el `PATH` (#11) están pendientes.
@@ -93,7 +93,9 @@ Ideas que quedan fuera de la versión en curso.
 - Test de `list --remote` con el fetch fallando: fuerza el fallo con un archivo `.lock`, que solo bloquea con el backend de refs `files`. Cuando `reftable` sea el predeterminado de git, condicionarlo con `git rev-parse --show-ref-format` o buscar otra forma de hacer fallar el fetch.
 - `th-wt list` en la terminal (#11): el texto va solo a stderr, así que `th-wt list | grep` no recibe nada; mandar las filas a stdout y dejar solo los avisos en stderr.
 - `th-wt list` y mayúsculas: el prefijo de la raíz distingue mayúsculas, pero APFS no; un cambio de capitalización en la URL de `origin` oculta worktrees existentes. Resolverlo junto con los symlinks (#8).
-- `th-wt list` y archivos ignorados: `dirty` no cuenta los ignorados por git; decidir qué significa «limpio» cuando `new` copie `.env` (#7).
+- Secretos en los worktrees: #7 solo enlaza (también `.env`) y `pr` no aplica el `.conf`, así que un worktree no puede tener valores propios (otro puerto, otra base de datos). Buscar una forma segura de gestionarlos y compartirlos entre worktrees (p. ej. un gestor de secretos que inyecte las variables al ejecutar), sin multiplicar copias en disco ni exponerlas al agente.
+- `copy` en el `.conf` del repo (#7 solo tiene `link`), para archivos que necesitan valores propios por worktree, prohibiendo `.env*` y una lista de nombres de secretos (`*.pem`, `*.key`, `id_rsa*`, `*.p12`, `.netrc`, `.npmrc`, `credentials*`…). Solo si aparece un caso de uso que no sea un secreto; la lista nunca está completa.
+- MCP de documentación: un servidor MCP al que se le enlaza la documentación local (p. ej. `.wiki`) y que responde preguntas sobre ella con otro modelo o agente, para ahorrar tokens del modelo principal. Podría reemplazar o complementar `th-repo-context` (v0.2).
 - `th-wt checkout` de una rama abierta en un worktree «prunable» (directorio borrado a mano): sale con 4 y da una ruta que ya no existe; sugerir `git worktree prune`.
 - `th-wt checkout`: una rama en rebase o bisect en otro worktree sale `detached` en el porcelain, así que pasa la comprobación y `git worktree add` falla con 1; detectarla y salir con 4 y la ruta.
 - `th-wt checkout --remote`: hace `ls-remote` y luego `fetch` (dos conexiones a `origin`); probar primero el fetch y usar `ls-remote` solo si falla, para distinguir «no existe» de «inaccesible».
