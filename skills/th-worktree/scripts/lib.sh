@@ -3,6 +3,9 @@
 # Initialized here so values inherited from the environment cannot change behavior (undo_creation, print_created_json).
 created_start=""
 linked=()
+# Same for the settings load_config sets (a wt_root or install_deps_on in the environment is ignored).
+wt_root=""
+install_deps_on=1
 
 die() { echo "th-wt: $2" >&2; exit "$1"; }
 bad_usage() { [ $# -eq 0 ] || echo "th-wt: $1" >&2; usage >&2; exit 2; }
@@ -15,9 +18,75 @@ bad_arg() {
   esac
 }
 
-# Sets $repo (<owner>/<repo>) from remote.origin.url.
+# Validates the value $2 of config key $1. On success sets $cfg_value (the root expanded, without a trailing slash); on failure sets $reason and returns 1. Reads the caller's (load_config) locals via dynamic scope.
+check_config_value() {
+  local v="$2"
+  cfg_value="$v"
+  case "$1" in
+    TH_WORKTREES_ROOT)
+      case "$v" in \~/*) v="$HOME/${v#\~/}" ;; esac
+      v="${v%/}"
+      # absolute only; wrapping in slashes catches '.', '..' and empty segments in one pattern
+      case "$v" in
+        /*) ;;
+        *) reason="TH_WORKTREES_ROOT must be an absolute path or start with ~/, without '.', '..' or empty segments: $2"; return 1 ;;
+      esac
+      case "$v/" in
+        *//*|*/./*|*/../*) reason="TH_WORKTREES_ROOT must be an absolute path or start with ~/, without '.', '..' or empty segments: $2"; return 1 ;;
+      esac
+      cfg_value="$v" ;;
+    TH_INSTALL_DEPS)
+      case "$2" in
+        0|1) ;;
+        *) reason="TH_INSTALL_DEPS must be 0 or 1: $2"; return 1 ;;
+      esac ;;
+  esac
+}
+
+# Sets $wt_root (canonical, so it matches git's real paths) and $install_deps_on: environment variable (if non-empty) > $XDG_CONFIG_HOME/th-worktools/config > default.
+# Validates everything first (exit 4, naming the file and line or the variable); the file is parsed line by line, never sourced.
+load_config() {
+  local conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config" line key n=0 reason cfg_value
+  local file_root="" file_deps=""
+  if [ -f "$conf" ]; then
+    # the last line may lack a newline
+    while IFS= read -r line || [ -n "$line" ]; do
+      n=$((n + 1))
+      line="${line%$'\r'}" # CRLF files
+      case "$line" in ""|"#"*) continue ;; esac
+      # neither the line nor the value of an unknown key is printed: it could be a secret
+      case "$line" in *=*) ;; *) die 4 "$conf:$n: expected KEY=value" ;; esac
+      key="${line%%=*}"
+      case "$key" in
+        TH_WORKTREES_ROOT|TH_INSTALL_DEPS) ;;
+        *) die 4 "$conf:$n: unknown key: $key" ;;
+      esac
+      check_config_value "$key" "${line#*=}" || die 4 "$conf:$n: $reason"
+      case "$key" in
+        TH_WORKTREES_ROOT) file_root="$cfg_value" ;;
+        *) file_deps="$cfg_value" ;;
+      esac
+    done < "$conf"
+  fi
+  wt_root="${file_root:-$HOME/.worktrees}"
+  install_deps_on="${file_deps:-1}"
+  if [ -n "${TH_WORKTREES_ROOT:-}" ]; then
+    check_config_value TH_WORKTREES_ROOT "$TH_WORKTREES_ROOT" || die 4 "TH_WORKTREES_ROOT (environment): $reason"
+    wt_root="$cfg_value"
+  fi
+  if [ -n "${TH_INSTALL_DEPS:-}" ]; then
+    check_config_value TH_INSTALL_DEPS "$TH_INSTALL_DEPS" || die 4 "TH_INSTALL_DEPS (environment): $reason"
+    install_deps_on="$cfg_value"
+  fi
+  # resolved here, in the main shell, so a failure exits the whole command before anything is created
+  cfg_value="$wt_root"
+  wt_root="$(canonical_dir "$cfg_value")" || die 4 "cannot resolve the worktrees root: $cfg_value"
+}
+
+# Sets $repo (<owner>/<repo>) from remote.origin.url; loads the global config first.
 resolve_repo() {
   local url
+  load_config
   git rev-parse --git-dir >/dev/null 2>&1 || die 4 "not a git repository"
   url="$(git config --get remote.origin.url || true)"
   [ -n "$url" ] || die 4 "no 'origin' remote configured"
@@ -29,9 +98,21 @@ resolve_repo() {
   esac
 }
 
-# shortcut: root is compared with git's real paths without resolving symlinks, so a symlinked ~/.worktrees or $HOME lists nothing; canonicalize both sides with #8 (configurable root)
-# Where this repo's worktrees live; needs $repo from resolve_repo.
-worktrees_root() { printf '%s' "$HOME/.worktrees/$repo/"; }
+# Absolute path $1 with symlinks resolved, even if it does not exist yet: the deepest existing ancestor is resolved with cd -P and the missing tail is appended. $1 has no ., .. or empty segments.
+canonical_dir() {
+  local ancestor="$1" rest="" base
+  while [ ! -d "$ancestor" ]; do
+    rest="/${ancestor##*/}$rest"
+    ancestor="${ancestor%/*}"
+    [ -n "$ancestor" ] || ancestor=/
+  done
+  base="$(cd -P "$ancestor" && pwd)" || return 1
+  [ "$base" != / ] || base=""
+  printf '%s' "$base$rest"
+}
+
+# Where this repo's worktrees live; needs $repo from resolve_repo ($wt_root is already canonical).
+worktrees_root() { printf '%s' "$wt_root/$repo/"; }
 
 # Sets $dest for branch $1 and checks it does not already exist; needs $repo.
 worktree_dest() {
@@ -162,6 +243,10 @@ detect_pm() {
 install_deps() {
   local dest="$1" pm sub
   deps=skipped
+  if [ "$install_deps_on" = 0 ]; then
+    echo "th-wt: dependency install disabled (TH_INSTALL_DEPS=0); dependencies not installed in $dest" >&2
+    return 0
+  fi
   detect_pm "$dest"
   [ -n "$pm" ] || return 0
   if ! command -v "$pm" >/dev/null; then

@@ -19,7 +19,7 @@ list_worktrees() {
     default="$(local_default_branch)"
   fi
   rows="$(list_rows "$root" "$default" "$prs" "$remote")"
-  # shortcut: PRs are matched within the latest $pr_limit only; make the limit configurable with #8
+  # shortcut: PRs are matched within the latest $pr_limit only; make the limit a config key (README ideas)
   if [ "$remote" = true ] && [ "$(jq length <<<"$prs")" = "$pr_limit" ] && [ "$(printf '%s\n' "$rows" | jq -s 'any(.[]; .branch != null and .merged == false and .pr == null)')" = true ]; then
     echo "th-wt: only the $pr_limit most recent PRs were checked; branches without a PR here may have an older one" >&2
   fi
