@@ -138,3 +138,70 @@ else
   rmdir "$TMP/sin-acceso"
   pass "$name"
 fi
+
+name="raíz dentro del checkout principal: new sale con 4 y no crea nada"
+rc=0
+(cd "$TMP/repo" && TH_WORKTREES_ROOT="$TMP/repo" "$WT" new feature/cfg-overlap 2>"$TMP/ovl.err" >"$TMP/ovl.out") || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/ovl.err")]"
+grep -qxF "th-wt: worktrees root $TMP/repo/acme/demo overlaps the main checkout $TMP/repo" "$TMP/ovl.err" || fail "$name: stderr=[$(cat "$TMP/ovl.err")]"
+[ ! -s "$TMP/ovl.out" ] || fail "$name: stdout no vacío"
+[ ! -e "$TMP/repo/acme" ] || fail "$name: se creó acme dentro del repo"
+! git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/cfg-overlap || fail "$name: quedó la rama"
+pass "$name"
+
+name="checkout principal dentro de la raíz del repo: list sale con 4"
+git clone -q "$REMOTE_URL" "$TMP/rootov/acme/demo"
+rc=0
+(cd "$TMP/rootov/acme/demo" && TH_WORKTREES_ROOT="$TMP/rootov" "$WT" list 2>"$TMP/ovl2.err" >/dev/null) || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/ovl2.err")]"
+grep -qxF "th-wt: worktrees root $TMP/rootov/acme/demo overlaps the main checkout $TMP/rootov/acme/demo" "$TMP/ovl2.err" || fail "$name: stderr=[$(cat "$TMP/ovl2.err")]"
+pass "$name"
+
+name="con HOME terminado en /, TH_WORKTREES_ROOT=~/wt funciona"
+# shellcheck disable=SC2088 # la tilde literal es lo que se prueba
+(cd "$TMP/repo" && HOME="$HOME/" TH_WORKTREES_ROOT='~/wt' "$WT" new feature/cfg-home-slash 2>"$TMP/hs.err") || fail "$name: th-wt new falló: [$(cat "$TMP/hs.err")]"
+[ -d "$HOME/wt/acme/demo/feature-cfg-home-slash" ] || fail "$name: no existe el worktree bajo ~/wt"
+(cd "$TMP/repo" && HOME="$HOME/" "$WT" new feature/cfg-home-default 2>"$TMP/hs.err") || fail "$name: new con la raíz por defecto falló: [$(cat "$TMP/hs.err")]"
+[ -d "$HOME/.worktrees/acme/demo/feature-cfg-home-default" ] || fail "$name: no existe el worktree bajo ~/.worktrees"
+clean_cfg
+pass "$name"
+
+name="una clave que no parece un nombre de variable no se imprime"
+set_cfg 'c2VjcmV0+dG9rZW4/x=\n'
+rc=0
+(cd "$TMP/repo" && "$WT" new feature/cfg-badkey 2>"$TMP/bk.err" >/dev/null) || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/bk.err")]"
+! grep -qF "c2VjcmV0" "$TMP/bk.err" || fail "$name: el stderr contiene la clave: [$(cat "$TMP/bk.err")]"
+[ "$(cat "$TMP/bk.err")" = "th-wt: $CFG:1: invalid key (not shown)" ] || fail "$name: stderr=[$(cat "$TMP/bk.err")]"
+clean_cfg
+pass "$name"
+
+name="una clave en minúsculas o mixta no se imprime"
+set_cfg 'dG9rZW4tc2VjcmV0==\n'
+rc=0
+(cd "$TMP/repo" && "$WT" new feature/cfg-lowkey 2>"$TMP/lk.err" >/dev/null) || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/lk.err")]"
+! grep -qF "dG9rZW4" "$TMP/lk.err" || fail "$name: el stderr contiene la clave: [$(cat "$TMP/lk.err")]"
+[ "$(cat "$TMP/lk.err")" = "th-wt: $CFG:1: invalid key (not shown)" ] || fail "$name: stderr=[$(cat "$TMP/lk.err")]"
+clean_cfg
+pass "$name"
+
+name="raíz bajo un symlink roto: new sale con 4 y no crea nada"
+ln -s "$TMP/no-existe" "$TMP/rota"
+rc=0
+(cd "$TMP/repo" && TH_WORKTREES_ROOT="$TMP/rota/wt" "$WT" new feature/cfg-broken 2>"$TMP/br.err" >"$TMP/br.out") || rc=$?
+rm -f "$TMP/rota"
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/br.err")]"
+grep -qxF "th-wt: cannot resolve the worktrees root: $TMP/rota/wt" "$TMP/br.err" || fail "$name: stderr=[$(cat "$TMP/br.err")]"
+[ ! -e "$TMP/no-existe" ] || fail "$name: se creó el destino del symlink"
+! git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/cfg-broken || fail "$name: quedó la rama"
+pass "$name"
+
+name="TH_WORKTREES_ROOT del entorno con salto de línea sale con 4"
+rc=0
+(cd "$TMP/repo" && TH_WORKTREES_ROOT="$TMP/envroot
+x" "$WT" new feature/cfg-ctrl 2>"$TMP/ct.err" >/dev/null) || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/ct.err")]"
+[ "$(cat "$TMP/ct.err")" = "th-wt: TH_WORKTREES_ROOT (environment): TH_WORKTREES_ROOT must not contain control characters" ] || fail "$name: stderr=[$(cat "$TMP/ct.err")]"
+! git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/cfg-ctrl || fail "$name: quedó la rama"
+pass "$name"

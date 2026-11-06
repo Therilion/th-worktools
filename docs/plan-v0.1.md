@@ -210,8 +210,9 @@ Archivo: `${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config`. `#` y las lín
 
 **Validaciones (si alguna falla, no se crea ni se borra nada y sale con `4`):**
 
-1. Clave conocida (`unknown key: <CLAVE>`) y formato `CLAVE=valor` (`expected KEY=value`).
+1. Clave conocida (`unknown key: <CLAVE>`; una clave que no está en mayúsculas sale como `invalid key (not shown)`) y formato `CLAVE=valor` (`expected KEY=value`).
 2. `TH_WORKTREES_ROOT`: ruta absoluta o con `~/` al inicio (se expande a `$HOME`), sin segmentos `.`, `..` ni vacíos; una barra final se ignora. No se expanden `$VAR`. Se resuelven los symlinks de la parte que existe, así una raíz bajo un symlink funciona y `list`/`close` comparan contra las rutas reales de git.
+   También se rechazan (exit `4`, sin crear ni borrar nada): `TH_WORKTREES_ROOT must not contain control characters`; `cannot resolve the worktrees root: <ruta>` (p. ej. un symlink roto o un ancestro sin permiso); y `worktrees root <raíz>/<owner>/<repo> overlaps the main checkout <ruta>` (la raíz del repo y el checkout principal no pueden contenerse uno a otro).
 3. `TH_INSTALL_DEPS`: `0` o `1`. Con `0`, `new` y `checkout` no instalan (`deps: "skipped"`) y avisan por stderr; `pr` no cambia (nunca instala).
 
 El error es `th-wt: <ruta del config>:<línea>: <motivo>` o, si falla una variable de entorno, `th-wt: <VAR> (environment): <motivo>`. Tras cambiar la raíz, `list` y `close` solo ven la nueva. No hay subcomando para ver la configuración efectiva.

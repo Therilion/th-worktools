@@ -24,7 +24,8 @@ check_config_value() {
   cfg_value="$v"
   case "$1" in
     TH_WORKTREES_ROOT)
-      case "$v" in \~/*) v="$HOME/${v#\~/}" ;; esac
+      case "$2" in *[[:cntrl:]]*) reason="TH_WORKTREES_ROOT must not contain control characters"; return 1 ;; esac
+      case "$v" in \~/*) v="${HOME%/}/${v#\~/}" ;; esac
       v="${v%/}"
       # absolute only; wrapping in slashes catches '.', '..' and empty segments in one pattern
       case "$v" in
@@ -59,6 +60,7 @@ load_config() {
       key="${line%%=*}"
       case "$key" in
         TH_WORKTREES_ROOT|TH_INSTALL_DEPS) ;;
+        ""|[[:digit:]]*|*[![:upper:][:digit:]_]*) die 4 "$conf:$n: invalid key (not shown)" ;;
         *) die 4 "$conf:$n: unknown key: $key" ;;
       esac
       check_config_value "$key" "${line#*=}" || die 4 "$conf:$n: $reason"
@@ -68,7 +70,7 @@ load_config() {
       esac
     done < "$conf"
   fi
-  wt_root="${file_root:-$HOME/.worktrees}"
+  wt_root="${file_root:-${HOME%/}/.worktrees}"
   install_deps_on="${file_deps:-1}"
   if [ -n "${TH_WORKTREES_ROOT:-}" ]; then
     check_config_value TH_WORKTREES_ROOT "$TH_WORKTREES_ROOT" || die 4 "TH_WORKTREES_ROOT (environment): $reason"
@@ -96,12 +98,24 @@ resolve_repo() {
     /*/*/) ;;
     *) die 4 "unsupported origin URL: $url" ;;
   esac
+  check_root_overlap
+}
+
+# Exits 4 if the worktrees root of $repo and the main checkout contain one another; needs $repo and $wt_root.
+check_root_overlap() {
+  local main root="$wt_root/$repo/"
+  main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
+  # trailing slash on both sides so /a/b does not match /a/bc
+  case "$root" in "$main/"*) die 4 "worktrees root $wt_root/$repo overlaps the main checkout $main" ;; esac
+  case "$main/" in "$root"*) die 4 "worktrees root $wt_root/$repo overlaps the main checkout $main" ;; esac
 }
 
 # Absolute path $1 with symlinks resolved, even if it does not exist yet: the deepest existing ancestor is resolved with cd -P and the missing tail is appended. $1 has no ., .. or empty segments.
 canonical_dir() {
   local ancestor="$1" rest="" base
   while [ ! -d "$ancestor" ]; do
+    # a symlink that is not a directory (dangling, loop, file) cannot be created through
+    ! [ -L "$ancestor" ] || return 1
     rest="/${ancestor##*/}$rest"
     ancestor="${ancestor%/*}"
     [ -n "$ancestor" ] || ancestor=/
@@ -243,12 +257,12 @@ detect_pm() {
 install_deps() {
   local dest="$1" pm sub
   deps=skipped
+  detect_pm "$dest"
+  [ -n "$pm" ] || return 0
   if [ "$install_deps_on" = 0 ]; then
     echo "th-wt: dependency install disabled (TH_INSTALL_DEPS=0); dependencies not installed in $dest" >&2
     return 0
   fi
-  detect_pm "$dest"
-  [ -n "$pm" ] || return 0
   if ! command -v "$pm" >/dev/null; then
     echo "th-wt: warning: $pm not found in PATH; skipping dependency install in $dest" >&2
     return 0

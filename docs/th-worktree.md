@@ -67,7 +67,7 @@ th-wt: <ruta del config>:<línea>: <motivo>
 th-wt: <VAR> (environment): <motivo>
 ```
 
-Motivos: `unknown key: <CLAVE>`, `expected KEY=value`, `TH_WORKTREES_ROOT must be an absolute path or start with ~/, without '.', '..' or empty segments: <valor>` y `TH_INSTALL_DEPS must be 0 or 1: <valor>`. No hay subcomando para ver la configuración efectiva.
+Motivos: `unknown key: <CLAVE>` (una clave que no está en mayúsculas sale como `invalid key (not shown)`), `expected KEY=value`, `TH_WORKTREES_ROOT must be an absolute path or start with ~/, without '.', '..' or empty segments: <valor>` `TH_INSTALL_DEPS must be 0 or 1: <valor>`, `TH_WORKTREES_ROOT must not contain control characters`, `cannot resolve the worktrees root: <ruta>` (p. ej. un symlink roto o un ancestro sin permiso) y `worktrees root <raíz>/<owner>/<repo> overlaps the main checkout <ruta>` (la raíz del repo y el checkout principal no pueden contenerse uno a otro). Todos salen con `4` sin crear ni borrar nada. No hay subcomando para ver la configuración efectiva.
 
 ---
 
