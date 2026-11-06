@@ -34,11 +34,7 @@ pr_worktree() {
   fetched="$(git rev-parse FETCH_HEAD)"
   [ "$fetched" = "$oid" ] || die 4 "PR #$n head changed while opening it (gh: $oid, fetched: $fetched); try again"
   fetch_origin_branch "$base" || die 4 "fetch of origin/$base failed"
-  if ! git worktree add --no-track -q -b "review/pr-$n" "$dest" "$oid"; then
-    # git creates the branch before failing; drop it so a retry does not hit "branch already exists"
-    git branch -D -q "review/pr-$n" || true
-    die 1 "git worktree add failed"
-  fi
+  add_branch_worktree "review/pr-$n" "$dest" "$oid"
   skip_pr_deps "$dest"
 
   if [ "$json" = 1 ]; then

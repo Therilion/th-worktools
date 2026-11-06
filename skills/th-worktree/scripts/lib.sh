@@ -38,6 +38,17 @@ worktree_dest() {
   [ ! -e "$dest" ] || die 4 "destination already exists: $dest"
 }
 
+# Creates worktree $2 on a new branch $1 starting at commit-ish $3, with no upstream.
+add_branch_worktree() {
+  local start
+  start="$(git rev-parse --verify -q "$3^{commit}")" || die 1 "git worktree add failed: no commit $3"
+  git worktree add --no-track -q -b "$1" "$2" "$start" && return 0
+  # git creates the branch before some failures (e.g. the directory cannot be made); drop it so a retry does not hit
+  # "branch already exists", but only while it still points at $start, so a branch made meanwhile by someone else survives
+  git update-ref -d "refs/heads/$1" "$start" 2>/dev/null || true
+  die 1 "git worktree add failed"
+}
+
 # Sets $pm and $sub (the install command) from the lockfile in worktree $1; $pm stays empty if there is none (warns about lockfiles of other managers).
 detect_pm() {
   local f

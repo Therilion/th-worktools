@@ -189,3 +189,20 @@ mv "$TMP/origin.git.bak" "$TMP/origin.git"
 [ ! -e "$HOME/.worktrees/acme/demo/pr-reviews" ] || fail "$name: se creó el destino"
 [ -z "$(git -C "$TMP/repo" branch --list 'pr-reviews' 'pr/reviews')" ] || fail "$name: se creó la rama"
 pass "$name"
+
+name="si git worktree add falla, new sale con 1, no deja la rama y el reintento crea el worktree"
+root_dir="$HOME/.worktrees/acme/demo"
+mkdir -p "$root_dir"
+# la raíz no es escribible: pasa las comprobaciones previas, pero git crea la rama y luego no puede crear el directorio
+chmod a-w "$root_dir"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" new feature/retry 2>&1)" || rc=$?
+chmod u+w "$root_dir"
+[ "$rc" = 1 ] || fail "$name: exit=$rc, esperado 1: [$err]"
+case "$err" in *"th-wt: git worktree add failed"*) ;; *) fail "$name: mensaje inesperado: [$err]" ;; esac
+[ -z "$(git -C "$TMP/repo" branch --list feature/retry)" ] || fail "$name: quedó la rama feature/retry"
+rc=0
+err="$(cd "$TMP/repo" && "$WT" new feature/retry 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: (reintento) exit=$rc, esperado 0: [$err]"
+[ -d "$root_dir/feature-retry" ] || fail "$name: (reintento) no se creó el worktree"
+pass "$name"
