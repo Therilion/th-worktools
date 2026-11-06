@@ -9,7 +9,7 @@ find_worktree_for_branch() {
 }
 
 checkout_worktree() {
-  local branch dest remote json remote_heads busy_path
+  local branch dest remote json remote_heads busy_path track=0
   case "${1:-}" in
     "") bad_usage "missing <branch>" ;;
     -h|--help) usage; exit 0 ;;
@@ -46,13 +46,18 @@ checkout_worktree() {
 
     if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
       add_branch_worktree "$branch" "$dest" "refs/remotes/origin/$branch"
-      git config "branch.$branch.remote" origin
-      git config "branch.$branch.merge" "refs/heads/$branch"
+      track=1
     else
       die 4 "branch not found: $branch (try --remote)"
     fi
   fi
   # review/pr-* is a local copy of a PR (kept by close --force): same rule as pr
+  case "$branch" in review/pr-*) ;; *) apply_repo_conf "$dest" "$branch" ;; esac
+  # upstream config only after the conf passed, so a rejected worktree leaves nothing behind
+  if [ "$track" = 1 ]; then
+    git config "branch.$branch.remote" origin
+    git config "branch.$branch.merge" "refs/heads/$branch"
+  fi
   case "$branch" in review/pr-*) skip_pr_deps "$dest" ;; *) install_deps "$dest" ;; esac
 
   if [ "$json" = 1 ]; then
