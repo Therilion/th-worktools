@@ -23,9 +23,8 @@ Crea, abre, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`
 | `list [--remote] [--json]` | Worktrees del repo actual, con su estado (`--remote` consulta `origin` y los PRs de GitHub) | disponible |
 | `close <branch> [--remote] [--yes] [--force] [--json]` | Cierra el worktree; requiere `--yes`. Para un PR: `close review/pr-<n>` | disponible |
 
-Hoy, al crear un worktree con `new` o `checkout` se crean el worktree y la rama y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci`. `pr` nunca instala dependencias: el código del PR es de un tercero (avisa con el comando para hacerlo a mano). Está previsto que además:
+Hoy, al crear un worktree con `new` o `checkout` se crean el worktree y la rama, se enlazan los archivos ignorados que declares por repo en `~/.config/th-worktools/repos/<owner>/<repo>.conf` (por ejemplo, `link .wiki` o `link .env`; ver [`examples/config/repos/mi-org/mi-repo.conf`](examples/config/repos/mi-org/mi-repo.conf)) y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci`. `pr` nunca enlaza ni instala dependencias: el código del PR es de un tercero (con las dependencias, avisa con el comando para hacerlo a mano). Está previsto que además:
 
-- enlace los archivos ignorados que declares por repo (por ejemplo, `.wiki` o `.env`, #7);
 - inicialice codegraph si está instalado (#9).
 
 Hoy funciona desde Claude Code (`/th-worktree new feature/login`) y desde la terminal ejecutando el script con su ruta completa; Antigravity (#10) y `th-wt` en el `PATH` (#11) están pendientes.

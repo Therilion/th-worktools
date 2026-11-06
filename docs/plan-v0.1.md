@@ -67,7 +67,7 @@ th-worktools/
 ├── install.sh                # crea symlinks de skills y entrypoints (pendiente, #12/#13)
 ├── verify.sh                 # comprueba que cada agente ve los skills (pendiente, #12/#13)
 ├── examples/
-│   └── config/               # configuración de ejemplo, solo con valores ficticios (pendiente, #7/#8)
+│   └── config/               # configuración de ejemplo, solo con valores ficticios (repos/ listo, #7; falta el config global, #8)
 ├── skills/
 │   └── th-worktree/
 │       ├── SKILL.md
@@ -212,7 +212,10 @@ Formato `CLAVE=valor`, una por línea; `#` para comentarios.
 # ~/.config/th-worktools/repos/mi-org/mi-repo.conf
 link .wiki
 link .env
+link docs/local
 ```
+
+Una acción por línea; `#` y las líneas vacías se ignoran. Se parsea línea a línea, nunca con `source`.
 
 | Acción | Efecto |
 |---|---|
@@ -220,12 +223,18 @@ link .env
 
 No hay `copy`: multiplicaría secretos en disco, y una lista de nombres prohibidos nunca está completa (idea en el README).
 
-**Validaciones (si alguna falla, no se enlaza nada, se deshace el worktree recién creado, y la rama si la creó el comando, y sale con `4`):**
+**Validaciones (se validan todas las líneas antes de enlazar nada; si alguna falla, no se enlaza ninguna, se deshace el worktree recién creado, y la rama si la creó el comando y sigue en su commit de inicio, y sale con `4`; un fallo al enlazar ya validado también lo deshace, con código `1`):**
 
-1. Acción `link`; ruta relativa: sin `/` inicial ni segmentos `..`.
-2. Debe existir en el checkout principal.
-3. **Debe estar ignorada por git en el worktree nuevo** (`git check-ignore -q <ruta>` antes de crear el enlace: git la ve como archivo, igual que al symlink, y usa el `.gitignore` de la rama abierta). Así nunca se enlaza un archivo versionado y no hay riesgo de commitearlo.
-4. Rutas exactas, sin globs (v0.1).
+1. Acción `link` con exactamente una ruta; ruta relativa: sin `/` inicial, sin segmentos `.`, `..` ni vacíos (`a//b`) y sin barra final.
+2. Rutas exactas, sin globs (`*`, `?`, `[`) (v0.1).
+3. Sin duplicados ni entradas que se solapen (`docs` y `docs/local`).
+4. Debe existir en el checkout principal (la primera entrada de `git worktree list`).
+5. Si algún padre de la ruta ya existe en el worktree, debe ser un directorio real (no un archivo versionado ni un symlink).
+6. **Debe estar ignorada por git en el worktree nuevo** (`git check-ignore -q <ruta>` antes de crear el enlace: git la ve como archivo, igual que al symlink, y usa el `.gitignore` de la rama abierta). Así nunca se enlaza un archivo versionado y no hay riesgo de commitearlo. Si solo está ignorada como directorio (`.wiki/`), se rechaza con un mensaje que lo explica (ver «Gitignore y symlinks», §8).
+
+El error es `th-wt: <ruta del .conf>:<línea>: <motivo>`. Un worktree sin `.conf` no enlaza nada y no avisa. Una rama local que ya existía y se abrió con `checkout` se conserva siempre.
+
+**Enlace:** symlink con destino absoluto `<checkout principal>/<ruta>`, creando los directorios intermedios en el worktree. El script nunca escribe en `.git/info/exclude`.
 
 ### Derivación de `<owner>/<repo>`
 
@@ -265,7 +274,7 @@ No hay `copy`: multiplicaría secretos en disco, y una lista de nombres prohibid
 
 ### Gitignore y symlinks
 
-Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git un symlink es un archivo. Para los directorios enlazados, la entrada va **sin barra** (en el `.gitignore` o en el `.git/info/exclude` del repo, que es local y se comparte entre todos los worktrees). Lo agrega el usuario: el script no lo escribe, solo rechaza la entrada (§7) y el agente sugiere la línea.
+Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git un symlink es un archivo. Para los directorios enlazados, la entrada va **sin barra** (en el `.gitignore` o en el `.git/info/exclude` del repo, que es local y se comparte entre todos los worktrees). Lo agrega el usuario: el script no lo escribe, solo rechaza la entrada (§7, validación 6) y el agente sugiere la línea (la `<ruta>` sin barra).
 
 ### Repo público
 
@@ -320,7 +329,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
    - `new`: `git worktree add --no-track -b <rama> <ruta> origin/<base>` (`--no-track`: la rama nueva no debe seguir a `origin/<base>`, o un `git push` iría a la rama base)
    - `checkout`: si la rama es local, `git worktree add <ruta> <rama>` sin red. Si no, sale de `origin/<rama>` (con `--remote`, primero `ls-remote` y el mismo fetch explícito; sin `--remote`, la copia ya traída): `git worktree add --no-track -b <rama> <ruta> origin/<rama>` y el upstream (`branch.<rama>.remote`/`.merge`) se escribe a mano, porque `--track` falla en clones `--single-branch`.
    - `pr`: `git fetch -q --no-tags origin refs/pull/<n>/head` (solo `FETCH_HEAD`) y `git worktree add --no-track -b review/pr-<n> <ruta> <oid>`. Metadatos con `gh pr view <n> -R <owner>/<repo> --json number,title,headRefName,baseRefName`.
-6. Aplicar el `.conf` del repo (`link`, validados), salvo en `pr` y en `checkout` de `review/pr-*`.
+6. Aplicar el `.conf` del repo (`link`, validados, §7), salvo en `pr` y en `checkout` de `review/pr-*`. Si una entrada es inválida, se deshace la creación (worktree y, si la creó el comando, rama) y sale con `4`; el stderr lleva `th-wt: <conf>:<línea>: <motivo>`, y en texto cada enlace se informa como `th-wt: linked <ruta>`.
 7. Si `TH_INSTALL_DEPS=1`, instalar dependencias según el lockfile:
    - `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`
    - `package-lock.json` → `npm ci`
@@ -330,6 +339,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 8. Si `TH_CODEGRAPH=auto` y codegraph está instalado, inicializarlo en el worktree (verificar los flags no interactivos de `codegraph init`).
 9. Mostrar un resumen. Con `--json`:
    `{ "path", "branch", "repo", "linked": [], "deps": "pnpm|npm|skipped|failed", "codegraph": true|false }`
+   (`linked`: array de rutas enlazadas; siempre `[]` en `pr`. No hay campo `copied`: no existe `copy`.)
 10. Indicar al usuario que abra **una sesión nueva del agente** en esa ruta.
 
 ### `close`
@@ -454,7 +464,7 @@ Matriz: `macos-latest` y `ubuntu-latest`.
 ## 15. Definition of Done — v0.1
 
 - [ ] `th-worktree` crea worktrees para una rama nueva, para una rama existente y para un PR (parcial: `new` y `checkout` listos; falta `pr`, #5).
-- [ ] Al crear: aplica el `.conf` del repo (enlaza `.wiki`), instala dependencias e inicializa codegraph si está disponible (parcial: instalación de dependencias lista; faltan el `.conf` del repo, #7, y codegraph, #9).
+- [ ] Al crear: aplica el `.conf` del repo (enlaza `.wiki`), instala dependencias e inicializa codegraph si está disponible (parcial: `.conf` del repo, solo `link` y sin `copy` (#7), e instalación de dependencias listos; falta codegraph, #9).
 - [ ] Al cerrar: dry-run por defecto; con `--yes` ejecuta `codegraph uninit`, elimina el worktree y borra la rama si está mergeada (parcial: dry-run, eliminación del worktree y borrado de rama mergeada listos, también con `--remote`; falta `codegraph uninit`, #9).
 - [ ] Funciona invocado desde Claude Code y desde Antigravity en macOS (parcial: verificado en Claude Code; falta Antigravity, #10).
 - [ ] `git status` limpio en un worktree del repo del trabajo (la `.wiki` enlazada no aparece).
