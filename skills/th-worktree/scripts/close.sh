@@ -22,8 +22,17 @@ is_pr_worktree() {
   [ "$2" = "${3}pr-reviews/pr-$n/code" ]
 }
 
+# True if $1 (a trailing / is dropped) is a symlink, or a directory with nothing but symlinks and directories in it.
+only_links() {
+  local f="${1%/}" hit
+  [ -L "$f" ] && return 0
+  [ -d "$f" ] || return 1
+  # a find error (unreadable subdir) keeps the entry listed: it may hold real files
+  hit="$(find "$f" ! -type l ! -type d -print -quit 2>/dev/null)" && [ -z "$hit" ]
+}
+
 close_worktree() {
-  local branch="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out unreadable=false kept="" del_wt=true del_br=false what is_pr=false left=[] created="" after_pr=null
+  local branch="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out shown ent unreadable=false kept="" del_wt=true del_br=false what is_pr=false left=[] created="" after_pr=null
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1 ;;
@@ -58,7 +67,13 @@ close_worktree() {
   [ -z "$created" ] || after_pr="$(git rev-list --count "$oid" --not "$created" --remotes=origin 2>/dev/null)" || after_pr=null
   # ignored files are deleted with the directory but never block; only names are read (directories come collapsed). -z: git does not quote names; tr because $(...) drops NUL bytes
   if [ "$missing" = false ] && out="$(git --no-optional-locks -C "$path" status --porcelain -z --ignored --untracked-files=normal 2>/dev/null | tr '\0' '\1')"; then
-    ignored="$(printf '%s' "$out" | jq -R -s -c 'split("\u0001") | map(select(startswith("!! ")) | .[3:])')"
+    # a symlink, or a collapsed dir holding only symlinks (docs/ for docs/local), is a link to the main checkout: deleting it loses nothing
+    shown=""
+    while IFS= read -r -d $'\1' ent; do
+      [[ "$ent" == '!! '* ]] || continue
+      only_links "$path/${ent:3}" || shown="$shown${ent:3}"$'\1'
+    done <<<"$out"
+    ignored="$(printf '%s' "$shown" | jq -R -s -c 'split("\u0001") | map(select(length > 0))')"
   elif [ "$missing" = false ]; then ignored=null; fi
   # a PR worktree has no unpushed count: after_pr takes its place
   if [ "$is_pr" = true ]; then lost="$after_pr" unpushed=null

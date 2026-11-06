@@ -220,7 +220,7 @@ Muestra el plan de cierre (dry-run por defecto) o cierra (con `--yes`) el worktr
 1. **Bloqueo del worktree (`delete.worktree = false`):** sin `--force`, el cierre se bloquea si el worktree tiene cambios sin commitear (`dirty: true`), si `git status` falla existiendo el directorio (`dirty: null` con `missing: false`), o si la rama tiene commits que no están en ninguna ref `refs/remotes/origin/*` (`unpushed > 0`) y no están cubiertos por un PR mergeado.
 2. **Borrado de la rama (`delete.branch = true`):** cuando el worktree se puede borrar, la rama también se borra si está contenida en la rama por defecto (`merged: true`) o cubierta por un PR mergeado (`--remote` con `pr.state == "MERGED"` y `pr.ahead == false`), siempre que no sea la rama por defecto de `origin` y no esté abierta en otro worktree. En cualquier otro caso, se elimina el directorio del worktree pero se conserva la rama local e informa el motivo (`kept`).
 3. **Borrado seguro del ref:** `close --yes` lee el OID de `refs/heads/<branch>` al empezar y borra la rama con `git update-ref -d refs/heads/<branch> <oid>` (limpiando también la sección `branch.<branch>` en git config). Si la rama recibió un commit nuevo mientras corría `close`, `update-ref` falla, la rama se conserva con el commit intacto y el comando termina con `0` avisando `kept: it moved while closing`.
-4. **Archivos ignorados (`ignored`):** el plan lista los nombres de archivos y directorios ignorados por git en el worktree (con directorios colapsados como `build/`, sin mostrar nunca su contenido). Se eliminan con el directorio del worktree y nunca bloquean el cierre.
+4. **Archivos ignorados (`ignored`):** el plan lista los nombres de archivos y directorios ignorados por git en el worktree (con directorios colapsados como `build/`, sin mostrar nunca su contenido; no lista los symlinks creados por `link`, ni un directorio que solo contiene symlinks, porque borrarlos no pierde datos). Se eliminan con el directorio del worktree y nunca bloquean el cierre.
 
 **Worktrees de PR (`pr-reviews/pr-<n>/code`):** `close review/pr-<n>` aplica reglas propias. Un worktree es de PR si su rama es `review/pr-<n>` y está en `pr-reviews/pr-<n>/code` con la misma `<n>`; cualquier otra combinación (una rama `review/…` creada con `new`, o otra rama activada dentro de `pr-reviews/pr-<n>/code`) se cierra con las reglas normales.
 
@@ -481,7 +481,7 @@ Devuelven el mismo esquema en dry-run (sin `--yes`) y al ejecutar (con `--yes`):
 | `merged` | `boolean \| null` | Igual que en `list`. |
 | `dirty` | `boolean \| null` | Igual que en `list`. |
 | `missing` | `boolean` | Igual que en `list`. |
-| `ignored` | `string[] \| null` | Nombres de archivos y directorios ignorados por git en el worktree (directorios colapsados con `/` final); `[]` si no hay ninguno o si `missing` es `true`; `null` si falló `git status`. |
+| `ignored` | `string[] \| null` | Nombres de archivos y directorios ignorados por git en el worktree (directorios colapsados con `/` final; sin symlinks ni directorios que solo los contienen); `[]` si no hay ninguno o si `missing` es `true`; `null` si falló `git status`. |
 | `unpushed` | `number` | Cantidad de commits de la rama que no están en ninguna ref `refs/remotes/origin/*`. |
 | `delete.worktree` | `boolean` | `true` si el worktree se borra (o se puede borrar); `false` si está bloqueado en el dry-run. |
 | `delete.branch` | `boolean` | `true` si la rama se borra (o se borraría); `false` si se conserva. |
