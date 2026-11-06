@@ -86,12 +86,8 @@ check_conf_entry() {
   # an entry equal to or under another would make ln write inside the main checkout
   for ((i = 0; i < ${#paths[@]}; i++)); do
     q="${paths[$i]}"
-    if [ "$p" = "$q" ]; then
-      reason="$p overlaps $q (line ${nums[$i]})"
-      return 1
-    fi
-    case "$p" in "$q"/*) reason="$p overlaps $q (line ${nums[$i]})"; return 1 ;; esac
-    case "$q" in "$p"/*) reason="$p overlaps $q (line ${nums[$i]})"; return 1 ;; esac
+    case "$p/" in "$q"/*) reason="$p overlaps $q (line ${nums[$i]})"; return 1 ;; esac
+    case "$q/" in "$p"/*) reason="$p overlaps $q (line ${nums[$i]})"; return 1 ;; esac
   done
   if [ ! -e "$main/$p" ] && [ ! -L "$main/$p" ]; then
     reason="$p does not exist in the main checkout ($main)"
@@ -103,11 +99,9 @@ check_conf_entry() {
   while [ "$rest" != "${rest#*/}" ]; do
     d="${d:+$d/}${rest%%/*}"
     rest="${rest#*/}"
-    if [ -e "$dest/$d" ] || [ -L "$dest/$d" ]; then
-      if [ -L "$dest/$d" ] || [ ! -d "$dest/$d" ]; then
-        reason="$p: parent $d in the worktree is not a directory"
-        return 1
-      fi
+    if [ -L "$dest/$d" ] || { [ -e "$dest/$d" ] && [ ! -d "$dest/$d" ]; }; then
+      reason="$p: parent $d in the worktree is not a directory"
+      return 1
     fi
   done
   # asked before the link exists: git sees a path that is not there as a file, like the symlink it will become
@@ -126,7 +120,6 @@ check_conf_entry() {
 apply_repo_conf() {
   local dest="$1" branch="$2" conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos/$repo.conf" main line action p extra reason n=0 i
   local paths=() nums=()
-  linked=()
   [ -f "$conf" ] || return 0
   main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
   # the last line may lack a newline
