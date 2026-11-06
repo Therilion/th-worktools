@@ -131,10 +131,10 @@ git -C "$dest" push -q || fail "$name: git push falló"
 [ "$(git -C "$TMP/origin.git" rev-parse refs/heads/feature/sb)" = "$new_head" ] || fail "$name: push no llegó a origin"
 pass "$name"
 
-name="checkout --json devuelve solo path, branch, repo y deps"
+name="checkout --json devuelve solo path, branch, repo, linked y deps"
 git -C "$TMP/repo" branch feature/json-co
 out="$(cd "$TMP/repo" && "$WT" checkout feature/json-co --json)" || fail "$name: th-wt checkout falló"
-expected="{\"branch\":\"feature/json-co\",\"deps\":\"skipped\",\"path\":\"$HOME/.worktrees/acme/demo/feature-json-co\",\"repo\":\"acme/demo\"}"
+expected="{\"branch\":\"feature/json-co\",\"deps\":\"skipped\",\"linked\":[],\"path\":\"$HOME/.worktrees/acme/demo/feature-json-co\",\"repo\":\"acme/demo\"}"
 [ "$(printf '%s' "$out" | jq -S -c .)" = "$expected" ] || fail "$name: salida=[$out]"
 pass "$name"
 

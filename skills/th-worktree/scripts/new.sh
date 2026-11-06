@@ -41,6 +41,7 @@ new_worktree() {
   fi
   fetch_origin_branch "$base" || die 4 "base branch not found on origin (or fetch failed): $base"
   add_branch_worktree "$branch" "$dest" "refs/remotes/origin/$base"
+  apply_repo_conf "$dest" "$branch"
   install_deps "$dest"
 
   if [ "$json" = 1 ]; then

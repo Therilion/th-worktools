@@ -23,9 +23,8 @@ Crea, abre, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`
 | `list [--remote] [--json]` | Worktrees del repo actual, con su estado (`--remote` consulta `origin` y los PRs de GitHub) | disponible |
 | `close <branch> [--remote] [--yes] [--force] [--json]` | Cierra el worktree; requiere `--yes`. Para un PR: `close review/pr-<n>` | disponible |
 
-Hoy, al crear un worktree con `new` o `checkout` se crean el worktree y la rama y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci`. `pr` nunca instala dependencias: el código del PR es de un tercero (avisa con el comando para hacerlo a mano). Está previsto que además:
+Hoy, al crear un worktree con `new` o `checkout` se crean el worktree y la rama, se enlazan los archivos ignorados que declares por repo en `~/.config/th-worktools/repos/<owner>/<repo>.conf` (por ejemplo, `link .wiki` o `link .env`; ver [`examples/config/repos/mi-org/mi-repo.conf`](examples/config/repos/mi-org/mi-repo.conf)) y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci`. `pr` nunca enlaza ni instala dependencias: el código del PR es de un tercero (con las dependencias, avisa con el comando para hacerlo a mano). Está previsto que además:
 
-- enlace los archivos ignorados que declares por repo (por ejemplo, `.wiki` o `.env`, #7);
 - inicialice codegraph si está instalado (#9).
 
 Hoy funciona desde Claude Code (`/th-worktree new feature/login`) y desde la terminal ejecutando el script con su ruta completa; Antigravity (#10) y `th-wt` en el `PATH` (#11) están pendientes.
@@ -64,6 +63,9 @@ Ideas que quedan fuera de la versión en curso.
 - Investigar si se puede detectar un riesgo antes de instalar (p. ej. revisar `.npmrc`, `packageManager`, `.pnpmfile.cjs`, scripts de ciclo de vida o dependencias de git, o usar herramientas de auditoría de paquetes), sabiendo que ninguna comprobación cubre los vectores que aparezcan después.
 - `new`/`checkout`: el `prepare` del proyecto (p. ej. husky) puede escribir `core.hooksPath` en la config compartida del repo; documentarlo o evaluarlo.
 - Verificar el aviso de descarga de corepack con stdin en `/dev/null` (`new`/`checkout`): si bloquea, fijar `COREPACK_ENABLE_DOWNLOAD_PROMPT`.
+- `.conf`: admitir rutas con espacios (hoy `link` toma una sola palabra; cambia el formato de la línea).
+- `.conf`: rechazar rutas en las que escribe el gestor de dependencias (p. ej. `link node_modules`: `pnpm install` escribiría a través del symlink en el checkout principal), o no instalar si hay enlaces.
+- `.conf`: validar la sintaxis, los solapes y la existencia en el checkout principal antes de crear el worktree (y antes del fetch en `new`), dejando para después solo las comprobaciones que necesitan el worktree (padre y `check-ignore`).
 - `th-wt new`/`checkout`: ramas distintas con el mismo nombre normalizado (`feature/a-b` y `feature-a/b` → `feature-a-b`) chocan; la segunda sale con «destination already exists» sin decir qué rama ocupa la ruta.
 - Evitar prompts que bloqueen al agente más allá del de la terminal de git (ya desactivado con `GIT_TERMINAL_PROMPT=0`): askpass (`GIT_ASKPASS`, `core.askPass`, `SSH_ASKPASS`) y SSH (clave de host desconocida, passphrase; `BatchMode`), sin pisar el `core.sshCommand` del usuario.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.

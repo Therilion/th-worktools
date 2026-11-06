@@ -1,5 +1,9 @@
 # shellcheck shell=bash
 
+# Initialized here so values inherited from the environment cannot change behavior (undo_creation, print_created_json).
+created_start=""
+linked=()
+
 die() { echo "th-wt: $2" >&2; exit "$1"; }
 bad_usage() { [ $# -eq 0 ] || echo "th-wt: $1" >&2; usage >&2; exit 2; }
 # For an argument no option arm matched: -h/--help prints usage (exit 0), anything else is a usage error.
@@ -42,11 +46,99 @@ worktree_dest() {
 add_branch_worktree() {
   local start
   start="$(git rev-parse --verify -q "$3^{commit}")" || die 1 "git worktree add failed: no commit $3"
+  created_start="$start"
   git worktree add --no-track -q -b "$1" "$2" "$start" && return 0
   # git creates the branch before some failures (e.g. the directory cannot be made); drop it so a retry does not hit
   # "branch already exists", but only while it still points at $start, so a branch made meanwhile by someone else survives
   git update-ref -d "refs/heads/$1" "$start" 2>/dev/null || true
   die 1 "git worktree add failed"
+}
+
+# Removes the fresh worktree $1 and, if this command created branch $2 ($created_start is its start commit), the branch while it still points there.
+undo_creation() {
+  if ! git worktree remove --force "$1" 2>/dev/null; then
+    echo "th-wt: warning: could not remove the worktree $1; branch $2 kept" >&2
+    return 0
+  fi
+  [ -z "$created_start" ] || git update-ref -d "refs/heads/$2" "$created_start" 2>/dev/null || true
+}
+
+# Checks one .conf entry; on failure sets $reason and returns 1. Reads the caller's (apply_repo_conf) locals via dynamic scope.
+check_conf_entry() {
+  local i q d rest
+  if [ "$action" != link ]; then
+    reason="unknown action '$action' (only 'link' is supported)"
+    return 1
+  fi
+  if [ -z "$p" ] || [ -n "$extra" ]; then
+    reason="expected 'link <path>'"
+    return 1
+  fi
+  # wrapping in slashes catches absolute paths, '.', '..', empty segments and a trailing slash in one pattern
+  case "/$p/" in
+    //*|*//*|*/./*|*/../*)
+      reason="path must be relative, without '.', '..' or empty segments and without a trailing slash: $p"
+      return 1 ;;
+  esac
+  case "$p" in
+    *[*?[]*) reason="globs are not supported: $p"; return 1 ;;
+  esac
+  # an entry equal to or under another would make ln write inside the main checkout
+  for ((i = 0; i < ${#paths[@]}; i++)); do
+    q="${paths[$i]}"
+    case "$p/" in "$q"/*) reason="$p overlaps $q (line ${nums[$i]})"; return 1 ;; esac
+    case "$q/" in "$p"/*) reason="$p overlaps $q (line ${nums[$i]})"; return 1 ;; esac
+  done
+  if [ ! -e "$main/$p" ] && [ ! -L "$main/$p" ]; then
+    reason="$p does not exist in the main checkout ($main)"
+    return 1
+  fi
+  # a parent that is a tracked file or symlink would let mkdir/ln escape the worktree
+  rest="$p"
+  d=""
+  while [ "$rest" != "${rest#*/}" ]; do
+    d="${d:+$d/}${rest%%/*}"
+    rest="${rest#*/}"
+    if [ -L "$dest/$d" ] || { [ -e "$dest/$d" ] && [ ! -d "$dest/$d" ]; }; then
+      reason="$p: parent $d in the worktree is not a directory"
+      return 1
+    fi
+  done
+  # asked before the link exists: git sees a path that is not there as a file, like the symlink it will become
+  if ! git -C "$dest" check-ignore -q -- "$p"; then
+    if git -C "$dest" check-ignore -q -- "$p/"; then
+      reason="$p is ignored only as a directory ('$p/'); git sees a symlink as a file, so ignore '$p' without the trailing slash"
+    else
+      reason="$p is not ignored by git in the worktree (versioned, or missing from .gitignore)"
+    fi
+    return 1
+  fi
+}
+
+# Links the paths listed in this repo's .conf into the fresh worktree $1 (branch $2) as symlinks to the main checkout; sets $linked.
+# Validates every line first and links only if all pass; any failure undoes the creation and exits 4. Needs $repo.
+apply_repo_conf() {
+  local dest="$1" branch="$2" conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos/$repo.conf" main line action p extra reason n=0 i
+  local paths=() nums=()
+  [ -f "$conf" ] || return 0
+  main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
+  # the last line may lack a newline
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n + 1))
+    line="${line%$'\r'}" # CRLF files
+    action="" p="" extra=""
+    read -r action p extra <<<"$line"
+    case "$action" in ""|"#"*) continue ;; esac
+    check_conf_entry || { undo_creation "$dest" "$branch"; die 4 "$conf:$n: $reason"; }
+    paths+=("$p")
+    nums+=("$n")
+  done < "$conf"
+  for ((i = 0; i < ${#paths[@]}; i++)); do
+    p="${paths[$i]}"
+    { mkdir -p "$(dirname "$dest/$p")" && ln -s "$main/$p" "$dest/$p"; } || { undo_creation "$dest" "$branch"; die 1 "cannot link $p in $dest"; }
+    linked+=("$p")
+  done
+  for p in ${linked[@]+"${linked[@]}"}; do echo "th-wt: linked $p" >&2; done
 }
 
 # Sets $pm and $sub (the install command) from the lockfile in worktree $1; $pm stays empty if there is none (warns about lockfiles of other managers).
@@ -93,9 +185,11 @@ skip_pr_deps() {
   [ -z "$pm" ] || echo "th-wt: warning: dependencies not installed: PR code is untrusted; if you trust it, run '$pm ${sub[*]}' in $dest" >&2
 }
 
-# Prints the created worktree object as JSON; needs $repo and $deps.
+# Prints the created worktree object as JSON; needs $repo, $deps and $linked.
 print_created_json() {
-  jq -n --arg path "$1" --arg branch "$2" --arg repo "$repo" --arg deps "$deps" '{path: $path, branch: $branch, repo: $repo, deps: $deps}'
+  # ${linked[@]+...}: bash 3.2 fails on an empty or unset array under set -u (pr and review/pr-* never set it)
+  # not --args: jq would take a path starting with '-' as an option; paths cannot contain newlines (they come from read lines); with no paths printf emits one empty line, hence the select
+  jq -n --arg path "$1" --arg branch "$2" --arg repo "$repo" --arg deps "$deps" --argjson linked "$(printf '%s\n' ${linked[@]+"${linked[@]}"} | jq -nRc '[inputs | select(length > 0)]')" '{path: $path, branch: $branch, repo: $repo, linked: $linked, deps: $deps}'
 }
 
 # Local default branch (e.g. origin/main) from refs/remotes/origin/HEAD; empty if unset. Offline.
