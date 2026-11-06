@@ -14,6 +14,7 @@ Public kit of skills (`SKILL.md` standard) and scripts for Claude Code and Antig
 ## Rules
 
 - Before calling anything done: run `shellcheck` on the scripts, `tests/lint-skills.sh` and `tests/smoke.sh`.
+- CI runs shellcheck 0.9.0, which flags things a newer local version may not (e.g. SC2015 on `A && B || C`; write `{ A && B; } || C`). Write for 0.9.0, and if the local version differs, don't treat a local pass as proof.
 - Never add real work data (organizations, repos, paths, tickets). The repo is public; `examples/config/` holds only fictitious values.
 - Nothing is written to the repos where the kit is used: everything lives in the kit, in `~/.config/th-worktools/` or in `~/.worktrees/`.
 - Scripts: `set -euo pipefail`, no interactive prompts, dry-run by default and `--yes` to execute. Messages go to stderr; `--json` writes a single object to stdout. Exit codes per §5 of the plan.
