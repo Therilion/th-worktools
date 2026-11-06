@@ -234,3 +234,35 @@ grep -qxF "th-wt: $CONF:2: unknown action 'copy' (only 'link' is supported)" "$T
 ! git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/co-bad-remote || fail "$name: quedó la rama local"
 [ -z "$(git -C "$TMP/repo" config --get-regexp '^branch\.feature/co-bad-remote\.' || true)" ] || fail "$name: quedó config branch.*"
 pass "$name"
+
+name="new con una ruta que empieza por - (link -secrets) la enlaza y stdout es un único objeto JSON con linked"
+echo "x" > "$TMP/repo/-secrets"
+echo "-secrets" >> "$TMP/repo/.gitignore"
+git -C "$TMP/repo" commit -q -am "ignora -secrets"
+git -C "$TMP/repo" push -q origin main
+printf 'link -secrets\n' > "$CONF"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" new feature/dash --json 2>"$TMP/dash.err")" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc: [$(cat "$TMP/dash.err")]"
+dest="$HOME/.worktrees/acme/demo/feature-dash"
+[ "$(readlink "$dest/-secrets")" = "$TMP/repo/-secrets" ] || fail "$name: -secrets apunta a [$(readlink "$dest/-secrets" || true)]"
+{ [ "$(jq -s length <<<"$out")" = 1 ] && [ "$(jq -c .linked <<<"$out")" = '["-secrets"]' ]; } || fail "$name: stdout=[$out]"
+pass "$name"
+
+name="checkout de una rama local con un .conf inválido ignora un created_start heredado del entorno y conserva la rama"
+git -C "$TMP/repo" branch feature/co-env
+before="$(git -C "$TMP/repo" rev-parse feature/co-env)"
+printf 'copy .env\n' > "$CONF"
+rc=0
+(cd "$TMP/repo" && created_start="$before" "$WT" checkout feature/co-env 2>"$TMP/env.err" >/dev/null) || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/env.err")]"
+[ "$(git -C "$TMP/repo" rev-parse -q --verify feature/co-env)" = "$before" ] || fail "$name: la rama local cambió o desapareció"
+pass "$name"
+
+name="un .conf con finales de línea CRLF enlaza sus entradas"
+printf 'link .env\r\n# c\r\nlink .wiki\r\n' > "$CONF"
+out="$(cd "$TMP/repo" && "$WT" new feature/crlf --json 2>"$TMP/crlf.err")" || fail "$name: th-wt new falló: [$(cat "$TMP/crlf.err")]"
+dest="$HOME/.worktrees/acme/demo/feature-crlf"
+[ -L "$dest/.env" ] && [ -L "$dest/.wiki" ] || fail "$name: no se enlazaron"
+[ "$(jq -c .linked <<<"$out")" = '[".env",".wiki"]' ] || fail "$name: salida=[$out]"
+pass "$name"

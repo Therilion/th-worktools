@@ -374,7 +374,7 @@ El archivo se lee línea a línea, nunca con `source`. La única acción es `lin
 | `<p> is ignored only as a directory ('<p>/'); git sees a symlink as a file, so ignore '<p>' without the trailing slash` | Ignorada con barra final. |
 | `<p> is not ignored by git in the worktree (versioned, or missing from .gitignore)` | Versionada o ausente del `.gitignore` de la rama. |
 
-Si el enlace falla después de validar (por ejemplo, por permisos), también se deshace la creación, pero sale con código `1`.
+Si el enlace falla después de validar (por ejemplo, por permisos), también se deshace la creación, pero sale con código `1`. Si `git worktree remove` no puede quitar el worktree al deshacer, la rama no se borra (evita dejar un worktree sobre una rama borrada) y stderr avisa `th-wt: warning: could not remove the worktree <ruta>; branch <rama> kept`; el comando sale igualmente con su código (`4` o `1`).
 
 #### Instalación de dependencias
 

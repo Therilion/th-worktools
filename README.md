@@ -63,6 +63,9 @@ Ideas que quedan fuera de la versión en curso.
 - Investigar si se puede detectar un riesgo antes de instalar (p. ej. revisar `.npmrc`, `packageManager`, `.pnpmfile.cjs`, scripts de ciclo de vida o dependencias de git, o usar herramientas de auditoría de paquetes), sabiendo que ninguna comprobación cubre los vectores que aparezcan después.
 - `new`/`checkout`: el `prepare` del proyecto (p. ej. husky) puede escribir `core.hooksPath` en la config compartida del repo; documentarlo o evaluarlo.
 - Verificar el aviso de descarga de corepack con stdin en `/dev/null` (`new`/`checkout`): si bloquea, fijar `COREPACK_ENABLE_DOWNLOAD_PROMPT`.
+- `.conf`: admitir rutas con espacios (hoy `link` toma una sola palabra; cambia el formato de la línea).
+- `.conf`: rechazar rutas en las que escribe el gestor de dependencias (p. ej. `link node_modules`: `pnpm install` escribiría a través del symlink en el checkout principal), o no instalar si hay enlaces.
+- `.conf`: validar la sintaxis, los solapes y la existencia en el checkout principal antes de crear el worktree (y antes del fetch en `new`), dejando para después solo las comprobaciones que necesitan el worktree (padre y `check-ignore`).
 - `th-wt new`/`checkout`: ramas distintas con el mismo nombre normalizado (`feature/a-b` y `feature-a/b` → `feature-a-b`) chocan; la segunda sale con «destination already exists» sin decir qué rama ocupa la ruta.
 - Evitar prompts que bloqueen al agente más allá del de la terminal de git (ya desactivado con `GIT_TERMINAL_PROMPT=0`): askpass (`GIT_ASKPASS`, `core.askPass`, `SSH_ASKPASS`) y SSH (clave de host desconocida, passphrase; `BatchMode`), sin pisar el `core.sshCommand` del usuario.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.

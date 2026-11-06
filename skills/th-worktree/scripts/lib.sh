@@ -1,5 +1,9 @@
 # shellcheck shell=bash
 
+# Initialized here so values inherited from the environment cannot change behavior (undo_creation, print_created_json).
+created_start=""
+linked=()
+
 die() { echo "th-wt: $2" >&2; exit "$1"; }
 bad_usage() { [ $# -eq 0 ] || echo "th-wt: $1" >&2; usage >&2; exit 2; }
 # For an argument no option arm matched: -h/--help prints usage (exit 0), anything else is a usage error.
@@ -52,8 +56,11 @@ add_branch_worktree() {
 
 # Removes the fresh worktree $1 and, if this command created branch $2 ($created_start is its start commit), the branch while it still points there.
 undo_creation() {
-  git worktree remove --force "$1" 2>/dev/null || true
-  [ -z "${created_start:-}" ] || git update-ref -d "refs/heads/$2" "$created_start" 2>/dev/null || true
+  if ! git worktree remove --force "$1" 2>/dev/null; then
+    echo "th-wt: warning: could not remove the worktree $1; branch $2 kept" >&2
+    return 0
+  fi
+  [ -z "$created_start" ] || git update-ref -d "refs/heads/$2" "$created_start" 2>/dev/null || true
 }
 
 # Checks one .conf entry; on failure sets $reason and returns 1. Reads the caller's (apply_repo_conf) locals via dynamic scope.
@@ -125,6 +132,7 @@ apply_repo_conf() {
   # the last line may lack a newline
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
+    line="${line%$'\r'}" # CRLF files
     action="" p="" extra=""
     read -r action p extra <<<"$line"
     case "$action" in ""|"#"*) continue ;; esac
@@ -187,7 +195,8 @@ skip_pr_deps() {
 # Prints the created worktree object as JSON; needs $repo, $deps and $linked.
 print_created_json() {
   # ${linked[@]+...}: bash 3.2 fails on an empty or unset array under set -u (pr and review/pr-* never set it)
-  jq -n --arg path "$1" --arg branch "$2" --arg repo "$repo" --arg deps "$deps" '{path: $path, branch: $branch, repo: $repo, linked: $ARGS.positional, deps: $deps}' --args ${linked[@]+"${linked[@]}"}
+  # not --args: jq would take a path starting with '-' as an option; paths cannot contain newlines (they come from read lines); with no paths printf emits one empty line, hence the select
+  jq -n --arg path "$1" --arg branch "$2" --arg repo "$repo" --arg deps "$deps" --argjson linked "$(printf '%s\n' ${linked[@]+"${linked[@]}"} | jq -nRc '[inputs | select(length > 0)]')" '{path: $path, branch: $branch, repo: $repo, linked: $linked, deps: $deps}'
 }
 
 # Local default branch (e.g. origin/main) from refs/remotes/origin/HEAD; empty if unset. Offline.
