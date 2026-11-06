@@ -15,13 +15,13 @@ Kit personal de skills y scripts para agentes de código, compatible con **Claud
 
 Crea, abre, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`, para trabajar en paralelo sin tocar el checkout principal.
 
-| Subcomando | Qué hace | Estado |
-|---|---|---|
-| `new <branch> [--base <branch>] [--json]` | Worktree con una rama nueva | disponible |
-| `checkout <branch> [--remote] [--json]` | Worktree de una rama existente, local o de `origin` (`--remote` la trae) | disponible |
-| `pr <n> [--json]` | Worktree de un PR de GitHub (también de un fork) en `pr-reviews/pr-<n>/code`, en la rama `review/pr-<n>` | disponible |
-| `list [--remote] [--json]` | Worktrees del repo actual, con su estado (`--remote` consulta `origin` y los PRs de GitHub) | disponible |
-| `close <branch> [--remote] [--yes] [--force] [--json]` | Cierra el worktree; requiere `--yes`. Para un PR: `close review/pr-<n>` | disponible |
+| Subcomando                                             | Qué hace                                                                                                 | Estado     |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ---------- |
+| `new <branch> [--base <branch>] [--json]`              | Worktree con una rama nueva                                                                              | disponible |
+| `checkout <branch> [--remote] [--json]`                | Worktree de una rama existente, local o de `origin` (`--remote` la trae)                                 | disponible |
+| `pr <n> [--json]`                                      | Worktree de un PR de GitHub (también de un fork) en `pr-reviews/pr-<n>/code`, en la rama `review/pr-<n>` | disponible |
+| `list [--remote] [--json]`                             | Worktrees del repo actual, con su estado (`--remote` consulta `origin` y los PRs de GitHub)              | disponible |
+| `close <branch> [--remote] [--yes] [--force] [--json]` | Cierra el worktree; requiere `--yes`. Para un PR: `close review/pr-<n>`                                  | disponible |
 
 Hoy, al crear un worktree con `new` o `checkout` se crean el worktree y la rama, se enlazan los archivos ignorados que declares por repo en `~/.config/th-worktools/repos/<owner>/<repo>.conf` (por ejemplo, `link .wiki` o `link .env`; ver [`examples/config/repos/mi-org/mi-repo.conf`](examples/config/repos/mi-org/mi-repo.conf)) y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci`. `pr` nunca enlaza ni instala dependencias: el código del PR es de un tercero (con las dependencias, avisa con el comando para hacerlo a mano).
 
@@ -41,12 +41,12 @@ La referencia completa (subcomandos, red, códigos de salida y `--json`) está e
 
 ## Hoja de ruta
 
-| Versión | Contenido |
-|---|---|
-| v0.1 | `th-worktree`, instalación y CI |
-| v0.2 | `th-repo-context`: índice de la documentación del repo, generado al vuelo |
-| v0.3 | `th-pr-review`: revisión de PRs con mutation testing limitado al diff |
-| v0.4 | `th-integration-context`: contexto compartido entre repos |
+| Versión | Contenido                                                                 |
+| ------- | ------------------------------------------------------------------------- |
+| v0.1    | `th-worktree`, instalación y CI                                           |
+| v0.2    | `th-repo-context`: índice de la documentación del repo, generado al vuelo |
+| v0.3    | `th-pr-review`: revisión de PRs con mutation testing limitado al diff     |
+| v0.4    | `th-integration-context`: contexto compartido entre repos                 |
 
 El detalle de las decisiones está en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) y la guía de desarrollo y tests en [`docs/desarrollo.md`](docs/desarrollo.md).
 
@@ -72,6 +72,7 @@ Ideas que quedan fuera de la versión en curso.
 - Evitar prompts que bloqueen al agente más allá del de la terminal de git (ya desactivado con `GIT_TERMINAL_PROMPT=0`): askpass (`GIT_ASKPASS`, `core.askPass`, `SSH_ASKPASS`) y SSH (clave de host desconocida, passphrase; `BatchMode`), sin pisar el `core.sshCommand` del usuario.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.
 - Lint de skills más estricto: `description`, `disable-model-invocation` en los skills con efectos secundarios e invocaciones de scripts sin la ruta completa.
+- `install.sh`: ofrecer instalar codegraph si no está instalado, con un flag explícito (p. ej. `--with-codegraph`), sin prompts y sin volverlo obligatorio: el kit sigue funcionando sin él.
 - Registro de la base de cada worktree (en `~/.worktrees/<owner>/<repo>/`) para soportar ramas apiladas sin PR y mostrar el árbol del stack en `list`.
 - `th-wt list`: con `$HOME` como repo de dotfiles, un worktree sin `.git` informa el estado de ese repo (`git status` sube por los directorios padre) en lugar de `dirty: null`.
 - `th-wt list --remote`: límite de PRs consultados configurable (hoy fijo en 100), como clave nueva del `config`.
