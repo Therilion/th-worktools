@@ -1,0 +1,16 @@
+# Ejemplo con valores ficticios. Copiar a:
+#   ${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config
+#
+# Una línea "CLAVE=valor". "#" y las líneas vacías se ignoran. El archivo nunca
+# se ejecuta (no se hace "source"). Una variable de entorno no vacía gana al archivo.
+# Una clave desconocida, una línea sin "=" o un valor inválido hace que th-wt
+# salga con código 4 sin crear ni borrar nada.
+
+# Raíz de los worktrees (defecto: ~/.worktrees). Ruta absoluta o con "~/" al inicio;
+# sin ".", ".." ni segmentos vacíos. No se expanden variables como $HOME.
+# Al cambiarla, "list" y "close" solo ven los worktrees de la raíz nueva.
+TH_WORKTREES_ROOT=~/wt
+
+# Instalar dependencias en "new" y "checkout" (defecto: 1). Con 0 no se instalan.
+# "pr" nunca instala.
+TH_INSTALL_DEPS=1

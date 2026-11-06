@@ -21,11 +21,13 @@ Usage: th-wt new <branch> [--base <branch>] [--json]
        th-wt close <branch> [--remote] [--yes] [--force] [--json]
        th-wt [new|checkout|list|pr|close] -h | --help
 
-new       Create a git worktree for a new branch under ~/.worktrees, link the paths listed in the repo's .conf, then install its dependencies from the lockfile (pnpm-lock.yaml or package-lock.json; uses the network).
-checkout  Create a git worktree for an existing branch under ~/.worktrees, link the paths listed in the repo's .conf, then install its dependencies from the lockfile (uses the network). Without --remote, origin is not queried; --remote also fetches the branch from origin when it is not local.
-list      Show this repo's worktrees under ~/.worktrees (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
-pr        Create a git worktree for GitHub PR <n> under ~/.worktrees, on a local branch review/pr-<n> (needs gh; always reads origin). Does not install dependencies: the PR code is untrusted.
-close     Remove the worktree of <branch> under ~/.worktrees and its branch if merged. Dry-run unless --yes; --remote also queries the branch's GitHub PR (like list --remote): a merged PR with no later local commits counts as merged. --force also closes with uncommitted changes or unpushed commits.
+The worktrees root is TH_WORKTREES_ROOT (default ~/.worktrees). Settings come from the environment or from ${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config (KEY=value lines; the environment wins). Keys: TH_WORKTREES_ROOT, TH_INSTALL_DEPS (0 or 1, default 1; 0 makes new and checkout skip the dependency install). An invalid setting exits with 4 before anything is created or deleted.
+
+new       Create a git worktree for a new branch under the worktrees root, link the paths listed in the repo's .conf, then install its dependencies from the lockfile (pnpm-lock.yaml or package-lock.json; uses the network).
+checkout  Create a git worktree for an existing branch under the worktrees root, link the paths listed in the repo's .conf, then install its dependencies from the lockfile (uses the network). Without --remote, origin is not queried; --remote also fetches the branch from origin when it is not local.
+list      Show this repo's worktrees under the worktrees root (local data only; --remote also fetches origin's default branch and queries GitHub PRs with gh).
+pr        Create a git worktree for GitHub PR <n> under the worktrees root, on a local branch review/pr-<n> (needs gh; always reads origin). Does not install dependencies: the PR code is untrusted.
+close     Remove the worktree of <branch> under the worktrees root and its branch if merged. Dry-run unless --yes; --remote also queries the branch's GitHub PR (like list --remote): a merged PR with no later local commits counts as merged. --force also closes with uncommitted changes or unpushed commits.
 USAGE
 }
 

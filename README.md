@@ -23,7 +23,9 @@ Crea, abre, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`
 | `list [--remote] [--json]` | Worktrees del repo actual, con su estado (`--remote` consulta `origin` y los PRs de GitHub) | disponible |
 | `close <branch> [--remote] [--yes] [--force] [--json]` | Cierra el worktree; requiere `--yes`. Para un PR: `close review/pr-<n>` | disponible |
 
-Hoy, al crear un worktree con `new` o `checkout` se crean el worktree y la rama, se enlazan los archivos ignorados que declares por repo en `~/.config/th-worktools/repos/<owner>/<repo>.conf` (por ejemplo, `link .wiki` o `link .env`; ver [`examples/config/repos/mi-org/mi-repo.conf`](examples/config/repos/mi-org/mi-repo.conf)) y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci`. `pr` nunca enlaza ni instala dependencias: el código del PR es de un tercero (con las dependencias, avisa con el comando para hacerlo a mano). Está previsto que además:
+Hoy, al crear un worktree con `new` o `checkout` se crean el worktree y la rama, se enlazan los archivos ignorados que declares por repo en `~/.config/th-worktools/repos/<owner>/<repo>.conf` (por ejemplo, `link .wiki` o `link .env`; ver [`examples/config/repos/mi-org/mi-repo.conf`](examples/config/repos/mi-org/mi-repo.conf)) y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci`. `pr` nunca enlaza ni instala dependencias: el código del PR es de un tercero (con las dependencias, avisa con el comando para hacerlo a mano).
+
+La raíz de worktrees (`TH_WORKTREES_ROOT`, por defecto `~/.worktrees`) y la instalación de dependencias (`TH_INSTALL_DEPS=0` la apaga) se configuran con variables de entorno o con `~/.config/th-worktools/config` (ver [`examples/config/config`](examples/config/config)); el entorno gana al archivo. Una configuración inválida sale con `4` sin crear nada. Está previsto que además:
 
 - inicialice codegraph si está instalado (#9).
 
@@ -71,9 +73,8 @@ Ideas que quedan fuera de la versión en curso.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.
 - Lint de skills más estricto: `description`, `disable-model-invocation` en los skills con efectos secundarios e invocaciones de scripts sin la ruta completa.
 - Registro de la base de cada worktree (en `~/.worktrees/<owner>/<repo>/`) para soportar ramas apiladas sin PR y mostrar el árbol del stack en `list`.
-- `th-wt list` y symlinks: la raíz se compara con las rutas reales de git sin resolver symlinks; si `~/.worktrees` o `$HOME` son symlinks (o `$HOME` termina en `/`), la lista sale vacía sin aviso. Canonicalizar ambos lados al hacer la raíz configurable (#8).
 - `th-wt list`: con `$HOME` como repo de dotfiles, un worktree sin `.git` informa el estado de ese repo (`git status` sube por los directorios padre) en lugar de `dirty: null`.
-- `th-wt list --remote`: límite de PRs consultados configurable (hoy fijo en 100), al implementar la configuración (#8).
+- `th-wt list --remote`: límite de PRs consultados configurable (hoy fijo en 100), como clave nueva del `config`.
 - `th-wt list --remote`: cruzar PRs por rama sin límite, con una sola consulta GraphQL que busque cada rama.
 - Varias cuentas o hosts de GitHub: hoy `list --remote` consulta `gh` con `owner/repo` (github.com, o `GH_HOST` para Enterprise) y no entiende alias SSH. Idea: un configurador propio de multicuentas (una o varias keys por cuenta) en el directorio de configuración, que resuelva cuenta y host por repo (#8).
 - `th-wt list --remote` con un fork como `origin` (los PRs viven en el repo `upstream`): hoy todas las ramas salen con `pr: null` y sin aviso. Resolverlo consultando también `upstream`.
@@ -94,7 +95,7 @@ Ideas que quedan fuera de la versión en curso.
 - CI: shellcheck usa la versión que trae `ubuntu-latest` (0.9) y en local la 0.11; fijar la versión (binario descargado con checksum) si un aviso nuevo hace diferir ambos.
 - Test de `list --remote` con el fetch fallando: fuerza el fallo con un archivo `.lock`, que solo bloquea con el backend de refs `files`. Cuando `reftable` sea el predeterminado de git, condicionarlo con `git rev-parse --show-ref-format` o buscar otra forma de hacer fallar el fetch.
 - `th-wt list` en la terminal (#11): el texto va solo a stderr, así que `th-wt list | grep` no recibe nada; mandar las filas a stdout y dejar solo los avisos en stderr.
-- `th-wt list` y mayúsculas: el prefijo de la raíz distingue mayúsculas, pero APFS no; un cambio de capitalización en la URL de `origin` oculta worktrees existentes. Resolverlo junto con los symlinks (#8).
+- `th-wt list` y mayúsculas: el prefijo de la raíz distingue mayúsculas, pero APFS no; un cambio de capitalización en la URL de `origin` oculta worktrees existentes. Resolverlo canonicalizando la capitalización de la raíz y de la URL.
 - Secretos en los worktrees: #7 solo enlaza (también `.env`) y `pr` no aplica el `.conf`, así que un worktree no puede tener valores propios (otro puerto, otra base de datos). Buscar una forma segura de gestionarlos y compartirlos entre worktrees (p. ej. un gestor de secretos que inyecte las variables al ejecutar), sin multiplicar copias en disco ni exponerlas al agente.
 - `copy` en el `.conf` del repo (#7 solo tiene `link`), para archivos que necesitan valores propios por worktree, prohibiendo `.env*` y una lista de nombres de secretos (`*.pem`, `*.key`, `id_rsa*`, `*.p12`, `.netrc`, `.npmrc`, `credentials*`…). Solo si aparece un caso de uso que no sea un secreto; la lista nunca está completa.
 - MCP de documentación: un servidor MCP al que se le enlaza la documentación local (p. ej. `.wiki`) y que responde preguntas sobre ella con otro modelo o agente, para ahorrar tokens del modelo principal. Podría reemplazar o complementar `th-repo-context` (v0.2).
