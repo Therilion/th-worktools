@@ -83,7 +83,7 @@ printf 'link .env\n' > "$CONF"
 git -C "$TMP/repo" branch review/pr-41 main
 out="$(cd "$TMP/repo" && "$WT" checkout review/pr-41 --json 2>"$TMP/rpr.err")" || fail "$name: checkout review/pr-41 falló"
 dest="$HOME/.worktrees/acme/demo/review-pr-41"
-[ ! -e "$dest/.env" ] && [ ! -L "$dest/.env" ] || fail "$name: checkout enlazó .env"
+{ [ ! -e "$dest/.env" ] && [ ! -L "$dest/.env" ]; } || fail "$name: checkout enlazó .env"
 [ "$(jq -c .linked <<<"$out")" = '[]' ] || fail "$name: salida=[$out]"
 ! grep -q "linked" "$TMP/rpr.err" || fail "$name: stderr=[$(cat "$TMP/rpr.err")]"
 
@@ -98,7 +98,7 @@ git -C "$TMP/origin.git" update-ref refs/pull/42/head refs/heads/main
 jq -n --arg o "$(git -C "$TMP/origin.git" rev-parse refs/pull/42/head)" '{number: 42, title: "PR de prueba", headRefName: "x", baseRefName: "main", headRefOid: $o}' > "$TMP/gh.json"
 out="$(cd "$TMP/repo" && PATH="$TMP/bin:$PATH" "$WT" pr 42 --json 2>/dev/null)" || fail "$name: pr falló"
 dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-42/code"
-[ ! -e "$dest/.env" ] && [ ! -L "$dest/.env" ] || fail "$name: pr enlazó .env"
+{ [ ! -e "$dest/.env" ] && [ ! -L "$dest/.env" ]; } || fail "$name: pr enlazó .env"
 [ "$(jq -c .linked <<<"$out")" = '[]' ] || fail "$name: salida=[$out]"
 pass "$name"
 
@@ -263,7 +263,7 @@ name="un .conf con finales de línea CRLF enlaza sus entradas"
 printf 'link .env\r\n# c\r\nlink .wiki\r\n' > "$CONF"
 out="$(cd "$TMP/repo" && "$WT" new feature/crlf --json 2>"$TMP/crlf.err")" || fail "$name: th-wt new falló: [$(cat "$TMP/crlf.err")]"
 dest="$HOME/.worktrees/acme/demo/feature-crlf"
-[ -L "$dest/.env" ] && [ -L "$dest/.wiki" ] || fail "$name: no se enlazaron"
+{ [ -L "$dest/.env" ] && [ -L "$dest/.wiki" ]; } || fail "$name: no se enlazaron"
 [ "$(jq -c .linked <<<"$out")" = '[".env",".wiki"]' ] || fail "$name: salida=[$out]"
 pass "$name"
 
@@ -277,5 +277,5 @@ out="$(cd "$TMP/repo" && "$WT" close feature/close-links --json 2>/dev/null)" ||
 [ "$(jq -c .ignored <<<"$out")" = '["build.log"]' ] || fail "$name: ignored=[$(jq -c .ignored <<<"$out")]"
 (cd "$TMP/repo" && "$WT" close feature/close-links --yes >/dev/null 2>&1) || fail "$name: close --yes falló"
 [ ! -e "$dest" ] || fail "$name: quedó el worktree"
-[ "$(cat "$TMP/repo/.env")" = "SECRETO=1" ] && [ -f "$TMP/repo/.wiki/nota.md" ] && [ -f "$TMP/repo/docs/local/doc.md" ] || fail "$name: close borró archivos del checkout principal"
+{ [ "$(cat "$TMP/repo/.env")" = "SECRETO=1" ] && [ -f "$TMP/repo/.wiki/nota.md" ] && [ -f "$TMP/repo/docs/local/doc.md" ]; } || fail "$name: close borró archivos del checkout principal"
 pass "$name"
