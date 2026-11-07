@@ -181,3 +181,39 @@ dest="$HOME/.worktrees/acme/demo/review-pr-31"
 [ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: salida=[$out]"
 grep -qF "warning: dependencies not installed: PR code is untrusted; if you trust it, run 'npm ci' in $dest" "$TMP/co-pr.err" || fail "$name: aviso incorrecto: [$(cat "$TMP/co-pr.err")]"
 pass "$name"
+
+name="TH_INSTALL_DEPS=0 en el config: new con lockfile no ejecuta el gestor, devuelve deps: skipped y avisa en stderr"
+: > "$TMP/pm.calls"
+mkdir -p "$HOME/.config/th-worktools"
+printf 'TH_INSTALL_DEPS=0\n' > "$HOME/.config/th-worktools/config"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" new feature/deps-off --base with-pnpm --json 2>"$TMP/off.err")" || rc=$?
+rm -rf "$HOME/.config"
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$(cat "$TMP/off.err")]"
+dest="$HOME/.worktrees/acme/demo/feature-deps-off"
+[ -d "$dest" ] || fail "$name: no se creó el worktree"
+[ ! -s "$TMP/pm.calls" ] || fail "$name: se ejecutó un gestor: [$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: salida=[$out]"
+grep -qxF "th-wt: dependency install disabled (TH_INSTALL_DEPS=0); dependencies not installed in $dest" "$TMP/off.err" || fail "$name: aviso incorrecto: [$(cat "$TMP/off.err")]"
+pass "$name"
+
+name="TH_INSTALL_DEPS=0 en el entorno: checkout con lockfile no ejecuta el gestor y avisa"
+: > "$TMP/pm.calls"
+git -C "$TMP/repo" branch --no-track local-off refs/remotes/origin/with-pnpm
+rc=0
+out="$(cd "$TMP/repo" && TH_INSTALL_DEPS=0 "$WT" checkout local-off --json 2>"$TMP/off2.err")" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$(cat "$TMP/off2.err")]"
+dest="$HOME/.worktrees/acme/demo/local-off"
+[ -d "$dest" ] || fail "$name: no se creó el worktree"
+[ ! -s "$TMP/pm.calls" ] || fail "$name: se ejecutó un gestor: [$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: salida=[$out]"
+grep -qxF "th-wt: dependency install disabled (TH_INSTALL_DEPS=0); dependencies not installed in $dest" "$TMP/off2.err" || fail "$name: aviso incorrecto: [$(cat "$TMP/off2.err")]"
+pass "$name"
+
+name="TH_INSTALL_DEPS=0 sin lockfile no avisa de dependencias no instaladas"
+: > "$TMP/pm.calls"
+out="$(cd "$TMP/repo" && TH_INSTALL_DEPS=0 "$WT" new feature/nodeps-nolock --json 2>"$TMP/nolock.err")" || fail "$name: th-wt new falló"
+[ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: salida=[$out]"
+! grep -q "dependencies not installed" "$TMP/nolock.err" || fail "$name: stderr=[$(cat "$TMP/nolock.err")]"
+[ ! -s "$TMP/pm.calls" ] || fail "$name: se ejecutó un gestor: [$(cat "$TMP/pm.calls")]"
+pass "$name"

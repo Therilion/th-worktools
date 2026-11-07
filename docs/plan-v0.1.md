@@ -67,7 +67,7 @@ th-worktools/
 ├── install.sh                # crea symlinks de skills y entrypoints (pendiente, #12/#13)
 ├── verify.sh                 # comprueba que cada agente ve los skills (pendiente, #12/#13)
 ├── examples/
-│   └── config/               # configuración de ejemplo, solo con valores ficticios (repos/ listo, #7; falta el config global, #8)
+│   └── config/               # configuración de ejemplo, solo con valores ficticios (repos/ y config global listos, #7 y #8)
 ├── skills/
 │   └── th-worktree/
 │       ├── SKILL.md
@@ -202,7 +202,20 @@ Formato `CLAVE=valor`, una por línea; `#` para comentarios.
 |---|---|---|
 | `TH_WORKTREES_ROOT` | `~/.worktrees` | Raíz de todos los worktrees |
 | `TH_INSTALL_DEPS` | `1` | Instalar dependencias al crear un worktree |
-| `TH_CODEGRAPH` | `auto` | `auto` (usar si está instalado) u `off` |
+| `TH_CODEGRAPH` | `auto` | `auto` (usar si está instalado) u `off`. Llega con #9: hasta entonces es una clave desconocida (error) |
+
+Archivo: `${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config`. `#` y las líneas vacías se ignoran, se tolera CRLF y, si una clave se repite, gana la última. Una variable de entorno vacía cuenta como no definida.
+
+**Carga:** al empezar cualquier subcomando, después de parsear sus argumentos (así `--help` y los errores de uso no dependen del config). Sin archivo ni variables, todo funciona con los valores por defecto.
+
+**Validaciones (si alguna falla, no se crea ni se borra nada y sale con `4`):**
+
+1. Clave conocida (`unknown key: <CLAVE>`; una clave que no está en mayúsculas sale como `invalid key (not shown)`) y formato `CLAVE=valor` (`expected KEY=value`).
+2. `TH_WORKTREES_ROOT`: ruta absoluta o con `~/` al inicio (se expande a `$HOME`), sin segmentos `.`, `..` ni vacíos; una barra final se ignora. No se expanden `$VAR`. Se resuelven los symlinks de la parte que existe, así una raíz bajo un symlink funciona y `list`/`close` comparan contra las rutas reales de git.
+   También se rechazan (exit `4`, sin crear ni borrar nada): `TH_WORKTREES_ROOT must not contain control characters`; `cannot resolve the worktrees root: <ruta>` (p. ej. un symlink roto o un ancestro sin permiso); y `worktrees root <raíz>/<owner>/<repo> overlaps the main checkout <ruta>` (la raíz del repo y el checkout principal no pueden contenerse uno a otro).
+3. `TH_INSTALL_DEPS`: `0` o `1`. Con `0`, `new` y `checkout` no instalan (`deps: "skipped"`) y avisan por stderr; `pr` no cambia (nunca instala).
+
+El error es `th-wt: <ruta del config>:<línea>: <motivo>` o, si falla una variable de entorno, `th-wt: <VAR> (environment): <motivo>`. Tras cambiar la raíz, `list` y `close` solo ven la nueva. No hay subcomando para ver la configuración efectiva.
 
 ### Por repo: `repos/<owner>/<repo>.conf`
 

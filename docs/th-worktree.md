@@ -2,7 +2,7 @@
 
 `th-wt` (`skills/th-worktree/scripts/th-wt`) es el script del skill `th-worktree`. Crea, abre (también un PR de GitHub), lista y cierra git worktrees del repositorio actual sin modificar el checkout principal.
 
-> **Estado en v0.1:** están implementados `new`, `checkout`, `pr`, `list` y `close`. `new` y `checkout` también enlazan los archivos ignorados del `.conf` del repo (#7) e instalan las dependencias según el lockfile (#6). Quedan pendientes la configuración y raíz configurable (#8), la integración con `codegraph` (#9), el enlace de `th-wt` en `PATH` (#11) y `install.sh` / `verify.sh` (#12, #13). Hoy el script se invoca con su ruta completa: `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt"`.
+> **Estado en v0.1:** están implementados `new`, `checkout`, `pr`, `list` y `close`. `new` y `checkout` también enlazan los archivos ignorados del `.conf` del repo (#7) e instalan las dependencias según el lockfile (#6). La raíz de worktrees y la instalación de dependencias se configuran con un archivo o variables de entorno (#8, ver «Configuración»). Quedan pendientes la integración con `codegraph` (#9), el enlace de `th-wt` en `PATH` (#11) y `install.sh` / `verify.sh` (#12, #13). Hoy el script se invoca con su ruta completa: `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt"`.
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### Layout en disco
 
-Todos los worktrees se crean bajo una raíz fija en el directorio del usuario:
+Todos los worktrees se crean bajo la raíz de worktrees (`~/.worktrees` por defecto; ver «Configuración»):
 
 ```text
 ~/.worktrees/<owner>/<repo>/<rama-normalizada>
@@ -44,8 +44,30 @@ Los siguientes casos están documentados en la sección «Ideas» del `README.md
 
 - **Colisión de nombres normalizados:** dos ramas distintas con el mismo nombre al reemplazar `/` por `-` (por ejemplo, `feature/a-b` y `feature-a/b` → `feature-a-b`) apuntan al mismo directorio. La segunda falla con código `4` (`destination already exists`) sin indicar qué rama ocupa esa ruta.
 - **Rama local `review`:** una rama llamada `review` impide crear `review/pr-<n>` (git no admite las dos); `pr` sale con `1` y el error de git.
-- **Raíz fija:** la raíz es siempre `$HOME/.worktrees`; la configuración mediante `TH_WORKTREES_ROOT` y `~/.config/th-worktools/config` está pendiente (#8).
-- **Symlinks y capitalización en la raíz:** `list` y `close` comparan el prefijo `$HOME/.worktrees/<owner>/<repo>/` literalmente con las rutas que devuelve `git worktree list --porcelain` (donde git resuelve symlinks). Si `$HOME` o `~/.worktrees` son symlinks, si `$HOME` termina en `/` o si cambia la capitalización de la URL de `origin` en un sistema de archivos insensible a mayúsculas (como APFS), `list` devuelve la lista vacía y `close` sale con `4` (`no worktree for branch`).
+- **Cambio de raíz:** al cambiar `TH_WORKTREES_ROOT`, `list` y `close` solo ven los worktrees de la raíz nueva; los creados bajo la anterior no se mueven ni se encuentran.
+- **Capitalización en la raíz:** `list` y `close` comparan el prefijo de la raíz literalmente con las rutas de `git worktree list --porcelain`. Si cambia la capitalización de la URL de `origin` en un sistema de archivos insensible a mayúsculas (como APFS), `list` devuelve la lista vacía y `close` sale con `4` (`no worktree for branch`). Los symlinks en la raíz o en `$HOME` sí se resuelven.
+
+---
+
+### Configuración
+
+`th-wt` lee `${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config` (ejemplo en [`examples/config/config`](../examples/config/config)): una línea `CLAVE=valor`, sin `source`; `#` y las líneas vacías se ignoran, se tolera CRLF y, si una clave se repite, gana la última. **Precedencia:** variable de entorno no vacía > archivo > valor por defecto (una variable vacía cuenta como no definida).
+
+| Clave | Por defecto | Efecto |
+|---|---|---|
+| `TH_WORKTREES_ROOT` | `~/.worktrees` | Raíz de los worktrees. Ruta absoluta o con `~/` al inicio (se expande a `$HOME`); sin segmentos `.`, `..` ni vacíos; una barra final se ignora; no se expanden `$VAR`. Se resuelven los symlinks de la parte que existe |
+| `TH_INSTALL_DEPS` | `1` | `0` o `1`. Con `0`, `new` y `checkout` no instalan dependencias (`deps: "skipped"`); `pr` no cambia: nunca instala |
+
+`TH_CODEGRAPH` llega con #9: hoy es una clave desconocida.
+
+La configuración se carga al empezar cualquier subcomando, después de parsear sus argumentos (`--help` y los errores de uso, código `2`, no dependen de ella). Si el archivo o el entorno son inválidos, no se crea ni se borra nada y sale con código `4`:
+
+```text
+th-wt: <ruta del config>:<línea>: <motivo>
+th-wt: <VAR> (environment): <motivo>
+```
+
+Motivos: `unknown key: <CLAVE>` (una clave que no está en mayúsculas sale como `invalid key (not shown)`), `expected KEY=value`, `TH_WORKTREES_ROOT must be an absolute path or start with ~/, without '.', '..' or empty segments: <valor>` `TH_INSTALL_DEPS must be 0 or 1: <valor>`, `TH_WORKTREES_ROOT must not contain control characters`, `cannot resolve the worktrees root: <ruta>` (p. ej. un symlink roto o un ancestro sin permiso) y `worktrees root <raíz>/<owner>/<repo> overlaps the main checkout <ruta>` (la raíz del repo y el checkout principal no pueden contenerse uno a otro). Todos salen con `4` sin crear ni borrar nada. No hay subcomando para ver la configuración efectiva.
 
 ---
 
@@ -308,7 +330,7 @@ El acceso a la red es explícito:
 | `1` | Error de ejecución | **`new` / `checkout`:** falla `git worktree add` tras superar las validaciones previas (conflicto de refs como `conf` con `conf/x`, permisos de escritura en `~/.worktrees`, o rama en rebase/bisect en otro worktree con HEAD `detached`), o falla el enlace de una entrada ya validada del `.conf` (se deshace la creación). |
 | `2` | Uso incorrecto | **Todos:** sin subcomando, subcomando desconocido, opción desconocida o argumento posicional inesperado.<br>**`new`:** falta `<branch>`, opción antes de `<branch>`, `--base` vacío o sin argumento, `<branch>` es `HEAD` o formato inválido de `<branch>` / `--base` (p. ej. `main~1`, `bad..name`).<br>**`checkout`:** falta `<branch>`, opción antes de `<branch>`, `<branch>` es `HEAD` o formato de rama inválido.<br>**`new` / `checkout`:** además, una rama cuyo nombre normalizado es `pr-reviews`.<br>**`pr`:** `<n>` ausente o que no es un entero positivo sin ceros a la izquierda.<br>**`close`:** falta `<branch>`, más de un argumento posicional o formato de rama inválido. |
 | `3` | Dependencia faltante | **Todos:** falta `git` o `jq` en `PATH`.<br>**`pr` / `list --remote` / `close --remote`:** falta `gh` en `PATH`. |
-| `4` | Precondición no cumplida | **Todos:** fuera de un repositorio git, sin remote `origin` o URL de `origin` con formato no soportado.<br>**`new`:** destino ya existente, la rama ya existe en local o en `origin`, `origin` inaccesible, `origin` sin rama por defecto (sin `--base`), o `--base` no existe en `origin` / falla el fetch.<br>**`checkout`:** destino ya existente, rama ya abierta en el checkout principal o en otro worktree, rama inexistente en local y en `refs/remotes/origin/<branch>` (sin `--remote`), o con `--remote` `origin` inaccesible / rama inexistente en `origin` / fallo de fetch.<br>**`new` / `checkout`:** además, una entrada inválida del `.conf` del repo (`th-wt: <conf>:<línea>: <motivo>`; se deshace la creación).<br>**`pr`:** la ruta `pr-reviews/pr-<n>/code` o la rama `review/pr-<n>` ya existen, `gh pr view` falla o devuelve algo inesperado, o falla un fetch de `origin` (PR sin `refs/pull/<n>/head`, `origin` inaccesible, base ausente), o el commit traído no es el `headRefOid` de `gh`.<br>**`list --remote`:** `origin` inaccesible, `origin` sin rama por defecto, fallo del fetch, fallo de `gh pr list` (sin autenticar o sin acceso) o salida JSON inesperada de `gh`.<br>**`close`:** la rama no tiene worktree bajo `~/.worktrees/<owner>/<repo>/` (o no existe / es huérfana / está en `detached`), errores de `--remote` (igual que `list --remote`), o con `--yes`: ejecutado desde dentro del worktree a cerrar, bloqueado por cambios sin commitear / commits sin push (en un worktree de PR, commits propios posteriores al PR o desconocidos) / `git status` ilegible (sin `--force`), o fallo de `git worktree remove` (p. ej. worktree bloqueado con `git worktree lock`). |
+| `4` | Precondición no cumplida | **Todos:** fuera de un repositorio git, sin remote `origin` o URL de `origin` con formato no soportado, o configuración inválida (archivo `config` o variables de entorno; ver «Configuración»).<br>**`new`:** destino ya existente, la rama ya existe en local o en `origin`, `origin` inaccesible, `origin` sin rama por defecto (sin `--base`), o `--base` no existe en `origin` / falla el fetch.<br>**`checkout`:** destino ya existente, rama ya abierta en el checkout principal o en otro worktree, rama inexistente en local y en `refs/remotes/origin/<branch>` (sin `--remote`), o con `--remote` `origin` inaccesible / rama inexistente en `origin` / fallo de fetch.<br>**`new` / `checkout`:** además, una entrada inválida del `.conf` del repo (`th-wt: <conf>:<línea>: <motivo>`; se deshace la creación).<br>**`pr`:** la ruta `pr-reviews/pr-<n>/code` o la rama `review/pr-<n>` ya existen, `gh pr view` falla o devuelve algo inesperado, o falla un fetch de `origin` (PR sin `refs/pull/<n>/head`, `origin` inaccesible, base ausente), o el commit traído no es el `headRefOid` de `gh`.<br>**`list --remote`:** `origin` inaccesible, `origin` sin rama por defecto, fallo del fetch, fallo de `gh pr list` (sin autenticar o sin acceso) o salida JSON inesperada de `gh`.<br>**`close`:** la rama no tiene worktree bajo `~/.worktrees/<owner>/<repo>/` (o no existe / es huérfana / está en `detached`), errores de `--remote` (igual que `list --remote`), o con `--yes`: ejecutado desde dentro del worktree a cerrar, bloqueado por cambios sin commitear / commits sin push (en un worktree de PR, commits propios posteriores al PR o desconocidos) / `git status` ilegible (sin `--force`), o fallo de `git worktree remove` (p. ej. worktree bloqueado con `git worktree lock`). |
 
 ---
 
@@ -386,6 +408,7 @@ Tras crear el worktree, `th-wt` busca un lockfile en su raíz (si hay `pnpm-lock
 | `package-lock.json` | `npm ci` | no se ejecuta; el aviso lo sugiere para hacerlo a mano |
 | `yarn.lock`, `bun.lock`, `bun.lockb`, `Cargo.lock`, `uv.lock`, `poetry.lock` | no se instala; avisa por stderr con el nombre del archivo (`deps: "skipped"`) | igual |
 | ninguno | no se instala (`deps: "skipped"`) | igual |
+| cualquiera, con `TH_INSTALL_DEPS=0` | no se instala (`deps: "skipped"`); stderr: `th-wt: dependency install disabled (TH_INSTALL_DEPS=0); dependencies not installed in <ruta>` | igual (nunca instala) |
 
 En `checkout`, una rama `review/pr-*` sigue la columna «En `pr`».
 
