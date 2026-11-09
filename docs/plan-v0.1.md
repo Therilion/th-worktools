@@ -403,7 +403,7 @@ Script (ruta relativa a la carpeta de este SKILL.md, no al repo actual):
 | Ver worktrees | `th-wt list --json` |
 | Cerrar | `th-wt close <rama>` (un PR: `close review/pr-<n>`; ver reglas) |
 
-Argumentos recibidos: $ARGUMENTS (si está vacío o muestra el nombre de la variable sin sustituir, toma el pedido del mensaje del usuario)
+Argumentos recibidos: $ARGUMENTS (si muestra el nombre de la variable sin sustituir, el pedido es el mensaje del usuario; si no hay pedido, pregunta qué quiere hacer y no ejecutes nada)
 
 ## Reglas
 
