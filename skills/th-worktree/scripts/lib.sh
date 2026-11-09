@@ -3,9 +3,10 @@
 # Initialized here so values inherited from the environment cannot change behavior (undo_creation, print_created_json).
 created_start=""
 linked=()
-# Same for the settings load_config sets (a wt_root or install_deps_on in the environment is ignored).
+# Same for the settings load_config sets (a wt_root, install_deps_on or codegraph_mode in the environment is ignored).
 wt_root=""
 install_deps_on=1
+codegraph_mode=auto
 
 die() { echo "th-wt: $2" >&2; exit "$1"; }
 bad_usage() { [ $# -eq 0 ] || echo "th-wt: $1" >&2; usage >&2; exit 2; }
@@ -41,14 +42,19 @@ check_config_value() {
         0|1) ;;
         *) reason="TH_INSTALL_DEPS must be 0 or 1: $2"; return 1 ;;
       esac ;;
+    TH_CODEGRAPH)
+      case "$2" in
+        auto|off) ;;
+        *) reason="TH_CODEGRAPH must be auto or off: $2"; return 1 ;;
+      esac ;;
   esac
 }
 
-# Sets $wt_root (canonical, so it matches git's real paths) and $install_deps_on: environment variable (if non-empty) > $XDG_CONFIG_HOME/th-worktools/config > default.
+# Sets $wt_root (canonical, so it matches git's real paths), $install_deps_on and $codegraph_mode: environment variable (if non-empty) > $XDG_CONFIG_HOME/th-worktools/config > default.
 # Validates everything first (exit 4, naming the file and line or the variable); the file is parsed line by line, never sourced.
 load_config() {
   local conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config" line key n=0 reason cfg_value
-  local file_root="" file_deps=""
+  local file_root="" file_deps="" file_cg=""
   if [ -f "$conf" ]; then
     # the last line may lack a newline
     while IFS= read -r line || [ -n "$line" ]; do
@@ -59,19 +65,21 @@ load_config() {
       case "$line" in *=*) ;; *) die 4 "$conf:$n: expected KEY=value" ;; esac
       key="${line%%=*}"
       case "$key" in
-        TH_WORKTREES_ROOT|TH_INSTALL_DEPS) ;;
+        TH_WORKTREES_ROOT|TH_INSTALL_DEPS|TH_CODEGRAPH) ;;
         ""|[[:digit:]]*|*[![:upper:][:digit:]_]*) die 4 "$conf:$n: invalid key (not shown)" ;;
         *) die 4 "$conf:$n: unknown key: $key" ;;
       esac
       check_config_value "$key" "${line#*=}" || die 4 "$conf:$n: $reason"
       case "$key" in
         TH_WORKTREES_ROOT) file_root="$cfg_value" ;;
-        *) file_deps="$cfg_value" ;;
+        TH_INSTALL_DEPS) file_deps="$cfg_value" ;;
+        *) file_cg="$cfg_value" ;;
       esac
     done < "$conf"
   fi
   wt_root="${file_root:-${HOME%/}/.worktrees}"
   install_deps_on="${file_deps:-1}"
+  codegraph_mode="${file_cg:-auto}"
   if [ -n "${TH_WORKTREES_ROOT:-}" ]; then
     check_config_value TH_WORKTREES_ROOT "$TH_WORKTREES_ROOT" || die 4 "TH_WORKTREES_ROOT (environment): $reason"
     wt_root="$cfg_value"
@@ -79,6 +87,10 @@ load_config() {
   if [ -n "${TH_INSTALL_DEPS:-}" ]; then
     check_config_value TH_INSTALL_DEPS "$TH_INSTALL_DEPS" || die 4 "TH_INSTALL_DEPS (environment): $reason"
     install_deps_on="$cfg_value"
+  fi
+  if [ -n "${TH_CODEGRAPH:-}" ]; then
+    check_config_value TH_CODEGRAPH "$TH_CODEGRAPH" || die 4 "TH_CODEGRAPH (environment): $reason"
+    codegraph_mode="$cfg_value"
   fi
   # resolved here, in the main shell, so a failure exits the whole command before anything is created
   cfg_value="$wt_root"
@@ -284,11 +296,32 @@ skip_pr_deps() {
   [ -z "$pm" ] || echo "th-wt: warning: dependencies not installed: PR code is untrusted; if you trust it, run '$pm ${sub[*]}' in $dest" >&2
 }
 
-# Prints the created worktree object as JSON; needs $repo, $deps and $linked.
+# Indexes worktree $1 with codegraph if installed and not disabled (TH_CODEGRAPH=off); sets $codegraph. A failed init only warns: the worktree is already there.
+index_codegraph() {
+  local dest="$1"
+  codegraph=false
+  [ "$codegraph_mode" = off ] && return 0
+  command -v codegraph >/dev/null || return 0
+  # a link (e.g. from the repo .conf) or committed files other than a regular .gitignore (a symlink would be written through): init would say "Already initialized" and index nothing, or reuse a crafted db
+  if [ -L "$dest/.codegraph" ] || { [ -e "$dest/.codegraph" ] && { [ ! -d "$dest/.codegraph" ] || [ -n "$(find "$dest/.codegraph" -mindepth 1 -maxdepth 1 ! \( -name .gitignore -type f \) -print -quit)" ]; }; }; then
+    echo "th-wt: warning: .codegraph already exists in $dest; not indexed" >&2
+    return 0
+  fi
+  # stdout is reserved for --json and there is no terminal to answer prompts
+  # codegraph's telemetry and update check are network access: opt-in only
+  # empty NO_WATCH: codegraph installs git hooks in the shared .git only when it is '1'; empty DIR: the kit checks .codegraph
+  if CODEGRAPH_TELEMETRY=0 CODEGRAPH_NO_UPDATE_CHECK=1 CODEGRAPH_NO_WATCH='' CODEGRAPH_DIR='' codegraph init -y "$dest" >&2 </dev/null; then
+    codegraph=true
+  else
+    echo "th-wt: warning: codegraph init failed in $dest; run 'codegraph init -y' there manually" >&2
+  fi
+}
+
+# Prints the created worktree object as JSON; needs $repo, $deps, $codegraph and $linked.
 print_created_json() {
   # ${linked[@]+...}: bash 3.2 fails on an empty or unset array under set -u (pr and review/pr-* never set it)
   # not --args: jq would take a path starting with '-' as an option; paths cannot contain newlines (they come from read lines); with no paths printf emits one empty line, hence the select
-  jq -n --arg path "$1" --arg branch "$2" --arg repo "$repo" --arg deps "$deps" --argjson linked "$(printf '%s\n' ${linked[@]+"${linked[@]}"} | jq -nRc '[inputs | select(length > 0)]')" '{path: $path, branch: $branch, repo: $repo, linked: $linked, deps: $deps}'
+  jq -n --arg path "$1" --arg branch "$2" --arg repo "$repo" --arg deps "$deps" --argjson codegraph "$codegraph" --argjson linked "$(printf '%s\n' ${linked[@]+"${linked[@]}"} | jq -nRc '[inputs | select(length > 0)]')" '{path: $path, branch: $branch, repo: $repo, linked: $linked, deps: $deps, codegraph: $codegraph}'
 }
 
 # Local default branch (e.g. origin/main) from refs/remotes/origin/HEAD; empty if unset. Offline.
@@ -320,6 +353,13 @@ load_remote() {
   jq -e 'type == "array" and all(.[]; type == "object")' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
 }
 
+# git status of worktree $1 (more git status flags after it) as \1-separated entries, without what codegraph leaves in .codegraph/: its untracked dir and its ignored files. Tracked changes there (it may have a committed .gitignore) still show. tr because $(...) drops NUL bytes.
+wt_status() {
+  local path="$1"
+  shift
+  git --no-optional-locks -C "$path" status --porcelain -z "$@" | tr '\0' '\1' | awk 'BEGIN { RS = ORS = "\001" } !/^([?][?] \.codegraph\/|!! \.codegraph(\/.*)?)$/'
+}
+
 # One JSON object per line for each worktree under $1, only the one on branch $5 if given (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
   local root="$1" default="$2" prs="$3" remote="$4" only="${5:-}" path line head dirty missing ref name merged rc out pr oid ahead
@@ -340,7 +380,7 @@ list_rows() {
         dirty=false
         missing=false
         if [ -d "$path" ]; then
-          if out="$(git --no-optional-locks -C "$path" status --porcelain --untracked-files=normal 2>/dev/null)"; then
+          if out="$(wt_status "$path" --untracked-files=normal 2>/dev/null)"; then
             [ -z "$out" ] || dirty=true
           else
             dirty=null

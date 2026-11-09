@@ -78,7 +78,7 @@ while IFS='|' read -r line reason; do
   ! git -C "$TMP/repo" show-ref --verify --quiet "refs/heads/$b" || fail "$name ($line): quedó la rama"
 done <<EOL
 SECRETO_X=s3cr3t|unknown key: SECRETO_X
-TH_CODEGRAPH=off|unknown key: TH_CODEGRAPH
+TH_FOO=1|unknown key: TH_FOO
 s3cr3t-sin-igual|expected KEY=value
 TH_WORKTREES_ROOT=wt/rel|$ROOT_MSG: wt/rel
 TH_WORKTREES_ROOT=~|$ROOT_MSG: ~
@@ -86,6 +86,7 @@ TH_WORKTREES_ROOT=~/a/../b|$ROOT_MSG: ~/a/../b
 TH_WORKTREES_ROOT=/a//b|$ROOT_MSG: /a//b
 TH_WORKTREES_ROOT=/a/./b|$ROOT_MSG: /a/./b
 TH_INSTALL_DEPS=2|TH_INSTALL_DEPS must be 0 or 1: 2
+TH_CODEGRAPH=maybe|TH_CODEGRAPH must be auto or off: maybe
 EOL
 clean_cfg
 pass "$name"
@@ -105,6 +106,15 @@ rc=0
 [ "$(cat "$TMP/envbad.err")" = "th-wt: TH_INSTALL_DEPS (environment): TH_INSTALL_DEPS must be 0 or 1: yes" ] || fail "$name: stderr=[$(cat "$TMP/envbad.err")]"
 ! git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/env-bad-deps || fail "$name: quedó la rama"
 [ ! -e "$HOME/.worktrees/acme/demo/feature-env-bad-deps" ] || fail "$name: quedó el worktree"
+pass "$name"
+
+name="TH_CODEGRAPH inválida en el entorno: sale con 4, nombra la variable y no crea nada"
+rc=0
+(cd "$TMP/repo" && TH_CODEGRAPH="maybe" "$WT" new feature/env-bad-cg 2>"$TMP/envbad.err" >/dev/null) || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/envbad.err")]"
+[ "$(cat "$TMP/envbad.err")" = "th-wt: TH_CODEGRAPH (environment): TH_CODEGRAPH must be auto or off: maybe" ] || fail "$name: stderr=[$(cat "$TMP/envbad.err")]"
+! git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/env-bad-cg || fail "$name: quedó la rama"
+[ ! -e "$HOME/.worktrees/acme/demo/feature-env-bad-cg" ] || fail "$name: quedó el worktree"
 pass "$name"
 
 name="config inválido: close --yes sale con 4 y no borra el worktree ni la rama"

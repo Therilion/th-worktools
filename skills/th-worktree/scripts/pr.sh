@@ -36,6 +36,7 @@ pr_worktree() {
   fetch_origin_branch "$base" || die 4 "fetch of origin/$base failed"
   add_branch_worktree "review/pr-$n" "$dest" "$oid"
   skip_pr_deps "$dest"
+  index_codegraph "$dest"
 
   if [ "$json" = 1 ]; then
     print_created_json "$dest" "review/pr-$n" | jq -c --argjson m "$meta" '. + {pr: {number: $m.number, title: $m.title, head: $m.headRefName, base: $m.baseRefName}}'

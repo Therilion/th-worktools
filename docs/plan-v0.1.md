@@ -202,7 +202,7 @@ Formato `CLAVE=valor`, una por línea; `#` para comentarios.
 |---|---|---|
 | `TH_WORKTREES_ROOT` | `~/.worktrees` | Raíz de todos los worktrees |
 | `TH_INSTALL_DEPS` | `1` | Instalar dependencias al crear un worktree |
-| `TH_CODEGRAPH` | `auto` | `auto` (usar si está instalado) u `off`. Llega con #9: hasta entonces es una clave desconocida (error) |
+| `TH_CODEGRAPH` | `auto` | `auto` (usar si está instalado) u `off`. `off` solo afecta a la creación, no a `close` |
 
 Archivo: `${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config`. `#` y las líneas vacías se ignoran, se tolera CRLF y, si una clave se repite, gana la última. Una variable de entorno vacía cuenta como no definida.
 
@@ -214,6 +214,7 @@ Archivo: `${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config`. `#` y las lín
 2. `TH_WORKTREES_ROOT`: ruta absoluta o con `~/` al inicio (se expande a `$HOME`), sin segmentos `.`, `..` ni vacíos; una barra final se ignora. No se expanden `$VAR`. Se resuelven los symlinks de la parte que existe, así una raíz bajo un symlink funciona y `list`/`close` comparan contra las rutas reales de git.
    También se rechazan (exit `4`, sin crear ni borrar nada): `TH_WORKTREES_ROOT must not contain control characters`; `cannot resolve the worktrees root: <ruta>` (p. ej. un symlink roto o un ancestro sin permiso); y `worktrees root <raíz>/<owner>/<repo> overlaps the main checkout <ruta>` (la raíz del repo y el checkout principal no pueden contenerse uno a otro).
 3. `TH_INSTALL_DEPS`: `0` o `1`. Con `0`, `new` y `checkout` no instalan (`deps: "skipped"`) y avisan por stderr; `pr` no cambia (nunca instala).
+4. `TH_CODEGRAPH`: `auto` u `off` (`TH_CODEGRAPH must be auto or off: <valor>`).
 
 El error es `th-wt: <ruta del config>:<línea>: <motivo>` o, si falla una variable de entorno, `th-wt: <VAR> (environment): <motivo>`. Tras cambiar la raíz, `list` y `close` solo ven la nueva. No hay subcomando para ver la configuración efectiva.
 
@@ -349,9 +350,10 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
    - Cualquier otro: avisar por stderr y omitir (v0.1); se avisa el nombre de `yarn.lock`, `bun.lock`, `bun.lockb`, `Cargo.lock`, `uv.lock` o `poetry.lock` si existe.
    - Si hay ambos lockfiles gana pnpm. Corre en el worktree, con la salida del gestor a stderr (stdout queda para `--json`) y `</dev/null`. `pr` **no instala** (`deps: "skipped"`): el `.npmrc` y el `packageManager` del PR controlan el gestor y la instalación ejecutaría código de un tercero (`--ignore-scripts` no basta); solo avisa por stderr con el comando a ejecutar a mano (`pnpm install --frozen-lockfile` / `npm ci`) si hay un lockfile soportado.
    - Si el gestor falla: se conserva el worktree, aviso por stderr, `deps: "failed"` y código `0`. Si hay lockfile pero el gestor no está en `PATH`: aviso por stderr, `deps: "skipped"` y código `0`.
-8. Si `TH_CODEGRAPH=auto` y codegraph está instalado, inicializarlo en el worktree (verificar los flags no interactivos de `codegraph init`).
+8. Si `TH_CODEGRAPH=auto` y codegraph está instalado, después de las dependencias: `codegraph init -y <worktree>` (`-y` = no interactivo, toma los valores por defecto; verificado con codegraph 1.6.2), con la salida a stderr y `</dev/null`, y con `CODEGRAPH_TELEMETRY=0 CODEGRAPH_NO_UPDATE_CHECK=1` (sin telemetría ni comprobación de actualizaciones, para que el subcomando siga offline) y `CODEGRAPH_NO_WATCH=` y `CODEGRAPH_DIR=` vacías (con `CODEGRAPH_NO_WATCH=1` en el entorno del usuario, `init -y` instalaría hooks de sincronización de git en el `.git/hooks` compartido, que el kit no debe escribir; y `CODEGRAPH_DIR` movería el índice a una carpeta que el kit no comprueba). No indexa si `.codegraph` ya existe en el worktree como symlink (p. ej. `link .codegraph` del `.conf`) o con algo más que un `.gitignore` que sea un archivo regular (p. ej. un PR que versiona su `.codegraph/codegraph.db`, o un `.gitignore` que es un symlink): aviso `th-wt: warning: .codegraph already exists in <ruta>; not indexed`, `codegraph: false`, código `0`; un índice aportado por un PR nunca se usa. También en `pr` y en `checkout` de `review/pr-*`: indexar es análisis estático y no ejecuta el código del PR (el índice que traiga el PR es otro asunto: ver arriba). Igual que las dependencias, si falla se conserva el worktree, aviso por stderr (`th-wt: warning: codegraph init failed in <ruta>; run 'codegraph init -y' there manually`), `codegraph: false` y código `0`. Sin codegraph instalado o con `off`: `codegraph: false` sin mensaje. `init` puede tardar minutos en un repo grande.
 9. Mostrar un resumen. Con `--json`:
    `{ "path", "branch", "repo", "linked": [], "deps": "pnpm|npm|skipped|failed", "codegraph": true|false }`
+   (`codegraph: true` = indexado; `false` = no instalado, `off` o `init` falló.)
    (`linked`: array de rutas enlazadas; siempre `[]` en `pr`. No hay campo `copied`: no existe `copy`.)
 10. Indicar al usuario que abra **una sesión nueva del agente** en esa ruta.
 
@@ -362,7 +364,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 **Con `--yes`:**
 
 1. Abortar (código `4`) si hay cambios sin commitear o commits sin push, salvo que se pase `--force`.
-2. Si existe `.codegraph/` y codegraph está instalado: `codegraph uninit`.
+2. Si `.codegraph/` es un directorio real (no un symlink) y git no versiona nada dentro: el kit borra `.codegraph/` él mismo, justo antes de `git worktree remove`, sin ejecutar `codegraph` (no hace falta que esté instalado). No usa `codegraph uninit`: además de borrar la carpeta, quita los hooks de sincronización de git del `.git/hooks` compartido por el checkout principal y todos los worktrees, y el kit no escribe en el repo del usuario (verificado con codegraph 1.6.2: su `uninitialize` solo cierra la base de datos y borra la carpeta, así que borrarla directamente no pierde nada). Si git versiona algo bajo `.codegraph/`, el kit no lo toca: `git worktree remove` se lleva el índice ignorado. `TH_CODEGRAPH=off` no afecta a `close`. En `list` y en el dry-run de `close`, lo que genera codegraph (el directorio `.codegraph/` sin seguimiento y sus archivos ignorados) no cuenta como cambio pendiente (`dirty`) ni se lista en `ignored`; los cambios en archivos que git versiona bajo `.codegraph/` (p. ej. un `.codegraph/.gitignore` commiteado) sí cuentan como `dirty` y bloquean el cierre sin `--force`.
 3. `git worktree remove <ruta>` (con `--force` solo si se pasó explícitamente).
 4. Rama:
    - Normal: si está contenida en la rama por defecto de `origin` (mismo criterio que `list`), `git update-ref -d refs/heads/<rama> <oid>`, que falla si la rama se movió. No se usa `git branch -d` porque compara contra el HEAD local, que suele estar atrasado, y rechaza ramas ya mergeadas. Si no está contenida (o no se sabe), se conserva y se avisa; **no se fuerza**.
@@ -477,8 +479,8 @@ Matriz: `macos-latest` y `ubuntu-latest`.
 ## 15. Definition of Done — v0.1
 
 - [ ] `th-worktree` crea worktrees para una rama nueva, para una rama existente y para un PR (parcial: `new` y `checkout` listos; falta `pr`, #5).
-- [ ] Al crear: aplica el `.conf` del repo (enlaza `.wiki`), instala dependencias e inicializa codegraph si está disponible (parcial: `.conf` del repo, solo `link` y sin `copy` (#7), e instalación de dependencias listos; falta codegraph, #9).
-- [ ] Al cerrar: dry-run por defecto; con `--yes` ejecuta `codegraph uninit`, elimina el worktree y borra la rama si está mergeada (parcial: dry-run, eliminación del worktree y borrado de rama mergeada listos, también con `--remote`; falta `codegraph uninit`, #9).
+- [ ] Al crear: aplica el `.conf` del repo (enlaza `.wiki`), instala dependencias e inicializa codegraph si está disponible (parcial: `.conf` del repo, solo `link` y sin `copy` (#7), instalación de dependencias y codegraph listos).
+- [x] Al cerrar: dry-run por defecto; con `--yes` borra el índice de codegraph, elimina el worktree y borra la rama si está mergeada.
 - [ ] Funciona invocado desde Claude Code y desde Antigravity en macOS (parcial: verificado en Claude Code; falta Antigravity, #10).
 - [ ] `git status` limpio en un worktree del repo del trabajo (la `.wiki` enlazada no aparece).
 - [x] CI en verde en macOS y Ubuntu.
@@ -507,7 +509,7 @@ Cuando todo esté marcado: tag `v0.1`, usarlo una semana y anotar lo que moleste
 - [ ] Que Antigravity ejecute los comandos en un shell que expanda `$HOME` y `${…:-…}`.
 - [ ] Que las búsquedas del agente sigan el symlink `.wiki`.
 - [ ] Cómo está la entrada de `.wiki` en el `.gitignore` del repo del trabajo (con o sin barra).
-- [ ] Flags no interactivos de `codegraph init` y comportamiento de `codegraph uninit`.
+- [x] Flags no interactivos de `codegraph init` y comportamiento de `codegraph uninit`. `init -y` salta todos los prompts y toma los valores por defecto; `uninit -f` salta la confirmación (codegraph 1.6.2). Pero `uninit` también quita los hooks de sincronización de git del `.git/hooks` compartido, así que el kit no lo usa: `close` borra `.codegraph/` directamente.
 - [ ] Sintaxis de los patrones de permisos en ambos agentes.
 - [ ] Cómo recibe argumentos un skill en Antigravity.
 

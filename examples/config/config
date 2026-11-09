@@ -14,3 +14,7 @@ TH_WORKTREES_ROOT=~/wt
 # Instalar dependencias en "new" y "checkout" (defecto: 1). Con 0 no se instalan.
 # "pr" nunca instala.
 TH_INSTALL_DEPS=1
+
+# Indexar el worktree con codegraph al crearlo (defecto: auto). "auto" usa codegraph
+# si está instalado; "off" no lo usa. Solo afecta a la creación, no a "close".
+TH_CODEGRAPH=auto
