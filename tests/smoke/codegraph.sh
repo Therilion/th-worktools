@@ -180,7 +180,8 @@ dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-45/code"
 [ ! -s "$TMP/cg.calls" ] || fail "$name: se llamó a codegraph: [$(cat "$TMP/cg.calls")]"
 [ "$(jq -r .codegraph <<<"$out")" = false ] || fail "$name: salida=[$out]"
 grep -qxF "th-wt: warning: .codegraph already exists in $dest; not indexed" "$TMP/gilink.err" || fail "$name: aviso incorrecto: [$(cat "$TMP/gilink.err")]"
-[ ! -e "$dest/nonexistent-target" ] && [ ! -L "$dest/nonexistent-target" ] || fail "$name: se creó el destino del enlace"
+# el enlace sale de $dest/.codegraph/, así que ../../ apunta al directorio padre de $dest
+{ [ ! -e "$dest/../nonexistent-target" ] && [ ! -L "$dest/../nonexistent-target" ]; } || fail "$name: se creó el destino del enlace"
 pass "$name"
 
 name="new con .codegraph enlazado desde el .conf del repo (symlink) no ejecuta codegraph init, avisa con el mensaje exacto y devuelve codegraph: false"
