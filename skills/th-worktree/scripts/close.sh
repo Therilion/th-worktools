@@ -105,11 +105,8 @@ close_worktree() {
     here="$(pwd -P)"
     case "$here/" in "$path/"*) die 4 "cannot close $path from inside it: run close from another directory" ;; esac
     [ "$del_wt" = true ] || die 4 "$why (use --force to close anyway)"
-    # codegraph's index is untracked, and git refuses to remove a worktree with untracked files; a symlink may point to the main checkout's index, and anything tracked there must not be deleted: leave those (an ignored index goes with the worktree)
+    # codegraph's index is untracked, and git refuses to remove a worktree with untracked files; a symlink may point to the main checkout's index, and anything tracked there must not be deleted: leave those (an ignored index goes with the worktree); no `codegraph uninit`: it also removes the git hooks that every worktree of the repo shares
     if [ -d "$path/.codegraph" ] && [ ! -L "$path/.codegraph" ] && [ -z "$(git -C "$path" ls-files -- .codegraph)" ]; then
-      if command -v codegraph >/dev/null; then
-        CODEGRAPH_TELEMETRY=0 CODEGRAPH_NO_UPDATE_CHECK=1 codegraph uninit -f "$path" >&2 </dev/null || echo "th-wt: warning: codegraph uninit failed in $path; removing .codegraph/" >&2
-      fi
       rm -rf "$path/.codegraph"
     fi
     if [ "$force" = 1 ]; then git worktree remove --force "$path" || die 4 "git could not remove $path (see git's message above)"

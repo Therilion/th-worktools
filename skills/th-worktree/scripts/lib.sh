@@ -302,14 +302,15 @@ index_codegraph() {
   codegraph=false
   [ "$codegraph_mode" = off ] && return 0
   command -v codegraph >/dev/null || return 0
-  # a link (e.g. from the repo .conf) or committed files other than .gitignore: init would say "Already initialized" and index nothing, or reuse a crafted db
-  if [ -L "$dest/.codegraph" ] || { [ -e "$dest/.codegraph" ] && { [ ! -d "$dest/.codegraph" ] || [ -n "$(find "$dest/.codegraph" -mindepth 1 -maxdepth 1 ! -name .gitignore -print -quit)" ]; }; }; then
+  # a link (e.g. from the repo .conf) or committed files other than a regular .gitignore (a symlink would be written through): init would say "Already initialized" and index nothing, or reuse a crafted db
+  if [ -L "$dest/.codegraph" ] || { [ -e "$dest/.codegraph" ] && { [ ! -d "$dest/.codegraph" ] || [ -n "$(find "$dest/.codegraph" -mindepth 1 -maxdepth 1 ! \( -name .gitignore -type f \) -print -quit)" ]; }; }; then
     echo "th-wt: warning: .codegraph already exists in $dest; not indexed" >&2
     return 0
   fi
   # stdout is reserved for --json and there is no terminal to answer prompts
   # codegraph's telemetry and update check are network access: opt-in only
-  if CODEGRAPH_TELEMETRY=0 CODEGRAPH_NO_UPDATE_CHECK=1 codegraph init -y "$dest" >&2 </dev/null; then
+  # empty NO_WATCH: codegraph installs git hooks in the shared .git only when it is '1'; empty DIR: the kit checks .codegraph
+  if CODEGRAPH_TELEMETRY=0 CODEGRAPH_NO_UPDATE_CHECK=1 CODEGRAPH_NO_WATCH='' CODEGRAPH_DIR='' codegraph init -y "$dest" >&2 </dev/null; then
     codegraph=true
   else
     echo "th-wt: warning: codegraph init failed in $dest; run 'codegraph init -y' there manually" >&2

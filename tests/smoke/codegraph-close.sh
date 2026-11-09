@@ -6,14 +6,11 @@ set -euo pipefail
 
 git -C "$TMP/repo" remote set-head origin main >/dev/null
 
-# codegraph falso: anota "$*" en $TMP/cg.calls y CODEGRAPH_TELEMETRY / CODEGRAPH_NO_UPDATE_CHECK en $TMP/cg.env; uninit borra <ruta>/.codegraph. FAKE_CG_FAIL=1 sale con 1 sin borrar nada.
+# codegraph falso: anota "$*" en $TMP/cg.calls. close no debe llamarlo (uninit borraría los hooks de git, que comparte todo el repo); está en el PATH para probarlo.
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/codegraph" <<EOF2
 #!/usr/bin/env bash
 echo "\$*" >> "$TMP/cg.calls"
-echo "\${CODEGRAPH_TELEMETRY:-unset} \${CODEGRAPH_NO_UPDATE_CHECK:-unset}" >> "$TMP/cg.env"
-[ -z "\${FAKE_CG_FAIL:-}" ] || exit 1
-if [ "\${1:-}" = uninit ]; then rm -rf "\${3:?}/.codegraph"; fi
 EOF2
 chmod +x "$TMP/bin/codegraph"
 : > "$TMP/cg.calls"
@@ -40,7 +37,7 @@ out="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null)" || fail "$name: th-wt l
 [ "$(jq -r '.worktrees[] | select(.branch == "feature/cg") | .dirty' <<<"$out")" = true ] || fail "$name: con real.txt dirty != true: [$out]"
 pass "$name"
 
-name="close --yes de un worktree indexado y limpio llama a codegraph uninit -f, lo elimina sin --force y borra la rama; el dry-run no muestra .codegraph entre los ignorados"
+name="close --yes de un worktree indexado y limpio no llama a codegraph, lo elimina sin --force y borra la rama; el dry-run no muestra .codegraph entre los ignorados"
 (cd "$TMP/repo" && "$WT" new feature/idx) || fail "$name: th-wt new falló"
 dest="$HOME/.worktrees/acme/demo/feature-idx"
 index_wt "$dest"
@@ -51,12 +48,10 @@ out="$(cd "$TMP/repo" && "$WT" close feature/idx --json 2>/dev/null)" || fail "$
 [ "$(jq -c .ignored <<<"$out")" = '[]' ] || fail "$name: ignored=[$(jq -c .ignored <<<"$out")]"
 [ -d "$dest/.codegraph" ] || fail "$name: el dry-run borró .codegraph"
 [ ! -s "$TMP/cg.calls" ] || fail "$name: el dry-run llamó a codegraph: [$(cat "$TMP/cg.calls")]"
-: > "$TMP/cg.env"
 rc=0
 out="$(cd "$TMP/repo" && PATH="$TMP/bin:$PATH" "$WT" close feature/idx --yes 2>&1)" || rc=$?
 [ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
-[ "$(cat "$TMP/cg.calls")" = "uninit -f $dest" ] || fail "$name: llamadas=[$(cat "$TMP/cg.calls")]"
-[ "$(cat "$TMP/cg.env")" = "0 1" ] || fail "$name: telemetría y comprobación de updates sin desactivar: env=[$(cat "$TMP/cg.env")]"
+[ ! -s "$TMP/cg.calls" ] || fail "$name: se llamó a codegraph: [$(cat "$TMP/cg.calls")]"
 [ ! -e "$dest" ] || fail "$name: sigue el directorio"
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/idx && fail "$name: sigue la rama"
 pass "$name"
@@ -77,21 +72,7 @@ out="$(cd "$TMP/repo" && PATH="$TMP/minbin" "$WT" close feature/nocg --yes 2>&1)
 [ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
 [ ! -e "$dest" ] || fail "$name: sigue el directorio"
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/nocg && fail "$name: sigue la rama"
-case "$out" in *warning*) fail "$name: hay aviso sin que uninit fallara: [$out]" ;; esac
-pass "$name"
-
-name="close --yes con codegraph uninit fallando avisa con el mensaje exacto y elimina el worktree igualmente"
-(cd "$TMP/repo" && "$WT" new feature/cgfail) || fail "$name: th-wt new falló"
-dest="$HOME/.worktrees/acme/demo/feature-cgfail"
-index_wt "$dest"
-: > "$TMP/cg.calls"
-rc=0
-out="$(cd "$TMP/repo" && PATH="$TMP/bin:$PATH" FAKE_CG_FAIL=1 "$WT" close feature/cgfail --yes 2>&1)" || rc=$?
-[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
-[ "$(cat "$TMP/cg.calls")" = "uninit -f $dest" ] || fail "$name: llamadas=[$(cat "$TMP/cg.calls")]"
-printf '%s\n' "$out" | grep -qxF "th-wt: warning: codegraph uninit failed in $dest; removing .codegraph/" || fail "$name: falta el aviso exacto: [$out]"
-[ ! -e "$dest" ] || fail "$name: sigue el directorio"
-git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/cgfail && fail "$name: sigue la rama"
+case "$out" in *warning*) fail "$name: hay avisos: [$out]" ;; esac
 pass "$name"
 
 # A partir de aquí main versiona .codegraph/.gitignore (el propio de codegraph: invita a commitearlo).

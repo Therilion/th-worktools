@@ -8,13 +8,13 @@ set -euo pipefail
 unset TH_CODEGRAPH
 
 # codegraph falso: anota sus argumentos en $TMP/cg.calls y, en `init`, crea lo mismo que la versión 1.6.2 real.
-# Anota en $TMP/cg.env CODEGRAPH_TELEMETRY y CODEGRAPH_NO_UPDATE_CHECK.
+# Anota en $TMP/cg.env CODEGRAPH_TELEMETRY, CODEGRAPH_NO_UPDATE_CHECK, CODEGRAPH_NO_WATCH y CODEGRAPH_DIR ("unset" si no están definidas).
 # FAKE_CG_OUT=1 imprime basura en stdout, FAKE_CG_STDIN=1 anota su stdin en $TMP/cg.stdin, FAKE_CG_FAIL=1 sale con 1.
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/codegraph" <<EOF2
 #!/usr/bin/env bash
 echo "\$*" >> "$TMP/cg.calls"
-echo "\${CODEGRAPH_TELEMETRY:-unset} \${CODEGRAPH_NO_UPDATE_CHECK:-unset}" >> "$TMP/cg.env"
+echo "\${CODEGRAPH_TELEMETRY:-unset} \${CODEGRAPH_NO_UPDATE_CHECK:-unset} [\${CODEGRAPH_NO_WATCH-unset}] [\${CODEGRAPH_DIR-unset}]" >> "$TMP/cg.env"
 [ -z "\${FAKE_CG_OUT:-}" ] || echo "junk de codegraph en stdout"
 [ -z "\${FAKE_CG_STDIN:-}" ] || echo "stdin=[\$(cat)]" >> "$TMP/cg.stdin"
 [ -z "\${FAKE_CG_FAIL:-}" ] || exit 1
@@ -45,12 +45,12 @@ name="new con codegraph en PATH y TH_CODEGRAPH sin definir ejecuta codegraph ini
 : > "$TMP/cg.calls"
 : > "$TMP/cg.env"
 rm -f "$TMP/cg.stdin"
-out="$(cd "$TMP/repo" && echo "texto del llamador" | FAKE_CG_OUT=1 FAKE_CG_STDIN=1 "$WT" new feature/cg --json 2>"$TMP/cg.err")" || fail "$name: th-wt new falló"
+out="$(cd "$TMP/repo" && echo "texto del llamador" | CODEGRAPH_NO_WATCH=1 CODEGRAPH_DIR=.cg FAKE_CG_OUT=1 FAKE_CG_STDIN=1 "$WT" new feature/cg --json 2>"$TMP/cg.err")" || fail "$name: th-wt new falló"
 dest="$HOME/.worktrees/acme/demo/feature-cg"
 [ "$(cat "$TMP/cg.calls")" = "init -y $dest" ] || fail "$name: llamadas=[$(cat "$TMP/cg.calls")]"
 [ "$(cat "$TMP/cg.stdin")" = "stdin=[]" ] || fail "$name: codegraph leyó [$(cat "$TMP/cg.stdin")]"
 { [ "$(jq -s length <<<"$out")" = 1 ] && [ "$(jq -r .codegraph <<<"$out")" = true ]; } || fail "$name: stdout=[$out]"
-[ "$(cat "$TMP/cg.env")" = "0 1" ] || fail "$name: telemetría y comprobación de updates sin desactivar: env=[$(cat "$TMP/cg.env")]"
+[ "$(cat "$TMP/cg.env")" = "0 1 [] []" ] || fail "$name: telemetría y updates sin desactivar, o CODEGRAPH_NO_WATCH / CODEGRAPH_DIR del usuario sin vaciar (hooks en el .git compartido, carpeta distinta): env=[$(cat "$TMP/cg.env")]"
 grep -q "junk de codegraph en stdout" "$TMP/cg.err" || fail "$name: la salida de codegraph no llegó a stderr: [$(cat "$TMP/cg.err")]"
 pass "$name"
 
@@ -159,6 +159,28 @@ dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-44/code"
 [ "$(cat "$TMP/cg.calls")" = "init -y $dest" ] || fail "$name: llamadas=[$(cat "$TMP/cg.calls")]"
 [ "$(jq -r .codegraph <<<"$out")" = true ] || fail "$name: salida=[$out]"
 ! grep -q "already exists" "$TMP/gionly.err" || fail "$name: aviso inesperado: [$(cat "$TMP/gionly.err")]"
+pass "$name"
+
+name="pr con .codegraph/.gitignore versionado como symlink no ejecuta codegraph init, avisa con el mensaje exacto, devuelve codegraph: false y no crea el destino del enlace"
+git -C "$TMP/repo" checkout -q -b gi-link main
+mkdir -p "$TMP/repo/.codegraph"
+ln -s ../../nonexistent-target "$TMP/repo/.codegraph/.gitignore"
+git -C "$TMP/repo" add -f .codegraph
+git -C "$TMP/repo" commit -q -m "gi-link"
+git -C "$TMP/repo" push -q origin gi-link
+git -C "$TMP/repo" checkout -q main
+rm -rf "$TMP/repo/.codegraph"
+gh_pr_from 45 gi-link
+: > "$TMP/cg.calls"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" pr 45 --json 2>"$TMP/gilink.err")" || rc=$?
+dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-45/code"
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$(cat "$TMP/gilink.err")]"
+[ -L "$dest/.codegraph/.gitignore" ] || fail "$name: .gitignore no es un symlink en el worktree"
+[ ! -s "$TMP/cg.calls" ] || fail "$name: se llamó a codegraph: [$(cat "$TMP/cg.calls")]"
+[ "$(jq -r .codegraph <<<"$out")" = false ] || fail "$name: salida=[$out]"
+grep -qxF "th-wt: warning: .codegraph already exists in $dest; not indexed" "$TMP/gilink.err" || fail "$name: aviso incorrecto: [$(cat "$TMP/gilink.err")]"
+[ ! -e "$dest/nonexistent-target" ] && [ ! -L "$dest/nonexistent-target" ] || fail "$name: se creó el destino del enlace"
 pass "$name"
 
 name="new con .codegraph enlazado desde el .conf del repo (symlink) no ejecuta codegraph init, avisa con el mensaje exacto y devuelve codegraph: false"
