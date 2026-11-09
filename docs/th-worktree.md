@@ -2,7 +2,7 @@
 
 `th-wt` (`skills/th-worktree/scripts/th-wt`) es el script del skill `th-worktree`. Crea, abre (también un PR de GitHub), lista y cierra git worktrees del repositorio actual sin modificar el checkout principal.
 
-> **Estado en v0.1:** están implementados `new`, `checkout`, `pr`, `list` y `close`. `new` y `checkout` también enlazan los archivos ignorados del `.conf` del repo (#7) e instalan las dependencias según el lockfile (#6). La raíz de worktrees y la instalación de dependencias se configuran con un archivo o variables de entorno (#8, ver «Configuración»). Quedan pendientes la integración con `codegraph` (#9), el enlace de `th-wt` en `PATH` (#11) y `install.sh` / `verify.sh` (#12, #13). Hoy el script se invoca con su ruta completa: `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt"`.
+> **Estado en v0.1:** están implementados `new`, `checkout`, `pr`, `list` y `close`. `new` y `checkout` también enlazan los archivos ignorados del `.conf` del repo (#7) e instalan las dependencias según el lockfile (#6). La raíz de worktrees y la instalación de dependencias se configuran con un archivo o variables de entorno (#8, ver «Configuración»). Si `codegraph` está instalado, `new`, `checkout` y `pr` indexan el worktree y `close --yes` borra el índice (#9, ver «Configuración» y «Integración con codegraph»). Quedan pendientes el enlace de `th-wt` en `PATH` (#11) y `install.sh` / `verify.sh` (#12, #13). Hoy el script se invoca con su ruta completa: `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt"`.
 
 ---
 
@@ -57,8 +57,7 @@ Los siguientes casos están documentados en la sección «Ideas» del `README.md
 |---|---|---|
 | `TH_WORKTREES_ROOT` | `~/.worktrees` | Raíz de los worktrees. Ruta absoluta o con `~/` al inicio (se expande a `$HOME`); sin segmentos `.`, `..` ni vacíos; una barra final se ignora; no se expanden `$VAR`. Se resuelven los symlinks de la parte que existe |
 | `TH_INSTALL_DEPS` | `1` | `0` o `1`. Con `0`, `new` y `checkout` no instalan dependencias (`deps: "skipped"`); `pr` no cambia: nunca instala |
-
-`TH_CODEGRAPH` llega con #9: hoy es una clave desconocida.
+| `TH_CODEGRAPH` | `auto` | `auto` (indexar con `codegraph` si está instalado) u `off`. Afecta a la creación (`new`, `checkout` y `pr`), no a `close` |
 
 La configuración se carga al empezar cualquier subcomando, después de parsear sus argumentos (`--help` y los errores de uso, código `2`, no dependen de ella). Si el archivo o el entorno son inválidos, no se crea ni se borra nada y sale con código `4`:
 
@@ -67,7 +66,7 @@ th-wt: <ruta del config>:<línea>: <motivo>
 th-wt: <VAR> (environment): <motivo>
 ```
 
-Motivos: `unknown key: <CLAVE>` (una clave que no está en mayúsculas sale como `invalid key (not shown)`), `expected KEY=value`, `TH_WORKTREES_ROOT must be an absolute path or start with ~/, without '.', '..' or empty segments: <valor>` `TH_INSTALL_DEPS must be 0 or 1: <valor>`, `TH_WORKTREES_ROOT must not contain control characters`, `cannot resolve the worktrees root: <ruta>` (p. ej. un symlink roto o un ancestro sin permiso) y `worktrees root <raíz>/<owner>/<repo> overlaps the main checkout <ruta>` (la raíz del repo y el checkout principal no pueden contenerse uno a otro). Todos salen con `4` sin crear ni borrar nada. No hay subcomando para ver la configuración efectiva.
+Motivos: `unknown key: <CLAVE>` (una clave que no está en mayúsculas sale como `invalid key (not shown)`), `expected KEY=value`, `TH_WORKTREES_ROOT must be an absolute path or start with ~/, without '.', '..' or empty segments: <valor>` `TH_INSTALL_DEPS must be 0 or 1: <valor>`, `TH_CODEGRAPH must be auto or off: <valor>`, `TH_WORKTREES_ROOT must not contain control characters`, `cannot resolve the worktrees root: <ruta>` (p. ej. un symlink roto o un ancestro sin permiso) y `worktrees root <raíz>/<owner>/<repo> overlaps the main checkout <ruta>` (la raíz del repo y el checkout principal no pueden contenerse uno a otro). Todos salen con `4` sin crear ni borrar nada. No hay subcomando para ver la configuración efectiva.
 
 ---
 
@@ -94,14 +93,14 @@ th-wt new <branch> [--base <branch>] [--json]
 
 Crea un worktree en `~/.worktrees/<owner>/<repo>/<rama-normalizada>` con una rama nueva `<branch>` creada a partir de `origin/<base>` (por defecto, la rama por defecto de `origin`). `<branch>` debe ir como primer argumento, antes de las opciones.
 
-La rama nueva se crea con `--no-track` para que no siga a `origin/<base>` como upstream. Sin `--json`, `new` no imprime nada en caso de éxito (salvo lo que escriba el gestor de paquetes, ver «Instalación de dependencias»).
+La rama nueva se crea con `--no-track` para que no siga a `origin/<base>` como upstream. Sin `--json`, `new` no imprime nada en caso de éxito (salvo lo que escriban el gestor de paquetes y `codegraph`, ver «Instalación de dependencias» e «Integración con codegraph»).
 
 **Flags:**
 
 | Flag | Efecto |
 |---|---|
 | `--base <branch>` | Crea la rama desde `origin/<branch>` en lugar de la rama por defecto de `origin`. Debe ser un nombre de rama válido en `origin` (sin el prefijo `origin/`, tags, SHAs ni expresiones como `main~1`). |
-| `--json` | Escribe en stdout un objeto JSON con `path`, `branch`, `repo`, `linked` y `deps`. |
+| `--json` | Escribe en stdout un objeto JSON con `path`, `branch`, `repo`, `linked`, `deps` y `codegraph`. |
 
 **Ejemplos:**
 
@@ -136,14 +135,14 @@ Crea un worktree en `~/.worktrees/<owner>/<repo>/<rama-normalizada>` para una ra
 - **Si `<branch>` ya existe como rama local (`refs/heads/<branch>`):** abre el worktree directamente en ese commit local, sin consultar `origin` y sin mover la rama (aunque se pase `--remote` y `origin/<branch>` haya avanzado).
 - **Si `<branch>` no existe en local:** busca `refs/remotes/origin/<branch>` (con `--remote`, antes verifica que exista en `origin` y hace fetch de esa rama). Crea la rama local en ese commit y configura su upstream a `origin/<branch>` (`branch.<branch>.remote = origin` y `branch.<branch>.merge = refs/heads/<branch>`).
 
-Después aplica el `.conf` del repo (ver «Enlaces por repo») e instala las dependencias si hay lockfile (ver «Instalación de dependencias»), salvo en una rama `review/pr-*` (copia local de un PR, p. ej. conservada por `close review/pr-<n> --force`): se trata como `pr` y no enlaza ni instala (`linked: []`, `deps: "skipped"`, con el aviso del comando a mano). Sin `--json`, `checkout` solo escribe en stderr lo que escriba el gestor de paquetes y los avisos; en stdout no imprime nada.
+Después aplica el `.conf` del repo (ver «Enlaces por repo») e instala las dependencias si hay lockfile (ver «Instalación de dependencias»), salvo en una rama `review/pr-*` (copia local de un PR, p. ej. conservada por `close review/pr-<n> --force`): se trata como `pr` y no enlaza ni instala (`linked: []`, `deps: "skipped"`, con el aviso del comando a mano); sí indexa con `codegraph`. Sin `--json`, `checkout` solo escribe en stderr lo que escriban el gestor de paquetes y `codegraph`, y los avisos; en stdout no imprime nada.
 
 **Flags:**
 
 | Flag | Efecto |
 |---|---|
 | `--remote` | Si la rama no existe en local, la consulta y descarga de `origin` antes de crear el worktree. Si la rama ya existe en local, no tiene efecto. |
-| `--json` | Escribe en stdout un objeto JSON con `path`, `branch`, `repo`, `linked` y `deps`. |
+| `--json` | Escribe en stdout un objeto JSON con `path`, `branch`, `repo`, `linked`, `deps` y `codegraph`. |
 
 **Ejemplos:**
 
@@ -180,6 +179,8 @@ Si `pr-reviews/pr-<n>/` ya existe con otros archivos (por ejemplo `report.md`) p
 
 **Dependencias:** `pr` **no instala dependencias** (`deps: "skipped"`): el PR puede ser código de un tercero y la instalación lo ejecutaría (el `.npmrc` y el `packageManager` del PR controlan el gestor, y además hay scripts de ciclo de vida y `.pnpmfile.cjs`; `--ignore-scripts` no basta). Si hay un lockfile soportado, avisa por stderr con el comando a ejecutar a mano en el worktree si confías en el PR (`pnpm install --frozen-lockfile` / `npm ci`).
 
+**codegraph:** `pr` sí indexa el worktree (ver «Integración con codegraph»): es análisis estático y no ejecuta el código del PR.
+
 **Salida:** con `--json`, el objeto de `new` más `pr`; sin `--json`, ruta, PR (número y título), rama del PR y base por stderr, con los caracteres de control del título y de las ramas (que escribe el autor del PR) sustituidos por espacios. Para actualizar un worktree de PR cuando recibe commits nuevos, ciérralo y vuelve a abrirlo.
 
 **Errores relevantes:**
@@ -199,7 +200,7 @@ th-wt list [--remote] [--json]
 
 Lista los worktrees del repositorio actual ubicados bajo `~/.worktrees/<owner>/<repo>/` (omite el checkout principal y cualquier worktree fuera de esa raíz).
 
-Para cada worktree informa la rama (o `(detached)`), si el directorio falta (`missing`), si tiene cambios locales (`dirty`, comprobado con `git --no-optional-locks status --porcelain --untracked-files=normal` para no bloquear ni modificar el índice) y si está contenida en la rama por defecto de `origin` (`merged`). Sin `--json`, toda la salida de texto va a **stderr**; si no hay worktrees bajo la raíz, imprime `no worktrees under ~/.worktrees/<owner>/<repo>/`.
+Para cada worktree informa la rama (o `(detached)`), si el directorio falta (`missing`), si tiene cambios locales (`dirty`, comprobado con `git --no-optional-locks status --porcelain --untracked-files=normal` para no bloquear ni modificar el índice; `.codegraph/` no cuenta, así que un worktree indexado sale limpio) y si está contenida en la rama por defecto de `origin` (`merged`). Sin `--json`, toda la salida de texto va a **stderr**; si no hay worktrees bajo la raíz, imprime `no worktrees under ~/.worktrees/<owner>/<repo>/`.
 
 **Flags:**
 
@@ -242,7 +243,8 @@ Muestra el plan de cierre (dry-run por defecto) o cierra (con `--yes`) el worktr
 1. **Bloqueo del worktree (`delete.worktree = false`):** sin `--force`, el cierre se bloquea si el worktree tiene cambios sin commitear (`dirty: true`), si `git status` falla existiendo el directorio (`dirty: null` con `missing: false`), o si la rama tiene commits que no están en ninguna ref `refs/remotes/origin/*` (`unpushed > 0`) y no están cubiertos por un PR mergeado.
 2. **Borrado de la rama (`delete.branch = true`):** cuando el worktree se puede borrar, la rama también se borra si está contenida en la rama por defecto (`merged: true`) o cubierta por un PR mergeado (`--remote` con `pr.state == "MERGED"` y `pr.ahead == false`), siempre que no sea la rama por defecto de `origin` y no esté abierta en otro worktree. En cualquier otro caso, se elimina el directorio del worktree pero se conserva la rama local e informa el motivo (`kept`).
 3. **Borrado seguro del ref:** `close --yes` lee el OID de `refs/heads/<branch>` al empezar y borra la rama con `git update-ref -d refs/heads/<branch> <oid>` (limpiando también la sección `branch.<branch>` en git config). Si la rama recibió un commit nuevo mientras corría `close`, `update-ref` falla, la rama se conserva con el commit intacto y el comando termina con `0` avisando `kept: it moved while closing`.
-4. **Archivos ignorados (`ignored`):** el plan lista los nombres de archivos y directorios ignorados por git en el worktree (con directorios colapsados como `build/`, sin mostrar nunca su contenido; no lista los symlinks creados por `link`, ni un directorio que solo contiene symlinks, porque borrarlos no pierde datos). Se eliminan con el directorio del worktree y nunca bloquean el cierre.
+4. **Archivos ignorados (`ignored`):** el plan lista los nombres de archivos y directorios ignorados por git en el worktree (con directorios colapsados como `build/`, sin mostrar nunca su contenido; no lista los symlinks creados por `link`, ni un directorio que solo contiene symlinks, porque borrarlos no pierde datos; tampoco lista `.codegraph/`, que `close --yes` borra a propósito, ni lo cuenta como `dirty`). Se eliminan con el directorio del worktree y nunca bloquean el cierre.
+5. **`.codegraph/` (con `--yes`):** si es un directorio real (no un symlink), antes de `git worktree remove` se ejecuta `codegraph uninit -f <ruta>`. Si `codegraph` no está instalado o `uninit` falla, `th-wt` borra `.codegraph/` él mismo (en el fallo avisa `th-wt: warning: codegraph uninit failed in <ruta>; removing .codegraph/`). `TH_CODEGRAPH=off` no afecta a `close`. El dry-run no toca nada.
 
 **Worktrees de PR (`pr-reviews/pr-<n>/code`):** `close review/pr-<n>` aplica reglas propias. Un worktree es de PR si su rama es `review/pr-<n>` y está en `pr-reviews/pr-<n>/code` con la misma `<n>`; cualquier otra combinación (una rama `review/…` creada con `new`, o otra rama activada dentro de `pr-reviews/pr-<n>/code`) se cierra con las reglas normales.
 
@@ -349,6 +351,7 @@ Devuelven el mismo esquema:
 | `repo` | `string` | `<owner>/<repo>` derivado de `origin`. |
 | `linked` | `string[]` | Rutas enlazadas desde el `.conf` del repo, en el orden del archivo; `[]` si no hay `.conf` (ver «Enlaces por repo»). |
 | `deps` | `string` | Resultado de la instalación de dependencias: `"pnpm"`, `"npm"` (instaladas), `"skipped"` (sin lockfile soportado, el gestor no está en `PATH`, o es `pr`) o `"failed"` (el gestor salió con error). |
+| `codegraph` | `boolean` | `true` si `codegraph init` indexó el worktree; `false` si `codegraph` no está instalado, `TH_CODEGRAPH=off` o el `init` falló (ver «Integración con codegraph»). |
 
 ```json
 {
@@ -356,7 +359,8 @@ Devuelven el mismo esquema:
   "branch": "feature/login",
   "repo": "acme/demo",
   "linked": [".wiki", ".env"],
-  "deps": "pnpm"
+  "deps": "pnpm",
+  "codegraph": true
 }
 ```
 
@@ -418,6 +422,17 @@ En `checkout`, una rama `review/pr-*` sigue la columna «En `pr`».
 - Sin `--json`, el gestor escribe igualmente en stderr.
 - La instalación puede tardar minutos; quien invoque `new` o `checkout` debe usar un timeout largo. Si se corta, el worktree ya existe: instala a mano dentro de él en vez de repetir el comando.
 
+#### Integración con codegraph
+
+Después de las dependencias, con `TH_CODEGRAPH=auto` y `codegraph` en `PATH`, `new`, `checkout` y `pr` (y `checkout` de `review/pr-*`) ejecutan `codegraph init -y <ruta del worktree>`: `-y` lo hace no interactivo (verificado con codegraph 1.6.2). La salida va a **stderr** y stdin es `/dev/null`. Indexar un PR es análisis estático: no ejecuta su código.
+
+- Éxito: `codegraph: true`.
+- `codegraph` no instalado o `TH_CODEGRAPH=off`: `codegraph: false`, sin mensaje.
+- `init` falla: se conserva el worktree, sale con `0`, `codegraph: false` y stderr avisa `th-wt: warning: codegraph init failed in <ruta>; run 'codegraph init -y' there manually`.
+- En un repo grande `init` puede tardar minutos: quien invoque `new`, `checkout` o `pr` debe usar un timeout largo. Si se corta, el worktree ya existe: ejecuta `codegraph init -y` a mano dentro de él.
+- `list` y `close` ignoran `.codegraph/` al calcular `dirty` y `ignored`, así que un worktree indexado sale limpio. `th-wt` no toca el `.gitignore` propio de codegraph (`.codegraph/.gitignore`): un `git status` manual muestra `?? .codegraph/` salvo que agregues `.codegraph/` a tu gitignore global (`git config --global core.excludesFile`).
+- `close --yes` borra el índice (ver `close`, punto 5). No se reindexan ni se indexan worktrees creados antes de #9.
+
 ### `pr --json`
 
 El objeto de `new --json` más `pr`:
@@ -429,6 +444,7 @@ El objeto de `new --json` más `pr`:
 | `repo` | `string` | `<owner>/<repo>` derivado de `origin`. |
 | `linked` | `string[]` | Siempre `[]`: `pr` no aplica el `.conf`. |
 | `deps` | `string` | Igual que en `new --json` (en `pr`, siempre `"skipped"`). |
+| `codegraph` | `boolean` | Igual que en `new --json` (`pr` sí indexa). |
 | `pr` | `object` | `{number, title, head, base}`: número, título, rama del PR (`head`) y su base. |
 
 ### `list --json` y `list --remote --json`
