@@ -60,6 +60,7 @@ checkout_worktree() {
     git config "branch.$branch.merge" "refs/heads/$branch"
   fi
   if [ "$pr_copy" = 1 ]; then skip_pr_deps "$dest"; else install_deps "$dest"; fi
+  index_codegraph "$dest"
 
   if [ "$json" = 1 ]; then
     print_created_json "$dest" "$branch"

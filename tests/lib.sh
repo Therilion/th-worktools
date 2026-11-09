@@ -14,7 +14,9 @@ trap 'rm -rf "$TMP"' EXIT
 # HOME aislado: ~/.worktrees y el gitconfig global caen dentro de $TMP.
 export HOME="$TMP/home"
 # la config real del usuario no debe filtrarse a los tests
-unset XDG_CONFIG_HOME TH_WORKTREES_ROOT TH_INSTALL_DEPS
+unset XDG_CONFIG_HOME TH_WORKTREES_ROOT TH_INSTALL_DEPS TH_CODEGRAPH
+# un codegraph real en el PATH del usuario no debe correr en los tests: salvo codegraph.sh, todos lo desactivan
+export TH_CODEGRAPH=off
 export GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com
 export GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com

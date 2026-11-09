@@ -32,9 +32,9 @@ after="$(git -C "$TMP/repo" rev-parse HEAD)|$(git -C "$TMP/repo" branch --show-c
 rm "$TMP/repo/wip.txt"
 pass "$name"
 
-name="new --json devuelve solo path, branch, repo, linked y deps"
+name="new --json devuelve solo path, branch, repo, linked, deps y codegraph"
 out="$(cd "$TMP/repo" && "$WT" new feature/json --json)" || fail "$name: th-wt new falló"
-expected="{\"branch\":\"feature/json\",\"deps\":\"skipped\",\"linked\":[],\"path\":\"$HOME/.worktrees/acme/demo/feature-json\",\"repo\":\"acme/demo\"}"
+expected="{\"branch\":\"feature/json\",\"codegraph\":false,\"deps\":\"skipped\",\"linked\":[],\"path\":\"$HOME/.worktrees/acme/demo/feature-json\",\"repo\":\"acme/demo\"}"
 [ "$(printf '%s' "$out" | jq -S -c .)" = "$expected" ] || fail "$name: salida=[$out]"
 pass "$name"
 

@@ -43,6 +43,7 @@ new_worktree() {
   add_branch_worktree "$branch" "$dest" "refs/remotes/origin/$base"
   apply_repo_conf "$dest" "$branch"
   install_deps "$dest"
+  index_codegraph "$dest"
 
   if [ "$json" = 1 ]; then
     print_created_json "$dest" "$branch"
