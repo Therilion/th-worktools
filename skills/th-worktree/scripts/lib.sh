@@ -3,10 +3,11 @@
 # Initialized here so values inherited from the environment cannot change behavior (undo_creation, print_created_json).
 created_start=""
 linked=()
-# Same for the settings load_config sets (a wt_root, install_deps_on or codegraph_mode in the environment is ignored).
+# Same for the settings load_config sets (a wt_root, install_deps_on or codegraph_mode or pr_limit in the environment is ignored).
 wt_root=""
 install_deps_on=1
 codegraph_mode=auto
+pr_limit=500
 
 die() { echo "th-wt: $2" >&2; exit "$1"; }
 bad_usage() { [ $# -eq 0 ] || echo "th-wt: $1" >&2; usage >&2; exit 2; }
@@ -47,6 +48,14 @@ check_config_value() {
         auto|off) ;;
         *) reason="TH_CODEGRAPH must be auto or off: $2"; return 1 ;;
       esac ;;
+    TH_PR_LIMIT)
+      case "$2" in
+        ""|*[!0-9]*|0*) reason="TH_PR_LIMIT must be an integer >= 100: $2"; return 1 ;;
+      esac
+      if [ "$2" -lt 100 ]; then
+        reason="TH_PR_LIMIT must be an integer >= 100: $2"
+        return 1
+      fi ;;
   esac
 }
 
@@ -54,7 +63,7 @@ check_config_value() {
 # Validates everything first (exit 4, naming the file and line or the variable); the file is parsed line by line, never sourced.
 load_config() {
   local conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config" line key n=0 reason cfg_value
-  local file_root="" file_deps="" file_cg=""
+  local file_root="" file_deps="" file_cg="" file_pr_limit=""
   if [ -f "$conf" ]; then
     # the last line may lack a newline
     while IFS= read -r line || [ -n "$line" ]; do
@@ -65,7 +74,7 @@ load_config() {
       case "$line" in *=*) ;; *) die 4 "$conf:$n: expected KEY=value" ;; esac
       key="${line%%=*}"
       case "$key" in
-        TH_WORKTREES_ROOT|TH_INSTALL_DEPS|TH_CODEGRAPH) ;;
+        TH_WORKTREES_ROOT|TH_INSTALL_DEPS|TH_CODEGRAPH|TH_PR_LIMIT) ;;
         ""|[[:digit:]]*|*[![:upper:][:digit:]_]*) die 4 "$conf:$n: invalid key (not shown)" ;;
         *) die 4 "$conf:$n: unknown key: $key" ;;
       esac
@@ -73,13 +82,15 @@ load_config() {
       case "$key" in
         TH_WORKTREES_ROOT) file_root="$cfg_value" ;;
         TH_INSTALL_DEPS) file_deps="$cfg_value" ;;
-        *) file_cg="$cfg_value" ;;
+        TH_CODEGRAPH) file_cg="$cfg_value" ;;
+        TH_PR_LIMIT) file_pr_limit="$cfg_value" ;;
       esac
     done < "$conf"
   fi
   wt_root="${file_root:-${HOME%/}/.worktrees}"
   install_deps_on="${file_deps:-1}"
   codegraph_mode="${file_cg:-auto}"
+  pr_limit="${file_pr_limit:-500}"
   if [ -n "${TH_WORKTREES_ROOT:-}" ]; then
     check_config_value TH_WORKTREES_ROOT "$TH_WORKTREES_ROOT" || die 4 "TH_WORKTREES_ROOT (environment): $reason"
     wt_root="$cfg_value"
@@ -91,6 +102,10 @@ load_config() {
   if [ -n "${TH_CODEGRAPH:-}" ]; then
     check_config_value TH_CODEGRAPH "$TH_CODEGRAPH" || die 4 "TH_CODEGRAPH (environment): $reason"
     codegraph_mode="$cfg_value"
+  fi
+  if [ -n "${TH_PR_LIMIT:-}" ]; then
+    check_config_value TH_PR_LIMIT "$TH_PR_LIMIT" || die 4 "TH_PR_LIMIT (environment): $reason"
+    pr_limit="$cfg_value"
   fi
   # resolved here, in the main shell, so a failure exits the whole command before anything is created
   cfg_value="$wt_root"
@@ -341,7 +356,7 @@ fetch_origin_branch() {
 
 # --remote prelude shared by list and close: checks gh, fetches origin's default branch and reads PRs. Sets $default (origin/<branch>) and $prs in the caller; needs $repo. $1 = PR limit, $2 = only PRs from this head branch (optional).
 load_remote() {
-  local limit="$1" head="${2:-}" base filter=()
+  local limit="${1:-$pr_limit}" head="${2:-}" base filter=()
   [ -z "$head" ] || filter=(--head "$head")
   command -v gh >/dev/null || die 3 "missing dependency: gh"
   base="$(origin_default_branch)" || die 4 "cannot read origin (unreachable or no access)"

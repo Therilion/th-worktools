@@ -5,7 +5,7 @@ ROOT="$(cd -P "$(dirname "$0")/.." && pwd)"
 status=0
 err() { echo "lint: $1" >&2; status=1; }
 
-for dir in "$ROOT"/skills/*/; do
+for dir in "$ROOT"/skills/th-*/; do
   folder="$(basename "$dir")"
   file="$dir/SKILL.md"
   [ -f "$file" ] || { err "$folder: falta SKILL.md"; continue; }
