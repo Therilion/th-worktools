@@ -28,6 +28,6 @@ list_worktrees() {\
     echo "no worktrees under $root" >&2
   else
     printf '%s\n' "$rows" | jq -r --arg default "$default" \
-      '"\(.branch // "(detached)")  \(if .missing then "missing" elif .dirty == null then "dirty unknown" elif .dirty then "dirty" else "clean" end)  \(if .merged == null then "containment unknown" elif .merged then "contained in \($default)" else "not contained in \($default)" end)  \(if .pr then "PR #\(.pr.number) \(.pr.state) (base \(.pr.base))\(if .pr.ahead == null then ", PR head not fetched" elif .pr.ahead then ", local commits after it" else "" end)  " else "" end)\(.path)"' >&2
+      '"\(.branch // "(detached)")  \(if .missing then "missing" elif .dirty == null then "dirty unknown" elif .dirty then "dirty" else "clean" end)  \(if .merged == null then "containment unknown" elif .merged then "contained in \($default)" else "not contained in \($default)" end)  \(if .pr then "PR #\(.pr.number) \(.pr.state) (base \(.pr.base))\(if .pr.ahead == null then ", PR head not fetched" elif .pr.ahead then ", local commits after it" else "" end)  " else "" end)\(.path)"'
   fi
 }

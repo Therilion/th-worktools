@@ -64,5 +64,7 @@ checkout_worktree() {
 
   if [ "$json" = 1 ]; then
     print_created_json "$dest" "$branch"
+  else
+    printf '  path:   %s\n' "$dest" >&2
   fi
 }
