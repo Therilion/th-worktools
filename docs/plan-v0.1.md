@@ -302,8 +302,7 @@ Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git
 
 **Un skill por dominio, con las acciones como argumentos.**
 
-- **Claude Code:** `/th-worktree new feature/login`, `/th-worktree close feature/login`. Los argumentos llegan al cuerpo del skill vía `$ARGUMENTS`.
-- **Antigravity:** igual, `/th-worktree cierra feature/login`. Con `disable-model-invocation` el modelo no ve el skill, así que sin la `/` no se activa. El texto tras el nombre llega como mensaje del usuario; `$ARGUMENTS` no se sustituye, y la línea del `SKILL.md` lo tiene en cuenta.
+- **Claude Code y Antigravity:** `/th-worktree new feature/login`, `/th-worktree cierra feature/login`. Con `disable-model-invocation` el modelo no ve el skill, así que sin la `/` no se activa. El texto tras el nombre llega al modelo en los dos agentes; el `SKILL.md` no usa `$ARGUMENTS`, porque Antigravity no lo sustituye.
 - El `SKILL.md` incluye una tabla que asocia cada subcomando con su invocación del script. Si las instrucciones de un subcomando crecen, se mueven a `references/<subcomando>.md`, que se lee solo cuando aplica.
 - La sintaxis `th:worktree`, con dos puntos, requiere empaquetar el kit como **plugin** de Claude Code (namespace `plugin:skill`). Queda fuera de la v0.1 y se evalúa después.
 
@@ -403,7 +402,7 @@ Script (ruta relativa a la carpeta de este SKILL.md, no al repo actual):
 | Ver worktrees | `th-wt list --json` |
 | Cerrar | `th-wt close <rama>` (un PR: `close review/pr-<n>`; ver reglas) |
 
-Argumentos recibidos: $ARGUMENTS (si muestra el nombre de la variable sin sustituir, el pedido es el mensaje del usuario; si no hay pedido, pregunta qué quiere hacer y no ejecutes nada)
+Argumentos recibidos: $ARGUMENTS
 
 ## Reglas
 
@@ -511,7 +510,7 @@ Cuando todo esté marcado: tag `v0.1`, usarlo una semana y anotar lo que moleste
 - [ ] Cómo está la entrada de `.wiki` en el `.gitignore` del repo del trabajo (con o sin barra).
 - [x] Flags no interactivos de `codegraph init` y comportamiento de `codegraph uninit`. `init -y` salta todos los prompts y toma los valores por defecto; `uninit -f` salta la confirmación (codegraph 1.6.2). Pero `uninit` también quita los hooks de sincronización de git del `.git/hooks` compartido, así que el kit no lo usa: `close` borra `.codegraph/` directamente.
 - [ ] Sintaxis de los patrones de permisos en ambos agentes.
-- [x] Cómo recibe argumentos un skill en Antigravity. Con `/th-worktree <pedido>`; el texto llega como mensaje del usuario y `$ARGUMENTS` queda sin sustituir. `disable-model-invocation: true` oculta el skill al modelo (2026-11-09).
+- [x] Cómo recibe argumentos un skill en Antigravity. Con `/th-worktree <pedido>`; el texto llega al modelo y `$ARGUMENTS` queda sin sustituir; sin `$ARGUMENTS`, Claude Code y agy pasan igual el texto (y nada si no lo hay), así que el `SKILL.md` no lo usa. `disable-model-invocation: true` oculta el skill al modelo (2026-11-09).
 - [x] Timeout de comandos largos en Antigravity. agy pasa el comando a segundo plano y espera a que termine (probado con 200 s); la línea de 600000 ms del `SKILL.md` no le afecta (2026-11-09).
 
 ---

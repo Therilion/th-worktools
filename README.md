@@ -31,13 +31,13 @@ Si `codegraph` está instalado, `new`, `checkout` y `pr` ejecutan `codegraph ini
 
 Hoy funciona desde Claude Code y Antigravity CLI (`/th-worktree new feature/login`; en los dos hay que escribir `/th-worktree`, el skill no se activa solo) y desde la terminal ejecutando el script con su ruta completa; `th-wt` en el `PATH` (#11) está pendiente.
 
-Mientras no exista `install.sh` (#12), el enlace es manual, desde la raíz del clon (el bloque se puede repetir; si alguna de esas rutas ya es un directorio real y no un symlink, bórrala antes, porque `ln` crearía el enlace dentro; la línea de `~/.local/share/th-worktools` es la ruta fija que usa el `SKILL.md`):
+Mientras no exista `install.sh` (#12), el enlace es manual. Ejecútalo desde la raíz del clon principal, no desde un worktree (al cerrarlo, el enlace quedaría colgando). Las rutas que ya existen no se tocan; la de `~/.local/share/th-worktools` es la ruta fija que usa el `SKILL.md`:
 
 ```sh
 mkdir -p ~/.local/share ~/.claude/skills ~/.gemini/config/skills
-ln -sfn "$PWD" ~/.local/share/th-worktools
-ln -sfn ~/.local/share/th-worktools/skills/th-worktree ~/.claude/skills/th-worktree
-ln -sfn ~/.local/share/th-worktools/skills/th-worktree ~/.gemini/config/skills/th-worktree
+[ -e ~/.local/share/th-worktools ] || ln -s "$PWD" ~/.local/share/th-worktools
+[ -e ~/.claude/skills/th-worktree ] || ln -s ~/.local/share/th-worktools/skills/th-worktree ~/.claude/skills/th-worktree
+[ -e ~/.gemini/config/skills/th-worktree ] || ln -s ~/.local/share/th-worktools/skills/th-worktree ~/.gemini/config/skills/th-worktree
 ```
 
 La referencia completa (subcomandos, red, códigos de salida y `--json`) está en [`docs/th-worktree.md`](docs/th-worktree.md).
