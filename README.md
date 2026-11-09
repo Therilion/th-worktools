@@ -31,7 +31,7 @@ Si `codegraph` está instalado, `new`, `checkout` y `pr` ejecutan `codegraph ini
 
 Hoy funciona desde Claude Code y Antigravity CLI (`/th-worktree new feature/login`; en los dos hay que escribir `/th-worktree`, el skill no se activa solo) y desde la terminal ejecutando el script con su ruta completa; `th-wt` en el `PATH` (#11) está pendiente.
 
-Mientras no exista `install.sh` (#12), el enlace es manual, desde la raíz del clon (el bloque se puede repetir sin riesgo; la línea de `~/.local/share/th-worktools` es la ruta fija que usa el `SKILL.md`):
+Mientras no exista `install.sh` (#12), el enlace es manual, desde la raíz del clon (el bloque se puede repetir; si alguna de esas rutas ya es un directorio real y no un symlink, bórrala antes, porque `ln` crearía el enlace dentro; la línea de `~/.local/share/th-worktools` es la ruta fija que usa el `SKILL.md`):
 
 ```sh
 mkdir -p ~/.local/share ~/.claude/skills ~/.gemini/config/skills
