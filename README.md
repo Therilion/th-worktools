@@ -2,7 +2,7 @@
 
 Kit personal de skills y scripts para agentes de código, compatible con **Claude Code** y **Antigravity CLI**. Sigue el estándar Agent Skills (`SKILL.md`) y funciona en macOS y Linux.
 
-> **Estado:** en desarrollo, hacia la v0.1. Todavía no hay nada instalable (falta `install.sh`), pero `th-worktree` ya funciona con `new`, `checkout`, `pr`, `list` y `close`.
+> **Estado:** en desarrollo, hacia la v0.1. `install.sh` ya instala el kit en Claude Code y Antigravity CLI, y `th-worktree` funciona con `new`, `checkout`, `pr`, `list` y `close`. Falta `verify.sh` y la guía de instalación en tres pasos.
 
 ## Principios
 
@@ -31,17 +31,17 @@ Si `codegraph` está instalado, `new`, `checkout` y `pr` ejecutan `codegraph ini
 
 Hoy funciona desde Claude Code y Antigravity CLI (`/th-worktree new feature/login`; en los dos hay que escribir `/th-worktree`, el skill no se activa solo) y desde la terminal: con el enlace de abajo, `th-wt <subcomando>` funciona desde un repo o un worktree (`th-wt --help` muestra el uso); la ruta completa del script sigue valiendo.
 
-Mientras no exista `install.sh` (#12), el enlace es manual. Ejecútalo desde la raíz del clon principal, no desde un worktree (al cerrarlo, el enlace quedaría colgando). Las rutas que ya existen no se tocan; la de `~/.local/share/th-worktools` es la ruta fija que usa el `SKILL.md`:
+Ejecuta `install.sh` desde la raíz del clon principal, no desde un worktree (al cerrarlo, el enlace quedaría colgando). Sin `--yes` solo muestra el plan; con `--yes` lo aplica:
 
 ```sh
-mkdir -p ~/.local/share ~/.local/bin ~/.claude/skills ~/.gemini/config/skills
-[ -e ~/.local/share/th-worktools ] || ln -s "$PWD" ~/.local/share/th-worktools
-[ -e ~/.claude/skills/th-worktree ] || ln -s ~/.local/share/th-worktools/skills/th-worktree ~/.claude/skills/th-worktree
-[ -e ~/.gemini/config/skills/th-worktree ] || ln -s ~/.local/share/th-worktools/skills/th-worktree ~/.gemini/config/skills/th-worktree
-[ -e ~/.local/bin/th-wt ] || ln -s ~/.local/share/th-worktools/skills/th-worktree/scripts/th-wt ~/.local/bin/th-wt
+./install.sh --link-here        # muestra el plan, no cambia nada
+./install.sh --link-here --yes  # lo aplica
 ```
 
-El último enlace (`th-wt` para la terminal) exige que `~/.local/bin` esté en el `PATH`.
+- Enlaza `~/.local/share/th-worktools` (la ruta fija que usa el `SKILL.md`) al clon, cada `skills/th-*/` en los agentes y `th-wt` en `~/.local/bin/`.
+- Por defecto instala en los agentes cuyo binario está en el `PATH`: `claude` (`~/.claude/skills/`) y `agy` (`~/.gemini/config/skills/`). `--agents claude` (o `claude,agy`) elige cuáles.
+- Nunca toca una ruta que no sea del kit: la deja, instala el resto y sale con `4`. Repetirlo es seguro: lo que ya está bien sale como `ok`.
+- `th-wt` desde la terminal exige que `~/.local/bin` esté en el `PATH`.
 
 La referencia completa (subcomandos, red, códigos de salida y `--json`) está en [`docs/th-worktree.md`](docs/th-worktree.md).
 
@@ -84,6 +84,8 @@ Ideas que quedan fuera de la versión en curso.
 - Evitar prompts que bloqueen al agente más allá del de la terminal de git (ya desactivado con `GIT_TERMINAL_PROMPT=0`): askpass (`GIT_ASKPASS`, `core.askPass`, `SSH_ASKPASS`) y SSH (clave de host desconocida, passphrase; `BatchMode`), sin pisar el `core.sshCommand` del usuario.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.
 - Lint de skills más estricto: `description`, `disable-model-invocation` en los skills con efectos secundarios e invocaciones de scripts sin la ruta completa.
+- `install.sh`: soportar más agentes: Pi y GitHub Copilot (hoy solo `claude` y `agy`).
+- Un instalador que descargue el proyecto y copie solo lo necesario, en vez de enlazar un clon (hoy `install.sh --link-here` deja el kit atado al clon).
 - `install.sh`: ofrecer instalar codegraph si no está instalado, con un flag explícito (p. ej. `--with-codegraph`), sin prompts y sin volverlo obligatorio: el kit sigue funcionando sin él.
 - Registro de la base de cada worktree (en `~/.worktrees/<owner>/<repo>/`) para soportar ramas apiladas sin PR y mostrar el árbol del stack en `list`.
 - `th-wt list`: con `$HOME` como repo de dotfiles, un worktree sin `.git` informa el estado de ese repo (`git status` sube por los directorios padre) en lugar de `dirty: null`.

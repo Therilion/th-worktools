@@ -58,7 +58,7 @@ El workflow se ejecuta en cada `push` a `main` y en cada `pull_request`:
 
 ### Estructura y patrón de cada archivo
 
-- **Un archivo por tema en `tests/smoke/`:** cada archivo (`cli.sh`, `no-prompt.sh`, `new.sh`, `new-errors.sh`, `deps.sh`, `checkout.sh`, `checkout-errors.sh`, `list.sh`, `list-remote.sh`, `close.sh`, `close-remote.sh`, `pr.sh`, `pr-errors.sh`, `close-pr.sh`) es ejecutado por `tests/smoke.sh` en un subproceso propio con su propio entorno temporal.
+- **Un archivo por tema en `tests/smoke/`:** cada archivo (`cli.sh`, `no-prompt.sh`, `new.sh`, `new-errors.sh`, `deps.sh`, `checkout.sh`, `checkout-errors.sh`, `list.sh`, `list-remote.sh`, `close.sh`, `close-remote.sh`, `pr.sh`, `pr-errors.sh`, `close-pr.sh`, `install.sh`, `install-errors.sh`) es ejecutado por `tests/smoke.sh` en un subproceso propio con su propio entorno temporal.
 - **Carga de la fixture:** todo archivo en `tests/smoke/` empieza con `set -euo pipefail` y carga [`tests/lib.sh`](../tests/lib.sh):
   ```bash
   # shellcheck source=../lib.sh source-path=SCRIPTDIR
@@ -120,6 +120,7 @@ Cuando un test necesita simular que `main` avanzó en `origin` sin que el clon l
   - Inyección de un commit justo antes de `git worktree remove` para probar la protección contra carrera en `close --yes` ([`tests/smoke/close.sh`](../tests/smoke/close.sh)).
 - **`gh` falso (`list-remote.sh` y `close-remote.sh`):** se coloca un script `$TMP/bin/gh` al principio del `PATH` que guarda los argumentos recibidos en `$TMP/gh.calls` e imprime el JSON preparado en `$TMP/gh.json` (o devuelve `exit 1` con error en stderr para probar fallos de autenticación).
 - **`PATH` mínimo para dependencias faltantes (código `3`):** se crea un directorio temporal con symlinks solo a las utilidades básicas (`bash`, `git`, `jq`, `awk`, `sed`, `cat`, `env`), omitiendo el binario cuya ausencia se quiere verificar (`git` o `jq` en [`tests/smoke/new-errors.sh`](../tests/smoke/new-errors.sh); `gh` en [`tests/smoke/list-remote.sh`](../tests/smoke/list-remote.sh) y [`tests/smoke/close-remote.sh`](../tests/smoke/close-remote.sh)), y se ejecuta con `PATH="$shim"`.
+- **`HOME` temporal y agentes falsos (`install.sh` e `install-errors.sh`):** los tests de instalación usan un `HOME` temporal y binarios `claude`/`agy` falsos en un directorio temporal dentro del `PATH` (`PATH="$TMP/fakebin:/usr/bin:/bin"`); el test de directorios que no son `th-*` copia el kit a `$TMP/kit` para no escribir nada en el repositorio.
 
 ### Compatibilidad con Bash 3.2 y BSD/GNU en los tests
 
