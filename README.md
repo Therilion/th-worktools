@@ -29,16 +29,19 @@ La raíz de worktrees (`TH_WORKTREES_ROOT`, por defecto `~/.worktrees`), la inst
 
 Si `codegraph` está instalado, `new`, `checkout` y `pr` ejecutan `codegraph init -y` en el worktree (después de las dependencias; indexar es análisis estático y no ejecuta el código de un PR) y `close --yes` borra el índice (`.codegraph/`) sin ejecutar `codegraph`. Si el worktree ya trae un `.codegraph` (un symlink, o un índice que viene en un PR) no lo indexa y avisa: nunca usa un índice ajeno. Un `git status` manual muestra `?? .codegraph/` salvo que agregues `.codegraph/` a tu gitignore global (`git config --global core.excludesFile`); `th-wt list` y `close` no cuentan como cambio lo que genera codegraph, pero sí los archivos que el repo versiona bajo `.codegraph/`.
 
-Hoy funciona desde Claude Code y Antigravity CLI (`/th-worktree new feature/login`; en los dos hay que escribir `/th-worktree`, el skill no se activa solo) y desde la terminal ejecutando el script con su ruta completa; `th-wt` en el `PATH` (#11) está pendiente.
+Hoy funciona desde Claude Code y Antigravity CLI (`/th-worktree new feature/login`; en los dos hay que escribir `/th-worktree`, el skill no se activa solo) y desde la terminal: con el enlace de abajo, `th-wt <subcomando>` funciona desde un repo o un worktree (`th-wt --help` muestra el uso); la ruta completa del script sigue valiendo.
 
 Mientras no exista `install.sh` (#12), el enlace es manual. Ejecútalo desde la raíz del clon principal, no desde un worktree (al cerrarlo, el enlace quedaría colgando). Las rutas que ya existen no se tocan; la de `~/.local/share/th-worktools` es la ruta fija que usa el `SKILL.md`:
 
 ```sh
-mkdir -p ~/.local/share ~/.claude/skills ~/.gemini/config/skills
+mkdir -p ~/.local/share ~/.local/bin ~/.claude/skills ~/.gemini/config/skills
 [ -e ~/.local/share/th-worktools ] || ln -s "$PWD" ~/.local/share/th-worktools
 [ -e ~/.claude/skills/th-worktree ] || ln -s ~/.local/share/th-worktools/skills/th-worktree ~/.claude/skills/th-worktree
 [ -e ~/.gemini/config/skills/th-worktree ] || ln -s ~/.local/share/th-worktools/skills/th-worktree ~/.gemini/config/skills/th-worktree
+[ -e ~/.local/bin/th-wt ] || ln -s ~/.local/share/th-worktools/skills/th-worktree/scripts/th-wt ~/.local/bin/th-wt
 ```
+
+El último enlace (`th-wt` para la terminal) exige que `~/.local/bin` esté en el `PATH`.
 
 La referencia completa (subcomandos, red, códigos de salida y `--json`) está en [`docs/th-worktree.md`](docs/th-worktree.md).
 
@@ -68,7 +71,7 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt list --remote`: con 100 PRs o más, el aviso del límite de PRs sale siempre si hay un worktree `review/pr-<n>` abierto, porque esa rama no tiene PR con ese nombre de origen; tratar `review/pr-<n>` como rama de PR en `list` (mostrar su número de PR).
 - Derivar `<owner>/<repo>` también de remotes `ssh://`, con puerto o con barra final (hoy solo `git@host:` y `https://`).
 - Que `--base` acepte tags y SHAs (hoy es siempre `origin/<rama>`).
-- Resumen legible de `new` en la terminal, sin necesidad de `--json`.
+- Resumen legible de `new` y `checkout` en la terminal, sin necesidad de `--json`: hoy solo sale la ruta; faltan `linked`, `deps` y `codegraph`.
 - Instalar dependencias de otros gestores al crear un worktree (hoy, en #6, solo pnpm y npm): yarn (`--immutable` en Yarn 2+, `--frozen-lockfile` en Yarn 1; distinguir la versión con `.yarnrc.yml` o `packageManager`), bun (`bun.lock`/`bun.lockb`), Rust (`Cargo.lock` → `cargo fetch --locked`, que no ejecuta `build.rs`; no vale para `pr`: lee el `.cargo/config.toml` del PR) y Python (`uv.lock` → `uv sync --locked`; `poetry.lock` → `poetry install`). `requirements.txt` no es un lockfile: omitirlo. Verificar los flags en las versiones instaladas.
 - Instalar dependencias solo si se pide, con un flag (p. ej. `--deps`) en todo comando que crea un worktree (`new`, `checkout`, `pr`), en vez de instalar por defecto. En `pr` (hoy nunca instala: el `.npmrc` y el `packageManager` del PR controlan el gestor), quizá solo para PRs del mismo repo o dentro de un contenedor.
 - Investigar si se puede detectar un riesgo antes de instalar (p. ej. revisar `.npmrc`, `packageManager`, `.pnpmfile.cjs`, scripts de ciclo de vida o dependencias de git, o usar herramientas de auditoría de paquetes), sabiendo que ninguna comprobación cubre los vectores que aparezcan después.
@@ -103,7 +106,6 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt list --remote`: consulta `origin` y GitHub aunque no haya worktrees bajo la raíz (y falla con 4 si las credenciales son malas). Comprobar antes si hay filas.
 - CI: shellcheck usa la versión que trae `ubuntu-latest` (0.9) y en local la 0.11; fijar la versión (binario descargado con checksum) si un aviso nuevo hace diferir ambos.
 - Test de `list --remote` con el fetch fallando: fuerza el fallo con un archivo `.lock`, que solo bloquea con el backend de refs `files`. Cuando `reftable` sea el predeterminado de git, condicionarlo con `git rev-parse --show-ref-format` o buscar otra forma de hacer fallar el fetch.
-- `th-wt list` en la terminal (#11): el texto va solo a stderr, así que `th-wt list | grep` no recibe nada; mandar las filas a stdout y dejar solo los avisos en stderr.
 - `th-wt list` y mayúsculas: el prefijo de la raíz distingue mayúsculas, pero APFS no; un cambio de capitalización en la URL de `origin` oculta worktrees existentes. Resolverlo canonicalizando la capitalización de la raíz y de la URL.
 - Secretos en los worktrees: #7 solo enlaza (también `.env`) y `pr` no aplica el `.conf`, así que un worktree no puede tener valores propios (otro puerto, otra base de datos). Buscar una forma segura de gestionarlos y compartirlos entre worktrees (p. ej. un gestor de secretos que inyecte las variables al ejecutar), sin multiplicar copias en disco ni exponerlas al agente.
 - `copy` en el `.conf` del repo (#7 solo tiene `link`), para archivos que necesitan valores propios por worktree, prohibiendo `.env*` y una lista de nombres de secretos (`*.pem`, `*.key`, `id_rsa*`, `*.p12`, `.netrc`, `.npmrc`, `credentials*`…). Solo si aparece un caso de uso que no sea un secreto; la lista nunca está completa.

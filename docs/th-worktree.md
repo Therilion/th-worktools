@@ -2,7 +2,7 @@
 
 `th-wt` (`skills/th-worktree/scripts/th-wt`) es el script del skill `th-worktree`. Crea, abre (también un PR de GitHub), lista y cierra git worktrees del repositorio actual sin modificar el checkout principal.
 
-> **Estado en v0.1:** están implementados `new`, `checkout`, `pr`, `list` y `close`. `new` y `checkout` también enlazan los archivos ignorados del `.conf` del repo (#7) e instalan las dependencias según el lockfile (#6). La raíz de worktrees y la instalación de dependencias se configuran con un archivo o variables de entorno (#8, ver «Configuración»). Si `codegraph` está instalado, `new`, `checkout` y `pr` indexan el worktree y `close --yes` borra el índice (#9, ver «Configuración» y «Integración con codegraph»). Quedan pendientes el enlace de `th-wt` en `PATH` (#11) y `install.sh` / `verify.sh` (#12, #13). Hoy el script se invoca con su ruta completa: `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt"`.
+> **Estado en v0.1:** están implementados `new`, `checkout`, `pr`, `list` y `close`. `new` y `checkout` también enlazan los archivos ignorados del `.conf` del repo (#7) e instalan las dependencias según el lockfile (#6). La raíz de worktrees y la instalación de dependencias se configuran con un archivo o variables de entorno (#8, ver «Configuración»). Si `codegraph` está instalado, `new`, `checkout` y `pr` indexan el worktree y `close --yes` borra el índice (#9, ver «Configuración» y «Integración con codegraph»). Desde la terminal se puede invocar como `th-wt <subcomando>` si enlazas el script en el `PATH` (#11, ver el README); la ruta completa sigue valiendo: `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt"`. Quedan pendientes `install.sh` / `verify.sh` (#12, #13).
 
 ---
 
@@ -94,7 +94,7 @@ th-wt new <branch> [--base <branch>] [--json]
 
 Crea un worktree en `~/.worktrees/<owner>/<repo>/<rama-normalizada>` con una rama nueva `<branch>` creada a partir de `origin/<base>` (por defecto, la rama por defecto de `origin`). `<branch>` debe ir como primer argumento, antes de las opciones.
 
-La rama nueva se crea con `--no-track` para que no siga a `origin/<base>` como upstream. Sin `--json`, `new` no imprime nada en caso de éxito (salvo lo que escriban el gestor de paquetes y `codegraph`, ver «Instalación de dependencias» e «Integración con codegraph»).
+La rama nueva se crea con `--no-track` para que no siga a `origin/<base>` como upstream. Sin `--json`, `new` escribe en stderr, al terminar bien, la línea `  path:   <ruta>` (como `pr`) y stdout queda vacío; el gestor de paquetes y `codegraph` también escriben en stderr (ver «Instalación de dependencias» e «Integración con codegraph»).
 
 **Flags:**
 
@@ -136,7 +136,7 @@ Crea un worktree en `~/.worktrees/<owner>/<repo>/<rama-normalizada>` para una ra
 - **Si `<branch>` ya existe como rama local (`refs/heads/<branch>`):** abre el worktree directamente en ese commit local, sin consultar `origin` y sin mover la rama (aunque se pase `--remote` y `origin/<branch>` haya avanzado).
 - **Si `<branch>` no existe en local:** busca `refs/remotes/origin/<branch>` (con `--remote`, antes verifica que exista en `origin` y hace fetch de esa rama). Crea la rama local en ese commit y configura su upstream a `origin/<branch>` (`branch.<branch>.remote = origin` y `branch.<branch>.merge = refs/heads/<branch>`).
 
-Después aplica el `.conf` del repo (ver «Enlaces por repo») e instala las dependencias si hay lockfile (ver «Instalación de dependencias»), salvo en una rama `review/pr-*` (copia local de un PR, p. ej. conservada por `close review/pr-<n> --force`): se trata como `pr` y no enlaza ni instala (`linked: []`, `deps: "skipped"`, con el aviso del comando a mano); sí indexa con `codegraph`. Sin `--json`, `checkout` solo escribe en stderr lo que escriban el gestor de paquetes y `codegraph`, y los avisos; en stdout no imprime nada.
+Después aplica el `.conf` del repo (ver «Enlaces por repo») e instala las dependencias si hay lockfile (ver «Instalación de dependencias»), salvo en una rama `review/pr-*` (copia local de un PR, p. ej. conservada por `close review/pr-<n> --force`): se trata como `pr` y no enlaza ni instala (`linked: []`, `deps: "skipped"`, con el aviso del comando a mano); sí indexa con `codegraph`. Sin `--json`, `checkout` escribe en stderr lo que escriban el gestor de paquetes y `codegraph`, los avisos y, al terminar bien, la línea `  path:   <ruta>` (como `pr`); en stdout no imprime nada.
 
 **Flags:**
 
@@ -201,7 +201,7 @@ th-wt list [--remote] [--json]
 
 Lista los worktrees del repositorio actual ubicados bajo `~/.worktrees/<owner>/<repo>/` (omite el checkout principal y cualquier worktree fuera de esa raíz).
 
-Para cada worktree informa la rama (o `(detached)`), si el directorio falta (`missing`), si tiene cambios locales (`dirty`, comprobado con `git --no-optional-locks status --porcelain --untracked-files=normal` para no bloquear ni modificar el índice; lo que genera codegraph no cuenta, así que un worktree indexado sale limpio; los cambios en archivos que git versiona bajo `.codegraph/` sí) y si está contenida en la rama por defecto de `origin` (`merged`). Sin `--json`, toda la salida de texto va a **stderr**; si no hay worktrees bajo la raíz, imprime `no worktrees under ~/.worktrees/<owner>/<repo>/`.
+Para cada worktree informa la rama (o `(detached)`), si el directorio falta (`missing`), si tiene cambios locales (`dirty`, comprobado con `git --no-optional-locks status --porcelain --untracked-files=normal` para no bloquear ni modificar el índice; lo que genera codegraph no cuenta, así que un worktree indexado sale limpio; los cambios en archivos que git versiona bajo `.codegraph/` sí) y si está contenida en la rama por defecto de `origin` (`merged`). Sin `--json`, las filas (una por worktree) van a **stdout**, así que se pueden filtrar (`th-wt list | grep login`); los avisos (como el del límite de PRs) y `no worktrees under ~/.worktrees/<owner>/<repo>/` van a **stderr**.
 
 **Flags:**
 
@@ -341,7 +341,7 @@ El acceso a la red es explícito:
 
 ## 5. Salida `--json`
 
-Con `--json`, todos los subcomandos escriben un único objeto JSON en **stdout** (generado con `jq`). Los avisos y errores siguen saliendo por **stderr**.
+Con `--json`, todos los subcomandos escriben un único objeto JSON en **stdout** (generado con `jq`). Los avisos y errores siguen saliendo por **stderr**. Sin `--json`, los mensajes para personas también van a stderr, salvo las filas de `list`, que van a stdout.
 
 ### `new --json` y `checkout --json`
 

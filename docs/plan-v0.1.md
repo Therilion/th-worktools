@@ -112,7 +112,7 @@ th-worktools/
 - Shebang `#!/usr/bin/env bash` y `set -euo pipefail`.
 - **Sin prompts interactivos** (`read`): los agentes ejecutan sin TTY y el script quedaría colgado.
 - **Efectos secundarios:** sin `--yes` solo se muestra el plan (dry-run); con `--yes` se ejecuta.
-- **Salida:** mensajes para personas a stderr. Con `--json`, un único objeto JSON a stdout, generado con `jq` (`-n` o `-s`), nunca a mano.
+- **Salida:** mensajes para personas a stderr (excepción: sin `--json`, las filas de `list` van a stdout para poder filtrarlas con `grep`; sus avisos siguen en stderr). `new` y `checkout` sin `--json` escriben `  path:   <ruta>` por stderr al terminar bien, como `pr`. Con `--json`, un único objeto JSON a stdout, generado con `jq` (`-n` o `-s`), nunca a mano.
 - **Códigos de salida:** `0` OK · `1` error · `2` uso incorrecto · `3` dependencia faltante · `4` precondición no cumplida (cambios sin commitear, destino existente, `origin` o GitHub inaccesibles, etc.).
 - `--help` en cada entrypoint.
 - **Nunca imprimir el contenido** de archivos de entorno o configuración sensible; solo nombres de archivo.
