@@ -106,3 +106,41 @@ case "$out" in *"skip   $HOME/.local/bin/th-wt"*) ;; *) fail "$name: falta skip 
 case "$out" in *"left 3 path(s) untouched: not part of the kit"*) ;; *) fail "$name: falta el resumen: [$out]" ;; esac
 [ "$(readlink "$HOME/.local/share/th-worktools")" = "$ROOT" ] || fail "$name: no se creó la ruta fija"
 pass "$name"
+
+name="el padre de un destino es un archivo: skip '(parent is not a directory)' en dry-run y --yes, el resto se instala y sale 4"
+reset_home
+mkdir -p "$HOME/.claude"
+echo mine >"$HOME/.claude/skills"
+run_install "$BOTH" --link-here
+[ "$rc" = 4 ] || fail "$name: dry-run exit=$rc, esperado 4: [$out]"
+printf '%s\n' "$out" | grep -qF "skip   $HOME/.claude/skills/th-worktree (parent is not a directory)" || fail "$name: falta el skip en el dry-run: [$out]"
+run_install "$BOTH" --link-here --yes
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+[ "$(cat "$HOME/.claude/skills")" = "mine" ] || fail "$name: se tocó el archivo"
+printf '%s\n' "$out" | grep -qF "skip   $HOME/.claude/skills/th-worktree (parent is not a directory)" || fail "$name: falta el skip: [$out]"
+[ -L "$HOME/.gemini/config/skills/th-worktree" ] || fail "$name: falta el skill de agy"
+[ -L "$HOME/.local/bin/th-wt" ] || fail "$name: falta th-wt"
+[ "$(readlink "$HOME/.local/share/th-worktools")" = "$ROOT" ] || fail "$name: no se creó la ruta fija"
+pass "$name"
+
+name="el padre de la ruta fija es un archivo → exit 4 'cannot create kit path', sin tocar nada"
+reset_home
+mkdir -p "$HOME/.local"
+echo mine >"$HOME/.local/share"
+before="$(snap)"
+run_install "$BOTH" --link-here --yes
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+case "$out" in *"cannot create kit path $HOME/.local/share/th-worktools: parent is not a directory"*) ;; *) fail "$name: mensaje inesperado: [$out]" ;; esac
+[ "$(snap)" = "$before" ] || fail "$name: cambió $HOME"
+pass "$name"
+
+name="sin --link-here, la ruta fija es un symlink colgante → exit 4 'broken symlink', sin crear nada"
+reset_home
+mkdir -p "$HOME/.local/share"
+ln -s "$TMP/does-not-exist" "$HOME/.local/share/th-worktools"
+before="$(snap)"
+run_install "$BOTH" --yes
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+case "$out" in *"kit path $HOME/.local/share/th-worktools is a broken symlink; move it away and run again"*) ;; *) fail "$name: mensaje inesperado: [$out]" ;; esac
+[ "$(snap)" = "$before" ] || fail "$name: cambió $HOME"
+pass "$name"

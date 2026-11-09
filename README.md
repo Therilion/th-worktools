@@ -85,6 +85,7 @@ Ideas que quedan fuera de la versión en curso.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.
 - Lint de skills más estricto: `description`, `disable-model-invocation` en los skills con efectos secundarios e invocaciones de scripts sin la ruta completa.
 - `install.sh`: soportar más agentes: Pi y GitHub Copilot (hoy solo `claude` y `agy`).
+- `install.sh --link-here` desde un worktree: detectarlo (`git rev-parse --git-dir` distinto de `--git-common-dir`) y salir con `4`; hoy solo lo advierte el README.
 - Un instalador que descargue el proyecto y copie solo lo necesario, en vez de enlazar un clon (hoy `install.sh --link-here` deja el kit atado al clon).
 - `install.sh`: ofrecer instalar codegraph si no está instalado, con un flag explícito (p. ej. `--with-codegraph`), sin prompts y sin volverlo obligatorio: el kit sigue funcionando sin él.
 - Registro de la base de cada worktree (en `~/.worktrees/<owner>/<repo>/`) para soportar ramas apiladas sin PR y mostrar el árbol del stack en `list`.

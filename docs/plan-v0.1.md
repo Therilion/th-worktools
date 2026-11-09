@@ -424,7 +424,7 @@ Argumentos recibidos: $ARGUMENTS
 
 Uso: `install.sh [--link-here] [--agents <lista>] [--yes]`, `-h|--help`. Dry-run por defecto (muestra el plan en stderr y no cambia nada); `--yes` lo aplica.
 
-1. Ruta fija `~/.local/share/th-worktools`. Con `--link-here` es un symlink al clon donde vive el script. Sin `--link-here`, si la ruta no existe sale con `4`. Con `--link-here`, si la ruta existe y no es este clon, sale con `4` sin tocar nada.
+1. Ruta fija `~/.local/share/th-worktools`. Con `--link-here` es un symlink al clon donde vive el script. Sin `--link-here`, si la ruta no existe sale con `4`. Con `--link-here`, si la ruta existe y no es este clon, sale con `4` sin tocar nada. Si la ruta es un symlink colgante, sale con `4` (con o sin `--link-here`). Si hay que crearla y su padre no es un directorio, sale con `4` sin tocar nada.
 2. Agentes soportados:
 
    | Agente | Binario | Ruta de skills |
@@ -434,8 +434,8 @@ Uso: `install.sh [--link-here] [--agents <lista>] [--yes]`, `-h|--help`. Dry-run
 
    Por defecto, los que tengan el binario en el `PATH`; si no hay ninguno, instala igualmente la ruta fija y los entrypoints y avisa. `--agents claude,agy` los elige: un agente no soportado sale con `2` y uno pedido que no está en el `PATH`, con `3`; en ambos casos no cambia nada.
 3. Solo se enlazan los `skills/th-*/` (cada uno en cada agente elegido) y cada ejecutable de `skills/th-*/scripts/` (hoy `th-wt`) en `~/.local/bin/`, siempre a través de la ruta fija (por ejemplo, `~/.claude/skills/th-worktree -> ~/.local/share/th-worktools/skills/th-worktree`). `th-wt` desde la terminal exige `~/.local/bin` en el `PATH`.
-4. Plan en stderr, una línea por destino: `create <destino> -> <objetivo>`, `ok <destino>`, `fix <destino> -> <objetivo>`, `skip <destino> (not part of the kit)`. Repetirlo lo deja todo en `ok` y no cambia nada.
-5. Un symlink es propio del kit si, resuelto, apunta dentro del kit: si ya pasa por la ruta fija es `ok`; si no (por ejemplo, directo al clon) se reapunta a través de la ruta fija (`fix`). Cualquier otra cosa en un destino (archivo, directorio, symlink a otro sitio, symlink colgante) no se toca nunca: `skip`, se instala el resto y sale con `4`.
+4. Plan en stderr, una línea por destino: `create <destino> -> <objetivo>`, `ok <destino>`, `fix <destino> -> <objetivo>`, `skip <destino> (not part of the kit)`, `skip <destino> (parent is not a directory)`. Repetirlo lo deja todo en `ok` y no cambia nada.
+5. Un symlink es propio del kit si, resuelto, apunta dentro del kit: si ya pasa por la ruta fija es `ok`; si no (por ejemplo, directo al clon) se reapunta a través de la ruta fija (`fix`). Cualquier otra cosa en un destino (archivo, directorio, symlink a otro sitio, symlink colgante) no se toca nunca: `skip`, se instala el resto y sale con `4`. Un symlink que pasa por la ruta fija es del kit aunque esa ruta aún no exista (`fix`), igual en dry-run y con `--yes`. Si el padre de un destino es un archivo o un symlink colgante, se trata como cualquier otra ruta ajena: `skip (parent is not a directory)`.
 
 Códigos de salida: `2` agente no soportado, `3` agente pedido que no está en el `PATH`, `4` ruta del kit ausente o ajena, o rutas sin tocar.
 

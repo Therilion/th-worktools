@@ -55,7 +55,7 @@ name="repetir la instalación deja todo ok y no cambia ningún enlace"
 l1="$(find "$HOME" -mindepth 1 -type l -exec sh -c 'for f; do echo "$f -> $(readlink "$f")"; done' _ {} + | sort)"
 run_install "$BOTH" --link-here --yes
 [ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
-case "$out" in *create*|*fix*|*skip*) fail "$name: hubo cambios en la repetición: [$out]" ;; esac
+printf '%s\n' "$out" | grep -qE '^(create|fix|skip) ' && fail "$name: hubo cambios en la repetición: [$out]"
 case "$out" in *"ok     $HOME/.claude/skills/th-worktree"*) ;; *) fail "$name: falta la línea ok: [$out]" ;; esac
 l2="$(find "$HOME" -mindepth 1 -type l -exec sh -c 'for f; do echo "$f -> $(readlink "$f")"; done' _ {} + | sort)"
 [ "$l1" = "$l2" ] || fail "$name: cambiaron los enlaces"
@@ -109,4 +109,16 @@ out="$(PATH="$BOTH" "$TMP/kit/install.sh" --link-here --yes 2>&1)" || rc=$?
 { [ ! -e "$HOME/.claude/skills/system" ] && [ ! -L "$HOME/.claude/skills/system" ]; } || fail "$name: system enlazado en Claude"
 { [ ! -e "$HOME/.gemini/config/skills/system" ] && [ ! -L "$HOME/.gemini/config/skills/system" ]; } || fail "$name: system enlazado en agy"
 { [ ! -e "$HOME/.local/bin/foo" ] && [ ! -L "$HOME/.local/bin/foo" ]; } || fail "$name: foo enlazado en bin"
+pass "$name"
+
+name="un symlink que pasa por la ruta fija aún inexistente es del kit: el dry-run dice fix y --yes lo corrige"
+reset_home
+mkdir -p "$HOME/.claude/skills"
+ln -s "$HOME/.local/share/th-worktools/skills/th-worktree/" "$HOME/.claude/skills/th-worktree"
+run_install "$BOTH" --link-here
+[ "$rc" = 0 ] || fail "$name: dry-run exit=$rc, esperado 0: [$out]"
+printf '%s\n' "$out" | grep -qF "fix    $HOME/.claude/skills/th-worktree -> $HOME/.local/share/th-worktools/skills/th-worktree" || fail "$name: falta la línea fix en el dry-run: [$out]"
+run_install "$BOTH" --link-here --yes
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+[ "$(readlink "$HOME/.claude/skills/th-worktree")" = "$HOME/.local/share/th-worktools/skills/th-worktree" ] || fail "$name: no se reapuntó"
 pass "$name"

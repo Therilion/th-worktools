@@ -69,10 +69,24 @@ is_kit_path() {
   esac
 }
 
+# Whether a missing path can be created: its nearest existing ancestor (or symlink) must be a directory.
+parent_ok() {
+  local p="${1%/*}"
+  while [ -n "$p" ] && [ ! -e "$p" ] && [ ! -L "$p" ]; do p="${p%/*}"; done
+  [ -d "${p:-/}" ]
+}
+
+# True for a symlink value that goes through the fixed kit path, even if it does not resolve yet.
+via_kit_path() {
+  case "$1" in
+    "$KIT_PATH"|"$KIT_PATH"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 LINK_HERE=0
 YES=0
 AGENTS_ARG=""
-HAVE_AGENTS_ARG=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
@@ -81,7 +95,6 @@ while [ $# -gt 0 ]; do
     --agents)
       [ -n "${2:-}" ] || bad_usage "--agents needs a comma-separated list of agents"
       AGENTS_ARG="$2"
-      HAVE_AGENTS_ARG=1
       shift ;;
     *) bad_usage "unknown option: $1" ;;
   esac
@@ -90,7 +103,7 @@ done
 
 # Chosen agents, space-separated. Validated before touching anything.
 AGENTS=""
-if [ "$HAVE_AGENTS_ARG" = 1 ]; then
+if [ -n "$AGENTS_ARG" ]; then
   rest="$AGENTS_ARG,"
   while [ -n "$rest" ]; do
     a="${rest%%,*}"
@@ -119,10 +132,14 @@ if [ "$LINK_HERE" = 1 ]; then
     resolved="$(cd -P "$KIT_PATH" 2>/dev/null && pwd)" || resolved=""
     [ "$resolved" = "$KIT_DIR" ] || die 4 "kit path $KIT_PATH is not this clone; move it away and run again"
   else
+    parent_ok "$KIT_PATH" || die 4 "cannot create kit path $KIT_PATH: parent is not a directory"
     KIT_STATE=create
   fi
 else
-  [ -d "$KIT_PATH" ] || die 4 "kit path not found: $KIT_PATH; run install.sh --link-here from a clone"
+  if [ ! -d "$KIT_PATH" ]; then
+    if [ -L "$KIT_PATH" ]; then die 4 "kit path $KIT_PATH is a broken symlink; move it away and run again"; fi
+    die 4 "kit path not found: $KIT_PATH; run install.sh --link-here from a clone"
+  fi
   KIT_DIR="$(cd -P "$KIT_PATH" && pwd)"
 fi
 
@@ -130,23 +147,27 @@ SKIPS=0
 
 # plan_link <dest> <target>: classify dest, print the plan line and, with --yes, apply it.
 plan_link() {
-  local dest="$1" target="$2" verb r
+  local dest="$1" target="$2" verb why="not part of the kit" r l
   if [ -L "$dest" ]; then
-    if [ "$(readlink "$dest")" = "$target" ]; then
+    l="$(readlink "$dest")"
+    if [ "$l" = "$target" ]; then
       verb=ok
-    elif r="$(resolve "$dest")" && is_kit_path "$r"; then
+    elif via_kit_path "$l" || { r="$(resolve "$dest")" && is_kit_path "$r"; }; then
       verb=fix
     else
       verb=skip
     fi
   elif [ -e "$dest" ]; then
     verb=skip
-  else
+  elif parent_ok "$dest"; then
     verb=create
+  else
+    verb=skip
+    why="parent is not a directory"
   fi
   case "$verb" in
     ok) printf '%-6s %s\n' ok "$dest" >&2 ;;
-    skip) printf '%-6s %s\n' skip "$dest (not part of the kit)" >&2; SKIPS=$((SKIPS + 1)) ;;
+    skip) printf '%-6s %s\n' skip "$dest ($why)" >&2; SKIPS=$((SKIPS + 1)) ;;
     *) printf '%-6s %s\n' "$verb" "$dest -> $target" >&2 ;;
   esac
   [ "$YES" = 1 ] || return 0
