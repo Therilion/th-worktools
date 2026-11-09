@@ -1,9 +1,9 @@
 # shellcheck shell=bash
 # shellcheck source=lib.sh source-path=SCRIPTDIR
-# shellcheck disable=SC2154 # $repo is set by resolve_repo in lib.sh
+# shellcheck disable=SC2154 # $repo and $pr_limit are set by resolve_repo in lib.sh
 
-list_worktrees() {
-  local default root rows pr_limit=100 json=0 remote=false prs=null
+list_worktrees() {\
+  local default root rows json=0 remote=false prs=null
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1; shift ;;
@@ -19,7 +19,6 @@ list_worktrees() {
     default="$(local_default_branch)"
   fi
   rows="$(list_rows "$root" "$default" "$prs" "$remote")"
-  # shortcut: PRs are matched within the latest $pr_limit only; make the limit a config key (README ideas)
   if [ "$remote" = true ] && [ "$(jq length <<<"$prs")" = "$pr_limit" ] && [ "$(printf '%s\n' "$rows" | jq -s 'any(.[]; .branch != null and .merged == false and .pr == null)')" = true ]; then
     echo "th-wt: only the $pr_limit most recent PRs were checked; branches without a PR here may have an older one" >&2
   fi

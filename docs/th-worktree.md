@@ -58,6 +58,7 @@ Los siguientes casos están documentados en la sección «Ideas» del `README.md
 | `TH_WORKTREES_ROOT` | `~/.worktrees` | Raíz de los worktrees. Ruta absoluta o con `~/` al inicio (se expande a `$HOME`); sin segmentos `.`, `..` ni vacíos; una barra final se ignora; no se expanden `$VAR`. Se resuelven los symlinks de la parte que existe |
 | `TH_INSTALL_DEPS` | `1` | `0` o `1`. Con `0`, `new` y `checkout` no instalan dependencias (`deps: "skipped"`); `pr` no cambia: nunca instala |
 | `TH_CODEGRAPH` | `auto` | `auto` (indexar con `codegraph` si está instalado) u `off`. Afecta a la creación (`new`, `checkout` y `pr`), no a `close` |
+| `TH_PR_LIMIT` | `500` | Límite de PRs consultados en `list --remote` (mínimo `100`) |
 
 La configuración se carga al empezar cualquier subcomando, después de parsear sus argumentos (`--help` y los errores de uso, código `2`, no dependen de ella). Si el archivo o el entorno son inválidos, no se crea ni se borra nada y sale con código `4`:
 
@@ -66,7 +67,7 @@ th-wt: <ruta del config>:<línea>: <motivo>
 th-wt: <VAR> (environment): <motivo>
 ```
 
-Motivos: `unknown key: <CLAVE>` (una clave que no está en mayúsculas sale como `invalid key (not shown)`), `expected KEY=value`, `TH_WORKTREES_ROOT must be an absolute path or start with ~/, without '.', '..' or empty segments: <valor>` `TH_INSTALL_DEPS must be 0 or 1: <valor>`, `TH_CODEGRAPH must be auto or off: <valor>`, `TH_WORKTREES_ROOT must not contain control characters`, `cannot resolve the worktrees root: <ruta>` (p. ej. un symlink roto o un ancestro sin permiso) y `worktrees root <raíz>/<owner>/<repo> overlaps the main checkout <ruta>` (la raíz del repo y el checkout principal no pueden contenerse uno a otro). Todos salen con `4` sin crear ni borrar nada. No hay subcomando para ver la configuración efectiva.
+Motivos: `unknown key: <CLAVE>` (una clave que no está en mayúsculas sale como `invalid key (not shown)`), `expected KEY=value`, `TH_WORKTREES_ROOT must be an absolute path or start with ~/, without '.', '..' or empty segments: <valor>` `TH_INSTALL_DEPS must be 0 or 1: <valor>`, `TH_CODEGRAPH must be auto or off: <valor>`, `TH_PR_LIMIT must be an integer >= 100: <valor>`, `TH_WORKTREES_ROOT must not contain control characters`, `cannot resolve the worktrees root: <ruta>` (p. ej. un symlink roto o un ancestro sin permiso) y `worktrees root <raíz>/<owner>/<repo> overlaps the main checkout <ruta>` (la raíz del repo y el checkout principal no pueden contenerse uno a otro). Todos salen con `4` sin crear ni borrar nada. No hay subcomando para ver la configuración efectiva.
 
 ---
 
@@ -206,11 +207,11 @@ Para cada worktree informa la rama (o `(detached)`), si el directorio falta (`mi
 
 | Flag | Efecto |
 |---|---|
-| `--remote` | Consulta en `origin` cuál es la rama por defecto, hace fetch de `refs/remotes/origin/<default>` (sin tocar `origin/HEAD`) y consulta los 100 PRs más recientes en GitHub con `gh pr list`. Añade a cada worktree la información de su PR (`pr`). |
+| `--remote` | Consulta en `origin` cuál es la rama por defecto, hace fetch de `refs/remotes/origin/<default>` (sin tocar `origin/HEAD`) y consulta los PRs más recientes en GitHub con `gh pr list` (hasta `TH_PR_LIMIT`, 500 por defecto). Añade a cada worktree la información de su PR (`pr`). |
 | `--json` | Escribe en stdout un único objeto `{repo, worktrees}`. |
 
-Con `--remote`, si `gh` devuelve 100 PRs (el límite de la consulta) y queda alguna rama no contenida sin PR asociado, `list` emite un aviso en stderr:
-`th-wt: only the 100 most recent PRs were checked; branches without a PR here may have an older one`.
+Con `--remote`, si `gh` devuelve el total del límite consultado (`TH_PR_LIMIT`, 500 por defecto) y queda alguna rama no contenida sin PR asociado, `list` emite un aviso en stderr:
+`th-wt: only the <N> most recent PRs were checked; branches without a PR here may have an older one`.
 
 **Ejemplos:**
 
@@ -299,7 +300,7 @@ El acceso a la red es explícito:
 |---|---|---|---|
 | `new` | **Siempre** | `git ls-remote --symref origin HEAD`, `git ls-remote --heads origin refs/heads/<branch>` y `git fetch -q --no-tags origin +refs/heads/<base>:refs/remotes/origin/<base>` | No |
 | `checkout` | **Con `--remote`** y solo si la rama no existe en local (`refs/heads/<branch>`) para consultar `origin`; **además, siempre que haya lockfile**, para instalar dependencias (acceso al registro de paquetes) | `git ls-remote --heads origin refs/heads/<branch>` y `git fetch -q --no-tags origin +refs/heads/<branch>:refs/remotes/origin/<branch>`; instalación con `pnpm` / `npm` | No |
-| `list` | **Solo con `--remote`** | `git ls-remote --symref origin HEAD`, `git fetch -q --no-tags origin +refs/heads/<default>:refs/remotes/origin/<default>` y `gh pr list -R <owner>/<repo> --state all --limit 100 ...` | Sí (con `--remote`) |
+| `list` | **Solo con `--remote`** | `git ls-remote --symref origin HEAD`, `git fetch -q --no-tags origin +refs/heads/<default>:refs/remotes/origin/<default>` y `gh pr list -R <owner>/<repo> --state all --limit <pr_limit> ...` | Sí (con `--remote`) |
 | `pr` | **Siempre** | `gh pr view <n> -R <owner>/<repo> --json number,title,headRefName,baseRefName,headRefOid`, `git fetch -q --no-tags origin refs/pull/<n>/head` y `git fetch -q --no-tags origin +refs/heads/<base>:refs/remotes/origin/<base>` | Sí |
 | `close` | **Solo con `--remote`** | Igual que `list --remote`, pero filtrando en `gh pr list` con `--limit 1000 --head <branch>` | Sí (con `--remote`) |
 

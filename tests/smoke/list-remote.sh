@@ -205,27 +205,50 @@ txt="$(cd "$TMP/repo" && "$WT" list 2>&1)" || fail "$name: th-wt list falló"
 case "$txt" in *"PR #"*) fail "$name: el texto muestra un PR: [$txt]" ;; esac
 pass "$name"
 
-name="list --remote avisa por stderr si gh devuelve 100 PRs y alguna rama no aparece; solo entonces"
+name="list --remote avisa por stderr si gh devuelve el límite de PRs (500 por defecto) y alguna rama no aparece; solo entonces"
 oid="0123456789abcdef0123456789abcdef01234567"
-# Caso 1: 100 PRs ajenos (el tope de la consulta) → hay ramas sin PR → aviso, y stdout sigue siendo un único JSON.
-jq -n --arg oid "$oid" '[range(0; 100) | {number: (1000 + .), state: "MERGED", baseRefName: "main", headRefName: "other/\(.)", headRefOid: $oid}]' > "$TMP/gh.json"
+# Caso 1: 500 PRs ajenos (el tope de la consulta por defecto) → hay ramas sin PR → aviso, y stdout sigue siendo un único JSON.
+rm -f "$TMP/gh.calls"
+jq -n --arg oid "$oid" '[range(0; 500) | {number: (1000 + .), state: "MERGED", baseRefName: "main", headRefName: "other/\(.)", headRefOid: $oid}]' > "$TMP/gh.json"
 rc=0
 out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>"$TMP/limit.err")" || rc=$?
 [ "$rc" = 0 ] || fail "$name: caso 1: exit=$rc, esperado 0: [$(cat "$TMP/limit.err")]"
-grep -qF "only the 100 most recent PRs were checked" "$TMP/limit.err" || fail "$name: caso 1: falta el aviso en stderr: [$(cat "$TMP/limit.err")]"
+grep -qF "only the 500 most recent PRs were checked" "$TMP/limit.err" || fail "$name: caso 1: falta el aviso en stderr: [$(cat "$TMP/limit.err")]"
 printf '%s' "$out" | jq -e 'type == "object"' >/dev/null || fail "$name: caso 1: stdout no es un único objeto JSON: [$out]"
-# Caso 2: 99 PRs → no se llegó al tope → sin aviso.
-jq -n --arg oid "$oid" '[range(0; 99) | {number: (1000 + .), state: "MERGED", baseRefName: "main", headRefName: "other/\(.)", headRefOid: $oid}]' > "$TMP/gh.json"
+grep -qF -- "--limit 500" "$TMP/gh.calls" || fail "$name: caso 1: gh no recibió --limit 500: [$(cat "$TMP/gh.calls")]"
+# Caso 2: 499 PRs → no se llegó al tope → sin aviso.
+jq -n --arg oid "$oid" '[range(0; 499) | {number: (1000 + .), state: "MERGED", baseRefName: "main", headRefName: "other/\(.)", headRefOid: $oid}]' > "$TMP/gh.json"
 err="$(cd "$TMP/repo" && "$WT" list --remote 2>&1 >/dev/null)" || fail "$name: caso 2: th-wt list --remote falló"
-case "$err" in *"most recent PRs"*) fail "$name: caso 2: avisó con 99 PRs: [$err]" ;; esac
-# Caso 3: 100 PRs y todas las ramas sin contener tienen el suyo → nada que avisar.
+case "$err" in *"most recent PRs"*) fail "$name: caso 2: avisó con 499 PRs: [$err]" ;; esac
+# Caso 3: 500 PRs y todas las ramas sin contener tienen el suyo → nada que avisar.
 branches="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null | jq -c '[.worktrees[] | select(.branch != null and .merged == false) | .branch]')"
 jq -n --arg oid "$oid" --argjson b "$branches" '
   [$b | to_entries[] | {number: (.key + 1), state: "OPEN", baseRefName: "main", headRefName: .value, headRefOid: $oid}]
-  + [range(0; 100 - ($b | length)) | {number: (1000 + .), state: "MERGED", baseRefName: "main", headRefName: "other/\(.)", headRefOid: $oid}]' > "$TMP/gh.json"
-[ "$(jq length "$TMP/gh.json")" = 100 ] || fail "$name: caso 3: la preparación no armó 100 PRs"
+  + [range(0; 500 - ($b | length)) | {number: (1000 + .), state: "MERGED", baseRefName: "main", headRefName: "other/\(.)", headRefOid: $oid}]' > "$TMP/gh.json"
+[ "$(jq length "$TMP/gh.json")" = 500 ] || fail "$name: caso 3: la preparación no armó 500 PRs"
 err="$(cd "$TMP/repo" && "$WT" list --remote 2>&1 >/dev/null)" || fail "$name: caso 3: th-wt list --remote falló"
 case "$err" in *"most recent PRs"*) fail "$name: caso 3: avisó con todas las ramas cubiertas: [$err]" ;; esac
+pass "$name"
+
+name="list --remote con TH_PR_LIMIT configurado (archivo y entorno): usa el límite y avisa con ese valor"
+mkdir -p "$HOME/.config/th-worktools"
+printf 'TH_PR_LIMIT=150\n' > "$HOME/.config/th-worktools/config"
+jq -n --arg oid "$oid" '[range(0; 150) | {number: (1000 + .), state: "MERGED", baseRefName: "main", headRefName: "other/\(.)", headRefOid: $oid}]' > "$TMP/gh.json"
+rm -f "$TMP/gh.calls"
+out="$(cd "$TMP/repo" && "$WT" list --remote --json 2>"$TMP/limit-cfg.err")" || fail "$name: config falló: [$(cat "$TMP/limit-cfg.err")]"
+grep -qF "only the 150 most recent PRs were checked" "$TMP/limit-cfg.err" || fail "$name: falta aviso de 150 PRs: [$(cat "$TMP/limit-cfg.err")]"
+grep -qF -- "--limit 150" "$TMP/gh.calls" || fail "$name: gh no recibió --limit 150: [$(cat "$TMP/gh.calls")]"
+# Entorno gana a config:
+jq -n --arg oid "$oid" '[range(0; 200) | {number: (1000 + .), state: "MERGED", baseRefName: "main", headRefName: "other/\(.)", headRefOid: $oid}]' > "$TMP/gh.json"
+rm -f "$TMP/gh.calls"
+out="$(cd "$TMP/repo" && TH_PR_LIMIT=200 "$WT" list --remote --json 2>"$TMP/limit-env.err")" || fail "$name: env falló: [$(cat "$TMP/limit-env.err")]"
+grep -qF "only the 200 most recent PRs were checked" "$TMP/limit-env.err" || fail "$name: falta aviso de 200 PRs: [$(cat "$TMP/limit-env.err")]"
+grep -qF -- "--limit 200" "$TMP/gh.calls" || fail "$name: gh no recibió --limit 200: [$(cat "$TMP/gh.calls")]"
+# Entorno vacío cede a config:
+rm -f "$TMP/gh.calls"
+out="$(cd "$TMP/repo" && TH_PR_LIMIT="" "$WT" list --remote --json 2>"$TMP/limit-empty.err")" || fail "$name: env vacío falló: [$(cat "$TMP/limit-empty.err")]"
+grep -qF -- "--limit 150" "$TMP/gh.calls" || fail "$name: env vacío no cedió al config: [$(cat "$TMP/gh.calls")]"
+rm -rf "$HOME/.config"
 pass "$name"
 
 name="list --remote cuenta como mergeado un PR cuya base no es la rama por defecto"

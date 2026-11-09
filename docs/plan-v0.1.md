@@ -203,6 +203,7 @@ Formato `CLAVE=valor`, una por línea; `#` para comentarios.
 | `TH_WORKTREES_ROOT` | `~/.worktrees` | Raíz de todos los worktrees |
 | `TH_INSTALL_DEPS` | `1` | Instalar dependencias al crear un worktree |
 | `TH_CODEGRAPH` | `auto` | `auto` (usar si está instalado) u `off`. `off` solo afecta a la creación, no a `close` |
+| `TH_PR_LIMIT` | `500` | Límite de PRs consultados en `list --remote` (mínimo `100`) |
 
 Archivo: `${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config`. `#` y las líneas vacías se ignoran, se tolera CRLF y, si una clave se repite, gana la última. Una variable de entorno vacía cuenta como no definida.
 
@@ -215,6 +216,7 @@ Archivo: `${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/config`. `#` y las lín
    También se rechazan (exit `4`, sin crear ni borrar nada): `TH_WORKTREES_ROOT must not contain control characters`; `cannot resolve the worktrees root: <ruta>` (p. ej. un symlink roto o un ancestro sin permiso); y `worktrees root <raíz>/<owner>/<repo> overlaps the main checkout <ruta>` (la raíz del repo y el checkout principal no pueden contenerse uno a otro).
 3. `TH_INSTALL_DEPS`: `0` o `1`. Con `0`, `new` y `checkout` no instalan (`deps: "skipped"`) y avisan por stderr; `pr` no cambia (nunca instala).
 4. `TH_CODEGRAPH`: `auto` u `off` (`TH_CODEGRAPH must be auto or off: <valor>`).
+5. `TH_PR_LIMIT`: entero positivo sin ceros a la izquierda y con un mínimo de 100 (`TH_PR_LIMIT must be an integer >= 100: <valor>`).
 
 El error es `th-wt: <ruta del config>:<línea>: <motivo>` o, si falla una variable de entorno, `th-wt: <VAR> (environment): <motivo>`. Tras cambiar la raíz, `list` y `close` solo ven la nueva. No hay subcomando para ver la configuración efectiva.
 
@@ -255,8 +257,9 @@ El error es `th-wt: <ruta del .conf>:<línea>: <motivo>`. Un worktree sin `.conf
 | Remote | Resultado |
 |---|---|
 | `git@github.com:owner/repo.git` | `owner/repo` |
+| `git@github-work:acme/demo` (alias SSH) | `owner/repo` |
 | `https://github.com/owner/repo(.git)` | `owner/repo` |
-| GitLab con subgrupos `group/sub/repo` | `group/sub/repo` (ruta completa, sin host) |
+| `GitLab con subgrupos group/sub/repo` | `group/sub/repo` (ruta completa, sin host) |
 | Sin `origin` | `_local/<nombre-del-directorio>` |
 
 - **Nombre del repo principal**, también cuando se ejecuta desde un worktree:
