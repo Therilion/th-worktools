@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # th-worktree
 
-Ejecuta el script siempre con la ruta completa de la tabla: no está en el PATH y el comando corre desde el repo del usuario, no desde la carpeta de este SKILL.md.
+Ejecuta el script siempre con la ruta completa de la tabla: `th-wt` puede no estar en el PATH (o apuntar a otra copia del kit) y el comando corre desde el repo del usuario, no desde la carpeta de este SKILL.md.
 
 ## Subcomandos
 

@@ -341,7 +341,7 @@ El acceso a la red es explícito:
 
 ## 5. Salida `--json`
 
-Con `--json`, todos los subcomandos escriben un único objeto JSON en **stdout** (generado con `jq`). Los avisos y errores siguen saliendo por **stderr**. Sin `--json`, los mensajes para personas también van a stderr, salvo las filas de `list`, que van a stdout.
+Con `--json`, todos los subcomandos escriben un único objeto JSON en **stdout** (generado con `jq`). Los avisos y errores siguen saliendo por **stderr**. Sin `--json`, los mensajes para personas también van a stderr, salvo la ayuda de `--help`/`-h` y las filas de `list`, que van a stdout.
 
 ### `new --json` y `checkout --json`
 

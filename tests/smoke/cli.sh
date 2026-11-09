@@ -110,13 +110,13 @@ out="$(PATH="$TMP/bin:$PATH" th-wt --help)" || fail "$name: th-wt --help no sale
 case "$out" in *Usage*) ;; *) fail "$name: th-wt --help no muestra el uso: [$out]" ;; esac
 for dir in "$TMP/repo" "$inside"; do
   same_as_full_path "$dir" --help
+  same_as_full_path "$dir" list
   same_as_full_path "$dir" list --json
   same_as_full_path "$dir" bogus
   same_as_full_path "$dir" close feature/inexistente
 done
 out="$(cd "$TMP/repo" && PATH="$TMP/bin:$PATH" th-wt list --json)"
 [ "$(printf '%s' "$out" | jq -r '.worktrees[] | select(.branch == "feature/terminal") | .path')" = "$inside" ] || fail "$name: list --json por nombre no muestra el worktree: [$out]"
-rc=0
-(cd "$inside" && PATH="$TMP/bin:$PATH" th-wt bogus >/dev/null 2>&1) || rc=$?
-[ "$rc" = 2 ] || fail "$name: bogus por nombre: exit=$rc, esperado 2"
+out="$(cd "$TMP/repo" && PATH="$TMP/bin:$PATH" th-wt list)"
+case "$out" in *"$inside"*) ;; *) fail "$name: list por nombre no muestra el worktree en stdout: [$out]" ;; esac
 pass "$name"
