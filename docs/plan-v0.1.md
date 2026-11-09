@@ -95,7 +95,7 @@ th-worktools/
 
 - `name` igual al nombre de la carpeta: prefijo `th-`, minúsculas y guiones.
 - `description`: qué hace y cuándo usarlo. Si el skill tiene efectos secundarios, agregar: *"Úsalo solo cuando el usuario lo pida explícitamente."*
-- `disable-model-invocation: true` en los skills con efectos secundarios. Claude Code lo respeta; Antigravity lo ignora, y por eso la descripción también debe ser restrictiva.
+- `disable-model-invocation: true` en los skills con efectos secundarios. Claude Code y Antigravity (agy 1.5.3) lo respetan: el modelo no ve el skill y solo se invoca con `/<name>`. La descripción también es restrictiva, por si un agente lo ignora.
 - `SKILL.md` de menos de 500 líneas; el detalle va a `references/`.
 - El cuerpo no nombra herramientas de un agente específico: "lee el archivo", no "usa Read".
 - **Rutas a scripts, siempre con prefijo y fallback:**
@@ -302,8 +302,7 @@ Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git
 
 **Un skill por dominio, con las acciones como argumentos.**
 
-- **Claude Code:** `/th-worktree new feature/login`, `/th-worktree close feature/login`. Los argumentos llegan al cuerpo del skill vía `$ARGUMENTS`.
-- **Antigravity:** en lenguaje natural: "usa th-worktree para cerrar feature/login".
+- **Claude Code y Antigravity:** `/th-worktree new feature/login`, `/th-worktree cierra feature/login`. Con `disable-model-invocation` el modelo no ve el skill, así que sin la `/` no se activa. El texto tras el nombre llega al modelo en los dos agentes; el `SKILL.md` no usa `$ARGUMENTS`, porque Antigravity no lo sustituye.
 - El `SKILL.md` incluye una tabla que asocia cada subcomando con su invocación del script. Si las instrucciones de un subcomando crecen, se mueven a `references/<subcomando>.md`, que se lee solo cuando aplica.
 - La sintaxis `th:worktree`, con dos puntos, requiere empaquetar el kit como **plugin** de Claude Code (namespace `plugin:skill`). Queda fuera de la v0.1 y se evalúa después.
 
@@ -423,7 +422,7 @@ Argumentos recibidos: $ARGUMENTS
 1. Asegurar la ruta fija `~/.local/share/th-worktools`. Con `--link-here`, crear el symlink hacia el clon actual.
 2. Para cada `skills/*/`, crear un symlink en:
    - `~/.claude/skills/<name>`
-   - la ruta global de skills de Antigravity (verificar en la versión instalada; candidata: `~/.gemini/antigravity/skills/`).
+   - la ruta global de skills de Antigravity: `~/.gemini/config/skills/<name>` (verificado en agy 1.5.3; sigue symlinks).
 3. Crear symlinks de los entrypoints en `~/.local/bin/` (por ejemplo, `th-wt`).
 4. Idempotente: nunca sobrescribir algo que no sea un symlink propio del kit.
 
@@ -478,10 +477,10 @@ Matriz: `macos-latest` y `ubuntu-latest`.
 
 ## 15. Definition of Done — v0.1
 
-- [ ] `th-worktree` crea worktrees para una rama nueva, para una rama existente y para un PR (parcial: `new` y `checkout` listos; falta `pr`, #5).
+- [x] `th-worktree` crea worktrees para una rama nueva, para una rama existente y para un PR.
 - [ ] Al crear: aplica el `.conf` del repo (enlaza `.wiki`), instala dependencias e inicializa codegraph si está disponible (parcial: `.conf` del repo, solo `link` y sin `copy` (#7), instalación de dependencias y codegraph listos).
 - [x] Al cerrar: dry-run por defecto; con `--yes` borra el índice de codegraph, elimina el worktree y borra la rama si está mergeada.
-- [ ] Funciona invocado desde Claude Code y desde Antigravity en macOS (parcial: verificado en Claude Code; falta Antigravity, #10).
+- [x] Funciona invocado desde Claude Code y desde Antigravity en macOS.
 - [ ] `git status` limpio en un worktree del repo del trabajo (la `.wiki` enlazada no aparece).
 - [x] CI en verde en macOS y Ubuntu.
 - [ ] README con instalación en tres pasos y dependencias declaradas (parcial: dependencias declaradas; falta la instalación con `install.sh`, #12/#13).
@@ -504,14 +503,15 @@ Cuando todo esté marcado: tag `v0.1`, usarlo una semana y anotar lo que moleste
 
 ## 17. Por verificar al empezar
 
-- [ ] Ruta global de skills de Antigravity en la versión instalada.
+- [x] Ruta global de skills de Antigravity en la versión instalada. `~/.gemini/config/skills/` según la guía integrada de agy 1.5.3 (el plan decía `~/.gemini/antigravity/skills/`); sigue symlinks (2026-11-09).
 - [x] Que Claude Code sustituya `${CLAUDE_SKILL_DIR}` dentro de la forma `${CLAUDE_SKILL_DIR:-…}`. **No:** la variable no existe en el shell de Bash (2026-10-26). Sin el symlink fijo, Claude improvisó la ruta; con `~/.local/share/th-worktools` presente, la ruta del `SKILL.md` funciona. El fallback fijo es obligatorio en la instalación (`install.sh`, #12).
-- [ ] Que Antigravity ejecute los comandos en un shell que expanda `$HOME` y `${…:-…}`.
+- [x] Que Antigravity ejecute los comandos en un shell que expanda `$HOME` y `${…:-…}`. Sí, zsh; `CLAUDE_SKILL_DIR` no existe y se usa el fallback (2026-11-09).
 - [ ] Que las búsquedas del agente sigan el symlink `.wiki`.
 - [ ] Cómo está la entrada de `.wiki` en el `.gitignore` del repo del trabajo (con o sin barra).
 - [x] Flags no interactivos de `codegraph init` y comportamiento de `codegraph uninit`. `init -y` salta todos los prompts y toma los valores por defecto; `uninit -f` salta la confirmación (codegraph 1.6.2). Pero `uninit` también quita los hooks de sincronización de git del `.git/hooks` compartido, así que el kit no lo usa: `close` borra `.codegraph/` directamente.
 - [ ] Sintaxis de los patrones de permisos en ambos agentes.
-- [ ] Cómo recibe argumentos un skill en Antigravity.
+- [x] Cómo recibe argumentos un skill en Antigravity. Con `/th-worktree <pedido>`; el texto llega al modelo y `$ARGUMENTS` queda sin sustituir; sin `$ARGUMENTS`, Claude Code y agy pasan igual el texto (y nada si no lo hay), así que el `SKILL.md` no lo usa. `disable-model-invocation: true` oculta el skill al modelo (2026-11-09).
+- [x] Timeout de comandos largos en Antigravity. agy pasa el comando a segundo plano y espera a que termine (probado con 200 s); la línea de 600000 ms del `SKILL.md` no le afecta (2026-11-09).
 
 ---
 

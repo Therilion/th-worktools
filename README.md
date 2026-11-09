@@ -2,7 +2,7 @@
 
 Kit personal de skills y scripts para agentes de código, compatible con **Claude Code** y **Antigravity CLI**. Sigue el estándar Agent Skills (`SKILL.md`) y funciona en macOS y Linux.
 
-> **Estado:** en desarrollo, hacia la v0.1. Todavía no hay nada instalable (falta `install.sh`), pero `th-worktree` ya funciona con `new`, `checkout`, `list` y `close`.
+> **Estado:** en desarrollo, hacia la v0.1. Todavía no hay nada instalable (falta `install.sh`), pero `th-worktree` ya funciona con `new`, `checkout`, `pr`, `list` y `close`.
 
 ## Principios
 
@@ -29,7 +29,16 @@ La raíz de worktrees (`TH_WORKTREES_ROOT`, por defecto `~/.worktrees`), la inst
 
 Si `codegraph` está instalado, `new`, `checkout` y `pr` ejecutan `codegraph init -y` en el worktree (después de las dependencias; indexar es análisis estático y no ejecuta el código de un PR) y `close --yes` borra el índice (`.codegraph/`) sin ejecutar `codegraph`. Si el worktree ya trae un `.codegraph` (un symlink, o un índice que viene en un PR) no lo indexa y avisa: nunca usa un índice ajeno. Un `git status` manual muestra `?? .codegraph/` salvo que agregues `.codegraph/` a tu gitignore global (`git config --global core.excludesFile`); `th-wt list` y `close` no cuentan como cambio lo que genera codegraph, pero sí los archivos que el repo versiona bajo `.codegraph/`.
 
-Hoy funciona desde Claude Code (`/th-worktree new feature/login`) y desde la terminal ejecutando el script con su ruta completa; Antigravity (#10) y `th-wt` en el `PATH` (#11) están pendientes.
+Hoy funciona desde Claude Code y Antigravity CLI (`/th-worktree new feature/login`; en los dos hay que escribir `/th-worktree`, el skill no se activa solo) y desde la terminal ejecutando el script con su ruta completa; `th-wt` en el `PATH` (#11) está pendiente.
+
+Mientras no exista `install.sh` (#12), el enlace es manual. Ejecútalo desde la raíz del clon principal, no desde un worktree (al cerrarlo, el enlace quedaría colgando). Las rutas que ya existen no se tocan; la de `~/.local/share/th-worktools` es la ruta fija que usa el `SKILL.md`:
+
+```sh
+mkdir -p ~/.local/share ~/.claude/skills ~/.gemini/config/skills
+[ -e ~/.local/share/th-worktools ] || ln -s "$PWD" ~/.local/share/th-worktools
+[ -e ~/.claude/skills/th-worktree ] || ln -s ~/.local/share/th-worktools/skills/th-worktree ~/.claude/skills/th-worktree
+[ -e ~/.gemini/config/skills/th-worktree ] || ln -s ~/.local/share/th-worktools/skills/th-worktree ~/.gemini/config/skills/th-worktree
+```
 
 La referencia completa (subcomandos, red, códigos de salida y `--json`) está en [`docs/th-worktree.md`](docs/th-worktree.md).
 
