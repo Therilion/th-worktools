@@ -32,6 +32,14 @@ after="$(git -C "$TMP/repo" rev-parse HEAD)|$(git -C "$TMP/repo" branch --show-c
 rm "$TMP/repo/wip.txt"
 pass "$name"
 
+name="new sin --json → la ruta por stderr con el formato de pr, stdout vacío"
+rc=0
+(cd "$TMP/repo" && "$WT" new feature/term >"$TMP/new.out" 2>"$TMP/new.err") || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
+[ ! -s "$TMP/new.out" ] || fail "$name: stdout no está vacío: [$(cat "$TMP/new.out")]"
+grep -qxF "  path:   $HOME/.worktrees/acme/demo/feature-term" "$TMP/new.err" || fail "$name: stderr=[$(cat "$TMP/new.err")]"
+pass "$name"
+
 name="new --json devuelve solo path, branch, repo, linked, deps y codegraph"
 out="$(cd "$TMP/repo" && "$WT" new feature/json --json)" || fail "$name: th-wt new falló"
 expected="{\"branch\":\"feature/json\",\"codegraph\":false,\"deps\":\"skipped\",\"linked\":[],\"path\":\"$HOME/.worktrees/acme/demo/feature-json\",\"repo\":\"acme/demo\"}"

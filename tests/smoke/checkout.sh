@@ -131,6 +131,15 @@ git -C "$dest" push -q || fail "$name: git push falló"
 [ "$(git -C "$TMP/origin.git" rev-parse refs/heads/feature/sb)" = "$new_head" ] || fail "$name: push no llegó a origin"
 pass "$name"
 
+name="checkout sin --json → la ruta por stderr con el formato de pr, stdout vacío"
+git -C "$TMP/repo" branch feature/term
+rc=0
+(cd "$TMP/repo" && "$WT" checkout feature/term >"$TMP/co.out" 2>"$TMP/co.err") || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
+[ ! -s "$TMP/co.out" ] || fail "$name: stdout no está vacío: [$(cat "$TMP/co.out")]"
+grep -qxF "  path:   $HOME/.worktrees/acme/demo/feature-term" "$TMP/co.err" || fail "$name: stderr=[$(cat "$TMP/co.err")]"
+pass "$name"
+
 name="checkout --json devuelve solo path, branch, repo, linked, deps y codegraph"
 git -C "$TMP/repo" branch feature/json-co
 out="$(cd "$TMP/repo" && "$WT" checkout feature/json-co --json)" || fail "$name: th-wt checkout falló"

@@ -90,3 +90,33 @@ rc=0
 (cd "$TMP/repo" && "$WT" new feature/x --base --help >/dev/null 2>&1) || rc=$?
 [ "$rc" != 0 ] || fail "$name: new --base --help: --help se tomó como ayuda, exit=0"
 pass "$name"
+
+name="th-wt enlazado en el PATH (symlink a la ruta del kit, que a su vez es un symlink) → misma salida y código que con la ruta completa, desde el repo y desde un worktree; th-wt --help muestra el uso"
+# Instalación documentada: ~/.local/share/th-worktools -> kit, ~/.local/bin/th-wt -> .../scripts/th-wt
+ln -s "$ROOT" "$TMP/share"
+mkdir "$TMP/bin"
+ln -s "$TMP/share/skills/th-worktree/scripts/th-wt" "$TMP/bin/th-wt"
+(cd "$TMP/repo" && "$WT" new feature/terminal >/dev/null 2>&1) || fail "$name: th-wt new falló"
+inside="$HOME/.worktrees/acme/demo/feature-terminal"
+same_as_full_path() { # <dir> <args...>: stdout y exit de `th-wt` por nombre == ruta completa
+  local dir="$1" want got want_rc=0 got_rc=0
+  shift
+  want="$(cd "$dir" && "$WT" "$@" 2>/dev/null)" || want_rc=$?
+  got="$(cd "$dir" && PATH="$TMP/bin:$PATH" th-wt "$@" 2>/dev/null)" || got_rc=$?
+  [ "$got_rc" = "$want_rc" ] || fail "$name: $* en $dir: exit=$got_rc, con la ruta completa $want_rc"
+  [ "$got" = "$want" ] || fail "$name: $* en $dir: stdout distinto: [$got] vs [$want]"
+}
+out="$(PATH="$TMP/bin:$PATH" th-wt --help)" || fail "$name: th-wt --help no sale con 0"
+case "$out" in *Usage*) ;; *) fail "$name: th-wt --help no muestra el uso: [$out]" ;; esac
+for dir in "$TMP/repo" "$inside"; do
+  same_as_full_path "$dir" --help
+  same_as_full_path "$dir" list --json
+  same_as_full_path "$dir" bogus
+  same_as_full_path "$dir" close feature/inexistente
+done
+out="$(cd "$TMP/repo" && PATH="$TMP/bin:$PATH" th-wt list --json)"
+[ "$(printf '%s' "$out" | jq -r '.worktrees[] | select(.branch == "feature/terminal") | .path')" = "$inside" ] || fail "$name: list --json por nombre no muestra el worktree: [$out]"
+rc=0
+(cd "$inside" && PATH="$TMP/bin:$PATH" th-wt bogus >/dev/null 2>&1) || rc=$?
+[ "$rc" = 2 ] || fail "$name: bogus por nombre: exit=$rc, esperado 2"
+pass "$name"

@@ -88,6 +88,20 @@ out="$(cd "$TMP/lonely" && "$WT" list 2>&1)" || rc=$?
 case "$out" in *"no worktrees"*) ;; *) fail "$name: no dice que no hay worktrees: [$out]" ;; esac
 pass "$name"
 
+name="list sin --json → las filas van por stdout; «no worktrees» y los avisos por stderr"
+rc=0
+(cd "$TMP/repo" && "$WT" list >"$TMP/list.out" 2>"$TMP/list.err") || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
+line="$(grep -F "feature/login" "$TMP/list.out")" || fail "$name: la fila no está en stdout: [$(cat "$TMP/list.out")]"
+case "$line" in *"$HOME/.worktrees/acme/demo/feature-login"*) ;; *) fail "$name: la fila no tiene la ruta: [$line]" ;; esac
+[ ! -s "$TMP/list.err" ] || fail "$name: stderr no vacío: [$(cat "$TMP/list.err")]"
+rc=0
+(cd "$TMP/lonely" && "$WT" list >"$TMP/list.out" 2>"$TMP/list.err") || rc=$?
+[ "$rc" = 0 ] || fail "$name: sin worktrees: exit=$rc, esperado 0"
+[ ! -s "$TMP/list.out" ] || fail "$name: sin worktrees: stdout no vacío: [$(cat "$TMP/list.out")]"
+case "$(cat "$TMP/list.err")" in *"no worktrees under"*) ;; *) fail "$name: sin worktrees: stderr sin «no worktrees under»: [$(cat "$TMP/list.err")]" ;; esac
+pass "$name"
+
 name="list --json devuelve un único objeto con repo y worktrees ([] si no hay)"
 out="$(cd "$TMP/repo" && "$WT" list --json 2>/dev/null)" || fail "$name: th-wt list --json falló"
 printf '%s' "$out" | jq -e 'type == "object" and (keys == ["repo", "worktrees"])' >/dev/null || fail "$name: no es un objeto con repo y worktrees: [$out]"
