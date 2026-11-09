@@ -61,6 +61,27 @@ l2="$(find "$HOME" -mindepth 1 -type l -exec sh -c 'for f; do echo "$f -> $(read
 [ "$l1" = "$l2" ] || fail "$name: cambiaron los enlaces"
 pass "$name"
 
+name="reinstalar sin --link-here deja todo ok y no cambia ningún enlace"
+l1="$(find "$HOME" -mindepth 1 -type l -exec sh -c 'for f; do echo "$f -> $(readlink "$f")"; done' _ {} + | sort)"
+run_install "$BOTH" --yes
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+printf '%s\n' "$out" | grep -qE '^(create|fix|skip) ' && fail "$name: hubo cambios en la repetición: [$out]"
+case "$out" in *"ok     $HOME/.claude/skills/th-worktree"*) ;; *) fail "$name: falta la línea ok: [$out]" ;; esac
+l2="$(find "$HOME" -mindepth 1 -type l -exec sh -c 'for f; do echo "$f -> $(readlink "$f")"; done' _ {} + | sort)"
+[ "$l1" = "$l2" ] || fail "$name: cambiaron los enlaces"
+pass "$name"
+
+name="sin --link-here, un symlink que apunta directo al clon se reapunta a la ruta fija"
+reset_home
+mkdir -p "$HOME/.local/share" "$HOME/.claude/skills"
+ln -s "$ROOT" "$KIT"
+ln -s "$ROOT/skills/th-worktree" "$HOME/.claude/skills/th-worktree"
+run_install "$BOTH" --yes
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+case "$out" in *"fix    $HOME/.claude/skills/th-worktree -> $HOME/.local/share/th-worktools/skills/th-worktree"*) ;; *) fail "$name: falta la línea fix: [$out]" ;; esac
+[ "$(readlink "$HOME/.claude/skills/th-worktree")" = "$HOME/.local/share/th-worktools/skills/th-worktree" ] || fail "$name: no se reapuntó"
+pass "$name"
+
 name="--agents claude enlaza solo Claude Code; la ruta fija y th-wt se instalan igual"
 reset_home
 run_install "$BOTH" --link-here --agents claude --yes

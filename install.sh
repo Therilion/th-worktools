@@ -76,6 +76,7 @@ parent_ok() {
   [ -d "${p:-/}" ]
 }
 
+# shortcut: only absolute link values; a relative link through the missing kit path is skip in dry-run and fix with --yes. Normalize if relative links show up.
 # True for a symlink value that goes through the fixed kit path, even if it does not resolve yet.
 via_kit_path() {
   case "$1" in
@@ -126,6 +127,9 @@ else
 fi
 
 KIT_STATE=ok
+if [ -L "$KIT_PATH" ] && [ ! -d "$KIT_PATH" ]; then
+  die 4 "kit path $KIT_PATH is a broken symlink; move it away and run again"
+fi
 if [ "$LINK_HERE" = 1 ]; then
   KIT_DIR="$SELF_DIR"
   if [ -e "$KIT_PATH" ] || [ -L "$KIT_PATH" ]; then
@@ -137,7 +141,6 @@ if [ "$LINK_HERE" = 1 ]; then
   fi
 else
   if [ ! -d "$KIT_PATH" ]; then
-    if [ -L "$KIT_PATH" ]; then die 4 "kit path $KIT_PATH is a broken symlink; move it away and run again"; fi
     die 4 "kit path not found: $KIT_PATH; run install.sh --link-here from a clone"
   fi
   KIT_DIR="$(cd -P "$KIT_PATH" && pwd)"

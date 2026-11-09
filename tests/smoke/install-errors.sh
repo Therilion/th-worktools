@@ -144,3 +144,14 @@ run_install "$BOTH" --yes
 case "$out" in *"kit path $HOME/.local/share/th-worktools is a broken symlink; move it away and run again"*) ;; *) fail "$name: mensaje inesperado: [$out]" ;; esac
 [ "$(snap)" = "$before" ] || fail "$name: cambió $HOME"
 pass "$name"
+
+name="--link-here, la ruta fija es un symlink colgante → exit 4 'broken symlink', sin crear nada"
+reset_home
+mkdir -p "$HOME/.local/share"
+ln -s "$TMP/does-not-exist" "$HOME/.local/share/th-worktools"
+before="$(snap)"
+run_install "$BOTH" --link-here --yes
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+case "$out" in *"kit path $HOME/.local/share/th-worktools is a broken symlink; move it away and run again"*) ;; *) fail "$name: mensaje inesperado: [$out]" ;; esac
+[ "$(snap)" = "$before" ] || fail "$name: cambió $HOME"
+pass "$name"
