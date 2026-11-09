@@ -22,7 +22,7 @@ Ejecuta el script siempre con la ruta completa de la tabla: no está en el PATH 
 | Cerrar el worktree de un PR ("cierra el PR 5") | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" close review/pr-<n> --json` (ver reglas) |
 | Cerrar una rama mergeada con squash, o en otra base | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" close <rama> --remote --json` (ver reglas) |
 
-Argumentos recibidos: $ARGUMENTS
+Argumentos recibidos: $ARGUMENTS (si está vacío o muestra el nombre de la variable sin sustituir, toma el pedido del mensaje del usuario)
 
 ## Reglas
 
