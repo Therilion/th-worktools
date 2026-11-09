@@ -179,7 +179,7 @@ Si `pr-reviews/pr-<n>/` ya existe con otros archivos (por ejemplo `report.md`) p
 
 **Dependencias:** `pr` **no instala dependencias** (`deps: "skipped"`): el PR puede ser código de un tercero y la instalación lo ejecutaría (el `.npmrc` y el `packageManager` del PR controlan el gestor, y además hay scripts de ciclo de vida y `.pnpmfile.cjs`; `--ignore-scripts` no basta). Si hay un lockfile soportado, avisa por stderr con el comando a ejecutar a mano en el worktree si confías en el PR (`pnpm install --frozen-lockfile` / `npm ci`).
 
-**codegraph:** `pr` sí indexa el worktree (ver «Integración con codegraph»): es análisis estático y no ejecuta el código del PR.
+**codegraph:** `pr` sí indexa el worktree (ver «Integración con codegraph»): es análisis estático y no ejecuta el código del PR. Si el PR trae su propio `.codegraph/` con un índice, no se indexa ni se usa.
 
 **Salida:** con `--json`, el objeto de `new` más `pr`; sin `--json`, ruta, PR (número y título), rama del PR y base por stderr, con los caracteres de control del título y de las ramas (que escribe el autor del PR) sustituidos por espacios. Para actualizar un worktree de PR cuando recibe commits nuevos, ciérralo y vuelve a abrirlo.
 
@@ -200,7 +200,7 @@ th-wt list [--remote] [--json]
 
 Lista los worktrees del repositorio actual ubicados bajo `~/.worktrees/<owner>/<repo>/` (omite el checkout principal y cualquier worktree fuera de esa raíz).
 
-Para cada worktree informa la rama (o `(detached)`), si el directorio falta (`missing`), si tiene cambios locales (`dirty`, comprobado con `git --no-optional-locks status --porcelain --untracked-files=normal` para no bloquear ni modificar el índice; `.codegraph/` no cuenta, así que un worktree indexado sale limpio) y si está contenida en la rama por defecto de `origin` (`merged`). Sin `--json`, toda la salida de texto va a **stderr**; si no hay worktrees bajo la raíz, imprime `no worktrees under ~/.worktrees/<owner>/<repo>/`.
+Para cada worktree informa la rama (o `(detached)`), si el directorio falta (`missing`), si tiene cambios locales (`dirty`, comprobado con `git --no-optional-locks status --porcelain --untracked-files=normal` para no bloquear ni modificar el índice; lo que genera codegraph no cuenta, así que un worktree indexado sale limpio; los cambios en archivos que git versiona bajo `.codegraph/` sí) y si está contenida en la rama por defecto de `origin` (`merged`). Sin `--json`, toda la salida de texto va a **stderr**; si no hay worktrees bajo la raíz, imprime `no worktrees under ~/.worktrees/<owner>/<repo>/`.
 
 **Flags:**
 
@@ -243,8 +243,10 @@ Muestra el plan de cierre (dry-run por defecto) o cierra (con `--yes`) el worktr
 1. **Bloqueo del worktree (`delete.worktree = false`):** sin `--force`, el cierre se bloquea si el worktree tiene cambios sin commitear (`dirty: true`), si `git status` falla existiendo el directorio (`dirty: null` con `missing: false`), o si la rama tiene commits que no están en ninguna ref `refs/remotes/origin/*` (`unpushed > 0`) y no están cubiertos por un PR mergeado.
 2. **Borrado de la rama (`delete.branch = true`):** cuando el worktree se puede borrar, la rama también se borra si está contenida en la rama por defecto (`merged: true`) o cubierta por un PR mergeado (`--remote` con `pr.state == "MERGED"` y `pr.ahead == false`), siempre que no sea la rama por defecto de `origin` y no esté abierta en otro worktree. En cualquier otro caso, se elimina el directorio del worktree pero se conserva la rama local e informa el motivo (`kept`).
 3. **Borrado seguro del ref:** `close --yes` lee el OID de `refs/heads/<branch>` al empezar y borra la rama con `git update-ref -d refs/heads/<branch> <oid>` (limpiando también la sección `branch.<branch>` en git config). Si la rama recibió un commit nuevo mientras corría `close`, `update-ref` falla, la rama se conserva con el commit intacto y el comando termina con `0` avisando `kept: it moved while closing`.
-4. **Archivos ignorados (`ignored`):** el plan lista los nombres de archivos y directorios ignorados por git en el worktree (con directorios colapsados como `build/`, sin mostrar nunca su contenido; no lista los symlinks creados por `link`, ni un directorio que solo contiene symlinks, porque borrarlos no pierde datos; tampoco lista `.codegraph/`, que `close --yes` borra a propósito, ni lo cuenta como `dirty`). Se eliminan con el directorio del worktree y nunca bloquean el cierre.
-5. **`.codegraph/` (con `--yes`):** si es un directorio real (no un symlink), antes de `git worktree remove` se ejecuta `codegraph uninit -f <ruta>`. Si `codegraph` no está instalado o `uninit` falla, `th-wt` borra `.codegraph/` él mismo (en el fallo avisa `th-wt: warning: codegraph uninit failed in <ruta>; removing .codegraph/`). `TH_CODEGRAPH=off` no afecta a `close`. El dry-run no toca nada.
+4. **Archivos ignorados (`ignored`):** el plan lista los nombres de archivos y directorios ignorados por git en el worktree (con directorios colapsados como `build/`, sin mostrar nunca su contenido; no lista los symlinks creados por `link`, ni un directorio que solo contiene symlinks, porque borrarlos no pierde datos; tampoco lista lo que genera codegraph en `.codegraph/`, que `close --yes` borra a propósito, ni lo cuenta como `dirty`; si el repo versiona archivos bajo `.codegraph/`, los cambios en ellos sí cuentan como `dirty` y bloquean el cierre sin `--force`). Se eliminan con el directorio del worktree y nunca bloquean el cierre.
+5. **`.codegraph/` (con `--yes`):** si es un directorio real (no un symlink) y git no versiona nada dentro, antes de `git worktree remove` se ejecuta `codegraph uninit -f <ruta>` (con `CODEGRAPH_TELEMETRY=0 CODEGRAPH_NO_UPDATE_CHECK=1`, sin telemetría ni comprobación de actualizaciones). Si `codegraph` no está instalado o `uninit` falla, `th-wt` borra `.codegraph/` él mismo (en el fallo avisa `th-wt: warning: codegraph uninit failed in <ruta>; removing .codegraph/`). Si git versiona algo bajo `.codegraph/`, `th-wt` no lo toca: `git worktree remove` se lleva el índice ignorado. `TH_CODEGRAPH=off` no afecta a `close`. El dry-run no toca nada.
+
+   Limitación conocida: `.codegraph/` se borra justo antes de `git worktree remove`; si ese `remove` falla (p. ej. un worktree bloqueado), el worktree se queda sin su índice. Regéneralo con `codegraph init -y` dentro de él.
 
 **Worktrees de PR (`pr-reviews/pr-<n>/code`):** `close review/pr-<n>` aplica reglas propias. Un worktree es de PR si su rama es `review/pr-<n>` y está en `pr-reviews/pr-<n>/code` con la misma `<n>`; cualquier otra combinación (una rama `review/…` creada con `new`, o otra rama activada dentro de `pr-reviews/pr-<n>/code`) se cierra con las reglas normales.
 
@@ -351,7 +353,7 @@ Devuelven el mismo esquema:
 | `repo` | `string` | `<owner>/<repo>` derivado de `origin`. |
 | `linked` | `string[]` | Rutas enlazadas desde el `.conf` del repo, en el orden del archivo; `[]` si no hay `.conf` (ver «Enlaces por repo»). |
 | `deps` | `string` | Resultado de la instalación de dependencias: `"pnpm"`, `"npm"` (instaladas), `"skipped"` (sin lockfile soportado, el gestor no está en `PATH`, o es `pr`) o `"failed"` (el gestor salió con error). |
-| `codegraph` | `boolean` | `true` si `codegraph init` indexó el worktree; `false` si `codegraph` no está instalado, `TH_CODEGRAPH=off` o el `init` falló (ver «Integración con codegraph»). |
+| `codegraph` | `boolean` | `true` si `codegraph init` indexó el worktree; `false` si `codegraph` no está instalado, `TH_CODEGRAPH=off`, el worktree ya traía un `.codegraph` o el `init` falló (ver «Integración con codegraph»). |
 
 ```json
 {
@@ -424,13 +426,14 @@ En `checkout`, una rama `review/pr-*` sigue la columna «En `pr`».
 
 #### Integración con codegraph
 
-Después de las dependencias, con `TH_CODEGRAPH=auto` y `codegraph` en `PATH`, `new`, `checkout` y `pr` (y `checkout` de `review/pr-*`) ejecutan `codegraph init -y <ruta del worktree>`: `-y` lo hace no interactivo (verificado con codegraph 1.6.2). La salida va a **stderr** y stdin es `/dev/null`. Indexar un PR es análisis estático: no ejecuta su código.
+Después de las dependencias, con `TH_CODEGRAPH=auto` y `codegraph` en `PATH`, `new`, `checkout` y `pr` (y `checkout` de `review/pr-*`) ejecutan `codegraph init -y <ruta del worktree>`: `-y` lo hace no interactivo (verificado con codegraph 1.6.2). La salida va a **stderr** y stdin es `/dev/null`. Se ejecuta con `CODEGRAPH_TELEMETRY=0 CODEGRAPH_NO_UPDATE_CHECK=1` (sin telemetría ni comprobación de actualizaciones), igual que `uninit` en `close`, para que el subcomando no use la red. Indexar un PR es análisis estático: no ejecuta su código.
 
 - Éxito: `codegraph: true`.
 - `codegraph` no instalado o `TH_CODEGRAPH=off`: `codegraph: false`, sin mensaje.
+- `.codegraph` ya existe en el worktree como symlink (p. ej. `link .codegraph` del `.conf`) o con algo más que un `.gitignore` (p. ej. un PR que versiona su propio `.codegraph/codegraph.db`): no se ejecuta `init`, `codegraph: false`, sale con `0` y stderr avisa `th-wt: warning: .codegraph already exists in <ruta>; not indexed`. Un índice aportado por un PR nunca se usa. Un `.codegraph/` con solo un `.gitignore` versionado se indexa con normalidad.
 - `init` falla: se conserva el worktree, sale con `0`, `codegraph: false` y stderr avisa `th-wt: warning: codegraph init failed in <ruta>; run 'codegraph init -y' there manually`.
 - En un repo grande `init` puede tardar minutos: quien invoque `new`, `checkout` o `pr` debe usar un timeout largo. Si se corta, el worktree ya existe: ejecuta `codegraph init -y` a mano dentro de él.
-- `list` y `close` ignoran `.codegraph/` al calcular `dirty` y `ignored`, así que un worktree indexado sale limpio. `th-wt` no toca el `.gitignore` propio de codegraph (`.codegraph/.gitignore`): un `git status` manual muestra `?? .codegraph/` salvo que agregues `.codegraph/` a tu gitignore global (`git config --global core.excludesFile`).
+- `list` y `close` ignoran lo que genera codegraph (el directorio `.codegraph/` sin seguimiento y sus archivos ignorados) al calcular `dirty` y `ignored`, así que un worktree indexado sale limpio. Si el repo versiona archivos bajo `.codegraph/`, los cambios en ellos sí cuentan como `dirty`. `th-wt` no toca el `.gitignore` propio de codegraph (`.codegraph/.gitignore`): un `git status` manual muestra `?? .codegraph/` salvo que agregues `.codegraph/` a tu gitignore global (`git config --global core.excludesFile`).
 - `close --yes` borra el índice (ver `close`, punto 5). No se reindexan ni se indexan worktrees creados antes de #9.
 
 ### `pr --json`

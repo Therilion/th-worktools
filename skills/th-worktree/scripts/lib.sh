@@ -302,8 +302,14 @@ index_codegraph() {
   codegraph=false
   [ "$codegraph_mode" = off ] && return 0
   command -v codegraph >/dev/null || return 0
+  # a link (e.g. from the repo .conf) or committed files other than .gitignore: init would say "Already initialized" and index nothing, or reuse a crafted db
+  if [ -L "$dest/.codegraph" ] || { [ -e "$dest/.codegraph" ] && { [ ! -d "$dest/.codegraph" ] || [ -n "$(find "$dest/.codegraph" -mindepth 1 -maxdepth 1 ! -name .gitignore -print -quit)" ]; }; }; then
+    echo "th-wt: warning: .codegraph already exists in $dest; not indexed" >&2
+    return 0
+  fi
   # stdout is reserved for --json and there is no terminal to answer prompts
-  if codegraph init -y "$dest" >&2 </dev/null; then
+  # codegraph's telemetry and update check are network access: opt-in only
+  if CODEGRAPH_TELEMETRY=0 CODEGRAPH_NO_UPDATE_CHECK=1 codegraph init -y "$dest" >&2 </dev/null; then
     codegraph=true
   else
     echo "th-wt: warning: codegraph init failed in $dest; run 'codegraph init -y' there manually" >&2
@@ -346,6 +352,13 @@ load_remote() {
   jq -e 'type == "array" and all(.[]; type == "object")' <<<"$prs" >/dev/null 2>&1 || die 4 "unexpected output from gh pr list"
 }
 
+# git status of worktree $1 (more git status flags after it) as \1-separated entries, without what codegraph leaves in .codegraph/: its untracked dir and its ignored files. Tracked changes there (it may have a committed .gitignore) still show. tr because $(...) drops NUL bytes.
+wt_status() {
+  local path="$1"
+  shift
+  git --no-optional-locks -C "$path" status --porcelain -z "$@" | tr '\0' '\1' | awk 'BEGIN { RS = ORS = "\001" } !/^([?][?] \.codegraph\/|!! \.codegraph(\/.*)?)$/'
+}
+
 # One JSON object per line for each worktree under $1, only the one on branch $5 if given (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
   local root="$1" default="$2" prs="$3" remote="$4" only="${5:-}" path line head dirty missing ref name merged rc out pr oid ahead
@@ -366,7 +379,7 @@ list_rows() {
         dirty=false
         missing=false
         if [ -d "$path" ]; then
-          if out="$(git --no-optional-locks -C "$path" status --porcelain --untracked-files=normal -- . ':(exclude).codegraph' 2>/dev/null)"; then
+          if out="$(wt_status "$path" --untracked-files=normal 2>/dev/null)"; then
             [ -z "$out" ] || dirty=true
           else
             dirty=null
