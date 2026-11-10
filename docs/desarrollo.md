@@ -12,7 +12,7 @@ Antes de dar cualquier cambio por terminado, deben pasar estos tres checks desde
 # 1. Análisis estático de todos los scripts y entrypoints
 shellcheck -x $(git ls-files '*.sh') skills/*/scripts/th-wt
 
-# 2. Validación estática de los SKILL.md (nombre de carpeta y prefijo CLAUDE_SKILL_DIR en rutas scripts/)
+# 2. Validación estática de los SKILL.md (nombre de carpeta y ruta fija `$HOME/.local/share/th-worktools/skills/<skill>/scripts/` sin `${…}` en scripts/)
 tests/lint-skills.sh
 
 # 3. Suite completa de tests de humo

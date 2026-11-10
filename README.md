@@ -2,7 +2,7 @@
 
 Kit personal de skills y scripts para agentes de código, compatible con **Claude Code** y **Antigravity CLI**. Sigue el estándar Agent Skills (`SKILL.md`) y funciona en macOS y Linux.
 
-> **Estado:** en desarrollo, hacia la v0.1. `install.sh` ya instala el kit en Claude Code y Antigravity CLI, y `th-worktree` funciona con `new`, `checkout`, `pr`, `list` y `close`. `verify.sh` comprueba la instalación. Falta la guía de instalación en tres pasos.
+> **Estado:** en desarrollo, hacia la v0.1. `install.sh` ya instala el kit en Claude Code y Antigravity CLI, y `th-worktree` funciona con `new`, `checkout`, `pr`, `list` y `close`. `verify.sh` comprueba la instalación. La guía de instalación en tres pasos, los requisitos y los permisos sugeridos ya están abajo; del DoD de la v0.1 falta lo marcado como pendiente en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) §15.
 
 ## Principios
 
@@ -10,6 +10,84 @@ Kit personal de skills y scripts para agentes de código, compatible con **Claud
 - **Dry-run por defecto.** Las acciones con efectos secundarios solo muestran el plan; `--yes` las ejecuta.
 - **Herramientas externas opcionales.** Se usan si están instaladas y se omiten si no.
 - **Secretos protegidos.** Los archivos `.env*` solo se tocan si lo configuras, y los scripts nunca imprimen su contenido.
+
+## Instalación en tres pasos
+
+1. Instala las dependencias de [Requisitos](#requisitos): `git`, `jq` y bash 3.2 o superior; `gh` solo si usas `pr` o `--remote`.
+2. Clona el repo y ejecuta `install.sh` desde la raíz del clon:
+
+   ```sh
+   git clone https://github.com/Therilion/th-worktools.git
+   cd th-worktools
+   ./install.sh --link-here --yes
+   ```
+
+3. Ejecuta `./verify.sh`. Sale con `0` si todo está bien. Después, en Claude Code o Antigravity CLI, escribe `/th-worktree list`: funciona sin más configuración. Sin los [permisos sugeridos](#permisos-sugeridos), que son opcionales, el agente te pide confirmación antes de ejecutarlo.
+
+Detalle del paso 2 (`install.sh`):
+
+- Ejecútalo desde la raíz del clon principal, no desde un worktree (al cerrarlo, el enlace quedaría colgando).
+- Sin `--yes` solo muestra el plan; con `--yes` lo aplica:
+
+  ```sh
+  ./install.sh --link-here        # muestra el plan, no cambia nada
+  ./install.sh --link-here --yes  # lo aplica
+  ```
+
+- Enlaza `~/.local/share/th-worktools` (la ruta fija que usa el `SKILL.md`) al clon, cada `skills/th-*/` en los agentes y `th-wt` en `~/.local/bin/`.
+- Por defecto instala en los agentes cuyo binario está en el `PATH`: `claude` (`~/.claude/skills/`) y `agy` (`~/.gemini/config/skills/`). `--agents claude` (o `claude,agy`) elige cuáles.
+- Nunca toca una ruta que no sea del kit: la deja, instala el resto y sale con `4`. Repetirlo es seguro: lo que ya está bien sale como `ok`.
+- `th-wt` desde la terminal exige que `~/.local/bin` esté en el `PATH`.
+
+Detalle del paso 3 (`verify.sh`):
+
+- Úsalo con el mismo `--agents`, si lo usaste en `install.sh`, para comprobar que cada agente ve los skills.
+- Solo lee. Sale con `0` si todo está bien, con `2` si el uso es incorrecto o el agente no está soportado, con `3` si falta en el `PATH` `git`, `jq` o un agente de `--agents`, y con `4` si algo está roto.
+
+## Requisitos
+
+Versiones probadas en macOS (Darwin 25); CI corre en macOS y Ubuntu. Instálalas con el gestor de paquetes de tu sistema.
+
+| Grupo                                        | Herramienta | Versión probada         |
+| -------------------------------------------- | ----------- | ----------------------- |
+| Requerida                                    | `git`       | 2.50.1                  |
+| Requerida                                    | `jq`        | 1.7.1                   |
+| Requerida                                    | bash        | 3.2.57 (3.2 o superior) |
+| Para `pr`, `list --remote`, `close --remote` | `gh`        | 2.103.3                 |
+| Opcional (indexa los worktrees nuevos)       | `codegraph` | 1.6.2                   |
+
+Agentes (al menos uno): Claude Code 2.1.311 y Antigravity CLI (`agy`) 1.5.3.
+
+## Permisos sugeridos
+
+Opcionales. `install.sh` no los escribe: cópialos tú en la configuración de cada agente, **fusionados** con lo que el archivo ya tenga (no lo reemplaces). Hacen que `list` corra sin pedir permiso, que `close … --yes` lo pida siempre (la regla `ask` gana a cualquier `allow`) y, en Claude Code, que leer un `.env*` quede bloqueado.
+
+**Claude Code** (`~/.claude/settings.json`):
+
+```json
+{
+  "permissions": {
+    "allow": ["Bash(*th-wt list*)"],
+    "ask": ["Bash(*th-wt close*--yes*)"],
+    "deny": ["Read(**/.env*)"]
+  }
+}
+```
+
+**Antigravity CLI** (`~/.gemini/antigravity-cli/settings.json`):
+
+```json
+{
+  "permissions": {
+    "allow": ["command(regex:.*/th-wt\"? list( .*)?)"],
+    "ask": ["command(regex:.*/th-wt\"? close .*--yes.*)"]
+  }
+}
+```
+
+- Un comando encadenado (`th-wt list && otro`) siempre pide permiso.
+- El `deny` de Claude Code solo cubre la herramienta de lectura de archivos, no un `cat .env` por la shell. En agy no se probó un bloqueo equivalente.
+- Comprobado en macOS con Claude Code 2.1.311 y agy 1.5.3. Detalle en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) §13.
 
 ## v0.1: `th-worktree`
 
@@ -29,28 +107,9 @@ La raíz de worktrees (`TH_WORKTREES_ROOT`, por defecto `~/.worktrees`), la inst
 
 Si `codegraph` está instalado, `new`, `checkout` y `pr` ejecutan `codegraph init -y` en el worktree (después de las dependencias; indexar es análisis estático y no ejecuta el código de un PR) y `close --yes` borra el índice (`.codegraph/`) sin ejecutar `codegraph`. Si el worktree ya trae un `.codegraph` (un symlink, o un índice que viene en un PR) no lo indexa y avisa: nunca usa un índice ajeno. Un `git status` manual muestra `?? .codegraph/` salvo que agregues `.codegraph/` a tu gitignore global (`git config --global core.excludesFile`); `th-wt list` y `close` no cuentan como cambio lo que genera codegraph, pero sí los archivos que el repo versiona bajo `.codegraph/`.
 
-Hoy funciona desde Claude Code y Antigravity CLI (`/th-worktree new feature/login`; en los dos hay que escribir `/th-worktree`, el skill no se activa solo) y desde la terminal: con el enlace de abajo, `th-wt <subcomando>` funciona desde un repo o un worktree (`th-wt --help` muestra el uso); la ruta completa del script sigue valiendo.
-
-Ejecuta `install.sh` desde la raíz del clon principal, no desde un worktree (al cerrarlo, el enlace quedaría colgando). Sin `--yes` solo muestra el plan; con `--yes` lo aplica:
-
-```sh
-./install.sh --link-here        # muestra el plan, no cambia nada
-./install.sh --link-here --yes  # lo aplica
-```
-
-- Enlaza `~/.local/share/th-worktools` (la ruta fija que usa el `SKILL.md`) al clon, cada `skills/th-*/` en los agentes y `th-wt` en `~/.local/bin/`.
-- Por defecto instala en los agentes cuyo binario está en el `PATH`: `claude` (`~/.claude/skills/`) y `agy` (`~/.gemini/config/skills/`). `--agents claude` (o `claude,agy`) elige cuáles.
-- Nunca toca una ruta que no sea del kit: la deja, instala el resto y sale con `4`. Repetirlo es seguro: lo que ya está bien sale como `ok`.
-- `th-wt` desde la terminal exige que `~/.local/bin` esté en el `PATH`.
-- Después de `install.sh --yes`, ejecuta `./verify.sh` (con el mismo `--agents`, si lo usaste) para comprobar que cada agente ve los skills; solo lee, sale con `0` si todo está bien, con `2` si el uso es incorrecto o el agente no está soportado, con `3` si falta en el `PATH` `git`, `jq` o un agente de `--agents`, y con `4` si algo está roto.
+Hoy funciona desde Claude Code y Antigravity CLI (`/th-worktree new feature/login`; en los dos hay que escribir `/th-worktree`, el skill no se activa solo) y desde la terminal: con el enlace que crea `install.sh`, `th-wt <subcomando>` funciona desde un repo o un worktree (`th-wt --help` muestra el uso); la ruta completa del script sigue valiendo.
 
 La referencia completa (subcomandos, red, códigos de salida y `--json`) está en [`docs/th-worktree.md`](docs/th-worktree.md).
-
-## Requisitos
-
-- Requeridos: `git`, `jq`, bash 3.2 o superior.
-- Para `pr`, `list --remote` y `close --remote`: `gh`.
-- Opcional: `codegraph`.
 
 ## Hoja de ruta
 
