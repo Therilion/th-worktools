@@ -65,7 +65,8 @@ th-worktools/
 │   ├── th-worktree.md        # referencia de usuario de th-wt
 │   └── desarrollo.md         # guía de desarrollo y convenciones de tests
 ├── install.sh                # crea symlinks de skills y entrypoints (hecho, #12a)
-├── verify.sh                 # comprueba que cada agente ve los skills (pendiente, #12b)
+├── verify.sh                 # comprueba que cada agente ve los skills (hecho, #12b)
+├── lib.sh                    # compartido por install.sh y verify.sh: tabla de agentes, resolve, lectura de --agents
 ├── examples/
 │   └── config/               # configuración de ejemplo, solo con valores ficticios (repos/ y config global listos, #7 y #8)
 ├── skills/
@@ -439,12 +440,23 @@ Uso: `install.sh [--link-here] [--agents <lista>] [--yes]`, `-h|--help`. Dry-run
 
 Códigos de salida: `2` agente no soportado, `3` agente pedido que no está en el `PATH`, `4` ruta del kit ausente o ajena, o rutas sin tocar.
 
-**`verify.sh`** (pendiente, #12b)
+**`verify.sh`** (#12b)
 
-- Cada symlink apunta a un destino existente.
-- En cada `SKILL.md`, `name` coincide con el nombre de la carpeta.
-- Las dependencias requeridas están instaladas.
-- Código de salida distinto de `0` si algo falla.
+Uso: `verify.sh [--agents <lista>]`, `-h|--help`. Solo lectura: no escribe, no usa la red y no lanza los agentes. Comprueba el clon donde vive el script.
+
+1. Sin `--agents`, los agentes soportados que estén en el `PATH` (igual que `install.sh`). Con `--agents`: un agente no soportado sale con `2` y uno pedido que no está en el `PATH`, con `3`; en ambos casos antes de comprobar nada.
+2. Una línea por elemento en stderr, sin detenerse en el primer fallo, en este orden:
+   - La ruta fija `~/.local/share/th-worktools`: `ok` si resuelve a este clon.
+   - Cada `skills/th-*/` en el directorio de skills de cada agente elegido: `ok` si, resuelto, llega a la carpeta del skill en el kit (también si apunta directo al clon) y el `name` de su `SKILL.md` coincide con la carpeta.
+   - Cada entrypoint de `~/.local/bin`: `ok` si resuelve al script del kit.
+   - `git` y `jq`.
+3. Formato de línea: `ok     <ruta>` o `fail   <ruta> (<causa>)`. Causas: `missing`, `broken symlink`, `not a symlink`, `points outside the kit: <ruta>`, `name '<x>' does not match its folder`; dependencias: `fail   jq (not found in PATH)`.
+4. Al final, en stderr:
+   - Si `~/.local/bin` no está en el `PATH`: `verify.sh: warning: ~/.local/bin is not in PATH; th-wt will not run from the terminal`. No cambia el código de salida.
+   - Si falló algo que no sea una dependencia: `verify.sh: <N> problem(s) found; run install.sh --yes (install.sh --link-here --yes from the clone if the kit path is missing)`.
+   - Si todo está bien: `verify.sh: all ok`.
+
+Códigos de salida: `0` todo bien, `2` uso incorrecto o agente no soportado, `3` falta una dependencia requerida (`git` o `jq`; tiene prioridad sobre `4`), `4` cualquier otro fallo.
 
 ---
 
@@ -496,7 +508,7 @@ Matriz: `macos-latest` y `ubuntu-latest`.
 - [x] Funciona invocado desde Claude Code y desde Antigravity en macOS.
 - [ ] `git status` limpio en un worktree del repo del trabajo (la `.wiki` enlazada no aparece).
 - [x] CI en verde en macOS y Ubuntu.
-- [ ] README con instalación en tres pasos y dependencias declaradas (parcial: dependencias declaradas; `install.sh` existe (#12a); falta el README en tres pasos, #13).
+- [ ] README con instalación en tres pasos y dependencias declaradas (parcial: dependencias declaradas; `install.sh` (#12a) y `verify.sh` (#12b) existen; falta el README en tres pasos, #13).
 
 Cuando todo esté marcado: tag `v0.1`, usarlo una semana y anotar lo que moleste. **Esa lista define la v0.2.**
 
@@ -517,7 +529,7 @@ Cuando todo esté marcado: tag `v0.1`, usarlo una semana y anotar lo que moleste
 ## 17. Por verificar al empezar
 
 - [x] Ruta global de skills de Antigravity en la versión instalada. `~/.gemini/config/skills/` según la guía integrada de agy 1.5.3 (el plan decía `~/.gemini/antigravity/skills/`); sigue symlinks (2026-11-09).
-- [x] Que Claude Code sustituya `${CLAUDE_SKILL_DIR}` dentro de la forma `${CLAUDE_SKILL_DIR:-…}`. **No:** la variable no existe en el shell de Bash (2026-10-26). Sin el symlink fijo, Claude improvisó la ruta; con `~/.local/share/th-worktools` presente, la ruta del `SKILL.md` funciona. El fallback fijo es obligatorio en la instalación (`install.sh`, hecho en #12a).
+- [x] Que Claude Code sustituya `${CLAUDE_SKILL_DIR}` dentro de la forma `${CLAUDE_SKILL_DIR:-…}`. **No:** la variable no existe en el shell de Bash (2026-10-26). Sin el symlink fijo, Claude improvisó la ruta; con `~/.local/share/th-worktools` presente, la ruta del `SKILL.md` funciona. El fallback fijo es obligatorio en la instalación (`install.sh`, hecho en #12a; `verify.sh`, en #12b, lo comprueba).
 - [x] Que Antigravity ejecute los comandos en un shell que expanda `$HOME` y `${…:-…}`. Sí, zsh; `CLAUDE_SKILL_DIR` no existe y se usa el fallback (2026-11-09).
 - [ ] Que las búsquedas del agente sigan el symlink `.wiki`.
 - [ ] Cómo está la entrada de `.wiki` en el `.gitignore` del repo del trabajo (con o sin barra).

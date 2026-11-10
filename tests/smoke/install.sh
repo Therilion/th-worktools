@@ -116,7 +116,7 @@ pass "$name"
 name="un directorio que no es th-* en skills/ no se enlaza"
 reset_home
 mkdir -p "$TMP/kit"
-cp "$ROOT/install.sh" "$TMP/kit/install.sh"
+cp "$ROOT/install.sh" "$ROOT/lib.sh" "$TMP/kit/"
 cp -R "$ROOT/skills" "$TMP/kit/skills"
 mkdir -p "$TMP/kit/skills/system/scripts"
 printf -- '---\nname: system\n---\n' >"$TMP/kit/skills/system/SKILL.md"

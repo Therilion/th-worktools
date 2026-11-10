@@ -9,10 +9,8 @@ while [ -L "$src" ]; do
   case "$src" in /*) ;; *) src="$dir/$src" ;; esac
 done
 SELF_DIR="$(cd -P "${src%/*}" && pwd)"
-
-KIT_PATH="$HOME/.local/share/th-worktools"
-BIN_DIR="$HOME/.local/bin"
-SUPPORTED="claude agy"
+# shellcheck source=lib.sh source-path=SCRIPTDIR
+. "$SELF_DIR/lib.sh"
 
 usage() {
   cat <<'USAGE'
@@ -32,35 +30,6 @@ USAGE
 err() { echo "install.sh: $*" >&2; }
 die() { local code="$1"; shift; err "$*"; exit "$code"; }
 bad_usage() { err "$1"; usage >&2; exit 2; }
-
-# The agent name is also its binary; this maps it to its skills directory (empty if unsupported).
-agent_dir() {
-  case "$1" in
-    claude) echo "$HOME/.claude/skills" ;;
-    agy) echo "$HOME/.gemini/config/skills" ;;
-    *) echo "" ;;
-  esac
-}
-
-# Physical path of $1 after following the symlink chain; fails if it dangles or loops.
-resolve() {
-  local p="$1" dir n=0
-  while [ -L "$p" ]; do
-    n=$((n + 1))
-    [ "$n" -le 40 ] || return 1
-    dir="$(cd -P "${p%/*}" && pwd)" || return 1
-    p="$(readlink "$p")"
-    case "$p" in /*) ;; *) p="$dir/$p" ;; esac
-  done
-  if [ -d "$p" ]; then
-    (cd -P "$p" && pwd)
-  elif [ -e "$p" ]; then
-    dir="$(cd -P "${p%/*}" && pwd)" || return 1
-    echo "$dir/${p##*/}"
-  else
-    return 1
-  fi
-}
 
 is_kit_path() {
   case "$1" in
@@ -103,27 +72,9 @@ while [ $# -gt 0 ]; do
 done
 
 # Chosen agents, space-separated. Validated before touching anything.
-AGENTS=""
-if [ -n "$AGENTS_ARG" ]; then
-  rest="$AGENTS_ARG,"
-  while [ -n "$rest" ]; do
-    a="${rest%%,*}"
-    rest="${rest#*,}"
-    [ -n "$a" ] || continue
-    [ -n "$(agent_dir "$a")" ] || die 2 "unsupported agent: $a (supported: claude, agy)"
-    case " $AGENTS " in *" $a "*) ;; *) AGENTS="$AGENTS $a" ;; esac
-  done
-  [ -n "$AGENTS" ] || bad_usage "--agents needs a comma-separated list of agents"
-  for a in $AGENTS; do
-    command -v "$a" >/dev/null || die 3 "agent not found in PATH: $a"
-  done
-else
-  for a in $SUPPORTED; do
-    if command -v "$a" >/dev/null; then AGENTS="$AGENTS $a"; fi
-  done
-  if [ -z "$AGENTS" ]; then
-    err "warning: no supported agent found in PATH (claude, agy); linking only the kit path and entrypoints"
-  fi
+pick_agents "$AGENTS_ARG"
+if [ -z "$AGENTS_ARG" ] && [ -z "$AGENTS" ]; then
+  err "warning: no supported agent found in PATH (claude, agy); linking only the kit path and entrypoints"
 fi
 
 KIT_STATE=ok
