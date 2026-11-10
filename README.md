@@ -2,7 +2,7 @@
 
 Kit personal de skills y scripts para agentes de código, compatible con **Claude Code** y **Antigravity CLI**. Sigue el estándar Agent Skills (`SKILL.md`) y funciona en macOS y Linux.
 
-> **Estado:** en desarrollo, hacia la v0.1. `install.sh` ya instala el kit en Claude Code y Antigravity CLI, y `th-worktree` funciona con `new`, `checkout`, `pr`, `list` y `close`. Falta `verify.sh` y la guía de instalación en tres pasos.
+> **Estado:** en desarrollo, hacia la v0.1. `install.sh` ya instala el kit en Claude Code y Antigravity CLI, y `th-worktree` funciona con `new`, `checkout`, `pr`, `list` y `close`. `verify.sh` comprueba la instalación. Falta la guía de instalación en tres pasos.
 
 ## Principios
 
@@ -42,6 +42,7 @@ Ejecuta `install.sh` desde la raíz del clon principal, no desde un worktree (al
 - Por defecto instala en los agentes cuyo binario está en el `PATH`: `claude` (`~/.claude/skills/`) y `agy` (`~/.gemini/config/skills/`). `--agents claude` (o `claude,agy`) elige cuáles.
 - Nunca toca una ruta que no sea del kit: la deja, instala el resto y sale con `4`. Repetirlo es seguro: lo que ya está bien sale como `ok`.
 - `th-wt` desde la terminal exige que `~/.local/bin` esté en el `PATH`.
+- Después de `install.sh --yes`, ejecuta `./verify.sh` (con el mismo `--agents`, si lo usaste) para comprobar que cada agente ve los skills; solo lee, sale con `0` si todo está bien, con `3` si falta `git` o `jq` y con `4` si algo está roto.
 
 La referencia completa (subcomandos, red, códigos de salida y `--json`) está en [`docs/th-worktree.md`](docs/th-worktree.md).
 
