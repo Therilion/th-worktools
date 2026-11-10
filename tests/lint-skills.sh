@@ -13,8 +13,12 @@ for dir in "$ROOT"/skills/th-*/; do
   name="$(awk '/^---$/ { n++; next } n == 1 && /^name:/ { sub(/^name:[ ]*/, ""); print; exit }' "$file")"
   [ "$name" = "$folder" ] || err "$folder: name='$name' no coincide con la carpeta"
 
-  if grep 'scripts/' "$file" | grep -v 'CLAUDE_SKILL_DIR:-' >/dev/null; then
-    err "$folder: ruta scripts/ sin el prefijo con fallback \${CLAUDE_SKILL_DIR:-…}"
+  # Toda línea con scripts/ debe usar la ruta fija entre comillas dobles y sin ${…}
+  # (Claude Code no auto-aprueba comandos con llaves de variable).
+  fixed="\"\$HOME/.local/share/th-worktools/skills/$folder/scripts/"
+  if grep -F 'scripts/' "$file" | grep -v -F "$fixed" >/dev/null \
+    || grep -F 'scripts/' "$file" | grep -F "\${" >/dev/null; then
+    err "$folder: ruta scripts/ sin la forma fija \"\$HOME/.local/share/th-worktools/skills/$folder/scripts/…\" (sin \${…})"
   fi
 done
 

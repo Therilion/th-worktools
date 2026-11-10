@@ -6,21 +6,21 @@ disable-model-invocation: true
 
 # th-worktree
 
-Ejecuta el script siempre con la ruta completa de la tabla: `th-wt` puede no estar en el PATH (o apuntar a otra copia del kit) y el comando corre desde el repo del usuario, no desde la carpeta de este SKILL.md.
+Ejecuta el script siempre con la ruta completa de la tabla (sin `${…}`, para que la regla de permisos de Claude Code la reconozca): `th-wt` puede no estar en el PATH (o apuntar a otra copia del kit) y el comando corre desde el repo del usuario, no desde la carpeta de este SKILL.md.
 
 ## Subcomandos
 
 | Pedido del usuario | Comando |
 |---|---|
-| Crear rama nueva | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" new <rama> [--base <rama>] --json` |
-| Trabajar en una rama existente (local o ya traída de origin) | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" checkout <rama> --json` |
-| Traer de origin una rama que no está en local | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" checkout <rama> --remote --json` |
-| Revisar un PR (también de un fork) | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" pr <n> --json` |
-| Ver worktrees | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" list --json` |
-| Saber qué worktrees se pueden cerrar | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" list --remote --json` |
-| Cerrar un worktree | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" close <rama> --json` (ver reglas) |
-| Cerrar el worktree de un PR ("cierra el PR 5") | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" close review/pr-<n> --json` (ver reglas) |
-| Cerrar una rama mergeada con squash, o en otra base | `"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt" close <rama> --remote --json` (ver reglas) |
+| Crear rama nueva | `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt" new <rama> [--base <rama>] --json` |
+| Trabajar en una rama existente (local o ya traída de origin) | `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt" checkout <rama> --json` |
+| Traer de origin una rama que no está en local | `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt" checkout <rama> --remote --json` |
+| Revisar un PR (también de un fork) | `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt" pr <n> --json` |
+| Ver worktrees | `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt" list --json` |
+| Saber qué worktrees se pueden cerrar | `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt" list --remote --json` |
+| Cerrar un worktree | `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt" close <rama> --json` (ver reglas) |
+| Cerrar el worktree de un PR ("cierra el PR 5") | `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt" close review/pr-<n> --json` (ver reglas) |
+| Cerrar una rama mergeada con squash, o en otra base | `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt" close <rama> --remote --json` (ver reglas) |
 
 El pedido es el texto que acompaña a `/th-worktree` en el mensaje que lo invoca; si no hay, pregunta qué quiere hacer y no ejecutes nada.
 
