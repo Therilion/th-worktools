@@ -20,7 +20,6 @@ BOTH="$FAKE:/usr/bin:/bin"
 BINP="$FAKE:$HOME/.local/bin:/usr/bin:/bin"
 
 reset_home() { rm -rf "$HOME"; mkdir -p "$HOME"; }
-snap() { find "$HOME" -mindepth 1 | sort; }
 # run_install <PATH> <args...> y run_verify <PATH> <args...>: dejan el exit en $rc y stdout+stderr en $out
 run_install() {
   local p="$1"
