@@ -42,7 +42,7 @@ Kit personal y **público** de skills y scripts para agentes de código, compati
 Tres cosas dependen de esa ruta. Si se mueve, se rompen todas:
 
 1. Los symlinks desde `~/.claude/skills/` y la ruta global de Antigravity.
-2. El fallback en cada `SKILL.md`: `${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/<skill>}`. En Antigravity, esa ruta es la única forma de encontrar los scripts.
+2. La ruta fija en cada `SKILL.md`: `"$HOME/.local/share/th-worktools/skills/<skill>/scripts/…"`. En los dos agentes, esa ruta es la única forma de encontrar los scripts.
 3. Los enlaces en `~/.local/bin/` para usar los scripts desde la terminal.
 
 El clon de desarrollo puede vivir donde sea; la ruta fija apunta a él:
@@ -99,11 +99,11 @@ th-worktools/
 - `disable-model-invocation: true` en los skills con efectos secundarios. Claude Code y Antigravity (agy 1.5.3) lo respetan: el modelo no ve el skill y solo se invoca con `/<name>`. La descripción también es restrictiva, por si un agente lo ignora.
 - `SKILL.md` de menos de 500 líneas; el detalle va a `references/`.
 - El cuerpo no nombra herramientas de un agente específico: "lee el archivo", no "usa Read".
-- **Rutas a scripts, siempre con prefijo y fallback:**
+- **Rutas a scripts, siempre con la ruta fija, sin llaves:**
   ```
-  "${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt"
+  "$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt"
   ```
-  Nunca `scripts/th-wt` a secas: el agente ejecuta desde el repo del usuario, no desde la carpeta del skill (fue el bug de `ce-worktree` en compound-engineering). `tests/lint-skills.sh` lo verifica.
+  Nunca `scripts/th-wt` a secas: el agente ejecuta desde el repo del usuario, no desde la carpeta del skill (fue el bug de `ce-worktree` en compound-engineering). Nunca `${…}`: Claude Code pide permiso siempre ante un comando con variables entre llaves, sea cual sea la regla (#13), y eso rompe los permisos sugeridos de §13. `tests/lint-skills.sh` lo verifica.
 - Acciones de un mismo dominio = **subcomandos como argumentos**, no un skill por acción (ver §9).
 
 ---
@@ -392,9 +392,9 @@ disable-model-invocation: true
 
 # th-worktree
 
-Script (ruta relativa a la carpeta de este SKILL.md, no al repo actual):
+Script (ruta fija del kit, sin `${…}`; el comando corre desde el repo del usuario):
 
-`"${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/th-worktree}/scripts/th-wt"`
+`"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt"`
 
 ## Subcomandos
 
@@ -467,7 +467,7 @@ Códigos de salida: `0` todo bien, `2` uso incorrecto o agente no soportado, `3`
 ```json
 {
   "permissions": {
-    "allow": ["Bash(*th-wt list*)"],
+    "allow": ["Bash(*/.local/share/th-worktools/skills/th-worktree/scripts/th-wt list*)"],
     "ask": ["Bash(*th-wt close*--yes*)"],
     "deny": ["Read(**/.env*)"]
   }
@@ -479,12 +479,23 @@ Códigos de salida: `0` todo bien, `2` uso incorrecto o agente no soportado, `3`
 ```json
 {
   "permissions": {
-    "ask": ["command(regex:.*th-wt close.*--yes.*)"]
+    "allow": ["command(regex:\"\\$HOME/\\.local/share/th-worktools/skills/th-worktree/scripts/th-wt\" list( --(json|remote))*)"],
+    "ask": ["command(regex:.*th-wt\"? close .*--yes.*)"]
   }
 }
 ```
 
-⚠️ Verificar la sintaxis de los patrones en las versiones instaladas antes de confiar en ellos.
+Verificado el 2026-11-10 en macOS con Claude Code 2.1.311 y agy 1.5.3 (#13):
+
+- `list` y `list --remote` corren sin pedir permiso en los dos agentes. Sin la regla `allow`, los dos lo piden; agy también para `list` (el plan original no tenía `allow` para agy).
+- Anclaje. `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt" list --json` y `list --remote --json` corren sin pedir permiso en los dos; `./tools/th-wt list --json` (un `th-wt` que traiga un repo) pide permiso en los dos. Anclar al `$HOME` literal (`Bash("$HOME/…/th-wt" list*)` o `Bash($HOME/…/th-wt list*)`) no coincide en Claude Code.
+  - agy: el `allow` anterior, `command(regex:.*/\.local/share/th-worktools/skills/th-worktree/scripts/th-wt"? list( .*)?)`, era demasiado amplio. Dejó pasar sin pedir permiso `"$HOME/…/th-wt" list --json | tee /tmp/x` (escribió el archivo) y, por el `.*` inicial, `touch /tmp/x x/.local/share/th-worktools/skills/th-worktree/scripts/th-wt list` (la ruta como argumento de otro comando). Se cerró anclando al `$HOME` literal con comillas y limitando las opciones a `--json`/`--remote`. Con el nuevo `allow` piden permiso (o no se ejecutan) `… list --json | tee …`, `… list --json $(touch …)`, `touch … x/.local/share/…/th-wt list` y `./tools/th-wt list --json`; en ninguno se creó el archivo. Solo coincide con la forma exacta del `SKILL.md`; `th-wt list` por el PATH pide permiso. El `ask` de agy no cambia.
+  - Claude Code (patrón sin cambios): pide permiso con `; touch …`, `| tee …` y `$(touch …)`. Límite: con la ruta del kit como argumento de otro comando una prueba pasó sin pedir permiso (`python3 -c 1 /.local/share/…/th-wt list`) y otra lo pidió (`touch … x/.local/share/…/th-wt list`); el `*` inicial permite que pase. Un comando como `rm -rf ~ …/.local/share/th-worktools/skills/th-worktree/scripts/th-wt list` podría pasar; quien no acepte el riesgo no debe añadir el `allow`.
+- Claude Code: `ask` gana a un `allow` amplio (`Bash(*th-wt*)`), con la ruta del kit y con `th-wt` por el PATH. agy: `ask` gana a un `allow` amplio (`command(regex:.*th-wt.*)`) con la ruta del kit, pero no con `th-wt close … --yes` invocado por el PATH: ahí gana el `allow` (probado con `command(regex:.*th-wt.*)`, `command(th-wt)` y `command(regex:th-wt close.*)`). Sin un `allow` que lo cubra, ese `close` por el PATH sí pide permiso. Por eso en agy no se añade un `allow` que cubra `th-wt` por el PATH. El `ask` de agy va sin la barra (`.*th-wt"? close …`) para cubrir también el PATH. El `close` sin `--yes` (dry-run) pide permiso en agy porque no coincide con el `allow`.
+- Un comando encadenado (`… list --json && touch …`) pide permiso en los dos.
+- Claude Code rechaza auto-aprobar cualquier comando con `${…}` («A variable in braces in this command can't be checked before it runs»), sea cual sea la regla. Por eso el `SKILL.md` usa la ruta fija `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt"`, sin llaves.
+- En agy, la comilla de cierre de la ruta queda entre `th-wt` y el subcomando; el patrón original `command(regex:.*th-wt close.*--yes.*)` no coincidía. De ahí `th-wt"?` en los patrones de agy.
+- `Read(**/.env*)` deniega leer `.env.local` con la herramienta de lectura de Claude Code. Límite: no cubre un `cat .env` por la shell. En agy no se probó bloquear `.env`.
 
 ---
 
@@ -495,7 +506,7 @@ Matriz: `macos-latest` y `ubuntu-latest`.
 1. **ShellCheck** sobre todos los scripts.
 2. **`tests/lint-skills.sh`:**
    - `name` en el frontmatter igual al nombre de la carpeta.
-   - Ninguna ruta `scripts/` sin el prefijo `${CLAUDE_SKILL_DIR`.
+   - Toda línea con `scripts/` lleva la forma `"$HOME/.local/share/th-worktools/skills/<carpeta>/scripts/` y ninguna usa `${`.
 3. **`tests/smoke.sh`:** crea un repo temporal con un remote local (`git init --bare` como `origin`) y ejecuta `new` → `list` → `close` (dry-run) → `close --yes`. No requiere `gh`.
 
 ---
@@ -508,7 +519,7 @@ Matriz: `macos-latest` y `ubuntu-latest`.
 - [x] Funciona invocado desde Claude Code y desde Antigravity en macOS.
 - [ ] `git status` limpio en un worktree del repo del trabajo (la `.wiki` enlazada no aparece).
 - [x] CI en verde en macOS y Ubuntu.
-- [ ] README con instalación en tres pasos y dependencias declaradas (parcial: dependencias declaradas; `install.sh` (#12a) y `verify.sh` (#12b) existen; falta el README en tres pasos, #13).
+- [x] README con instalación en tres pasos y dependencias declaradas.
 
 Cuando todo esté marcado: tag `v0.1`, usarlo una semana y anotar lo que moleste. **Esa lista define la v0.2.**
 
@@ -529,12 +540,12 @@ Cuando todo esté marcado: tag `v0.1`, usarlo una semana y anotar lo que moleste
 ## 17. Por verificar al empezar
 
 - [x] Ruta global de skills de Antigravity en la versión instalada. `~/.gemini/config/skills/` según la guía integrada de agy 1.5.3 (el plan decía `~/.gemini/antigravity/skills/`); sigue symlinks (2026-11-09).
-- [x] Que Claude Code sustituya `${CLAUDE_SKILL_DIR}` dentro de la forma `${CLAUDE_SKILL_DIR:-…}`. **No:** la variable no existe en el shell de Bash (2026-10-26). Sin el symlink fijo, Claude improvisó la ruta; con `~/.local/share/th-worktools` presente, la ruta del `SKILL.md` funciona. El fallback fijo es obligatorio en la instalación (`install.sh`, hecho en #12a; `verify.sh`, en #12b, lo comprueba).
-- [x] Que Antigravity ejecute los comandos en un shell que expanda `$HOME` y `${…:-…}`. Sí, zsh; `CLAUDE_SKILL_DIR` no existe y se usa el fallback (2026-11-09).
+- [x] Que Claude Code sustituya `${CLAUDE_SKILL_DIR}` dentro de la forma `${CLAUDE_SKILL_DIR:-…}`. **No:** la variable no existe en el shell de Bash (2026-10-26). Sin el symlink fijo, Claude improvisó la ruta; con `~/.local/share/th-worktools` presente, la ruta del `SKILL.md` funciona. El fallback fijo es obligatorio en la instalación (`install.sh`, hecho en #12a; `verify.sh`, en #12b, lo comprueba). Desde #13 el `SKILL.md` usa directamente la ruta fija `"$HOME/.local/share/th-worktools/skills/<skill>/scripts/…"`, sin `${…}`, porque Claude Code pide permiso siempre ante `${…}` (2026-11-10).
+- [x] Que Antigravity ejecute los comandos en un shell que expanda `$HOME` y `${…:-…}`. Sí, zsh; `CLAUDE_SKILL_DIR` no existe y hasta #13 se usaba el fallback (2026-11-09). Desde #13 el `SKILL.md` usa la ruta fija con `$HOME` (2026-11-10).
 - [ ] Que las búsquedas del agente sigan el symlink `.wiki`.
 - [ ] Cómo está la entrada de `.wiki` en el `.gitignore` del repo del trabajo (con o sin barra).
 - [x] Flags no interactivos de `codegraph init` y comportamiento de `codegraph uninit`. `init -y` salta todos los prompts y toma los valores por defecto; `uninit -f` salta la confirmación (codegraph 1.6.2). Pero `uninit` también quita los hooks de sincronización de git del `.git/hooks` compartido, así que el kit no lo usa: `close` borra `.codegraph/` directamente.
-- [ ] Sintaxis de los patrones de permisos en ambos agentes.
+- [x] Sintaxis de los patrones de permisos en ambos agentes. Verificada en Claude Code 2.1.311 y agy 1.5.3; patrones y hallazgos en §13 (2026-11-10).
 - [x] Cómo recibe argumentos un skill en Antigravity. Con `/th-worktree <pedido>`; el texto llega al modelo y `$ARGUMENTS` queda sin sustituir; sin `$ARGUMENTS`, Claude Code y agy pasan igual el texto (y nada si no lo hay), así que el `SKILL.md` no lo usa. `disable-model-invocation: true` oculta el skill al modelo (2026-11-09).
 - [x] Timeout de comandos largos en Antigravity. agy pasa el comando a segundo plano y espera a que termine (probado con 200 s); la línea de 600000 ms del `SKILL.md` no le afecta (2026-11-09).
 
@@ -550,5 +561,5 @@ Cuando todo esté marcado: tag `v0.1`, usarlo una semana y anotar lo que moleste
 - Antes de dar algo por terminado: `shellcheck` sobre los scripts, `tests/lint-skills.sh` y `tests/smoke.sh`.
 - Nunca agregues datos reales del trabajo (organizaciones, repos, rutas, tickets). El repo es público.
 - Alcance: solo lo que pide el DoD de la versión vigente. Las ideas nuevas van a la sección "Ideas" del README, no al código.
-- Rutas a scripts en SKILL.md: siempre con `${CLAUDE_SKILL_DIR:-…}`, nunca relativas a secas.
+- Rutas a scripts en SKILL.md: siempre con la forma fija `"$HOME/.local/share/th-worktools/skills/<skill>/scripts/…"`, nunca relativas a secas y nunca con `${…}`.
 ```

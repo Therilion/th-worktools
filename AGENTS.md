@@ -21,7 +21,7 @@ Public kit of skills (`SKILL.md` standard) and scripts for Claude Code and Antig
 - Network access is opt-in: subcommands stay offline (no `git fetch` or `ls-remote`, no `gh`) unless a flag like `--remote` asks for it. Exception: `new` and `pr` always read origin, since `new` creates the branch from `origin/<base>` and `pr` fetches the PR head and its base. Besides git's own fetch bookkeeping (`FETCH_HEAD`), the only refs written outside the kit are the `refs/remotes/origin/<branch>` that those fetches update; never touch `origin/HEAD`. Installing dependencies (`pnpm`/`npm`) in `new`, `checkout` and `pr` also uses the network, so `checkout` without `--remote` is not fully offline.
 - Never print the contents of `.env*` files or sensitive config; only file names. Config is parsed line by line, never with `source`.
 - Bash 3.2 trap: never put `case … esac` inside `$( … )` (3.2 mis-parses the `)` of the patterns); move it to a function.
-- Script paths in `SKILL.md`: always with `${CLAUDE_SKILL_DIR:-$HOME/.local/share/th-worktools/skills/<skill>}`, never bare relative paths.
+- Script paths in `SKILL.md`: always the fixed form `"$HOME/.local/share/th-worktools/skills/<skill>/scripts/…"`, never bare relative paths and never `${…}` (Claude Code always asks permission for commands with braces). `tests/lint-skills.sh` enforces it.
 - Language: script messages (stderr, `--help`) and commit messages in English; `SKILL.md`, README, docs and test names in Spanish.
 - Skills don't share files with each other.
 - Scope: only what the current version's DoD requires. New ideas go to the "Ideas" section of the README, not to the code.
