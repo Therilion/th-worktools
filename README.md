@@ -13,7 +13,7 @@ Kit personal de skills y scripts para agentes de código, compatible con **Claud
 
 ## Instalación en tres pasos
 
-1. Instala las dependencias de [Requisitos](#requisitos): `git`, `jq` y bash 3.2 o superior; `gh` solo si usas `pr` o `--remote`.
+1. Instala las dependencias de [Requisitos](#requisitos): `git`, `jq` y bash 3.2 o superior; `gh` solo si usas `pr`, `list --remote` o `close --remote`.
 2. Clona el repo y ejecuta `install.sh` desde la raíz del clon:
 
    ```sh
@@ -22,7 +22,7 @@ Kit personal de skills y scripts para agentes de código, compatible con **Claud
    ./install.sh --link-here --yes
    ```
 
-3. Ejecuta `./verify.sh`. Sale con `0` si todo está bien. Después, en Claude Code o Antigravity CLI, escribe `/th-worktree list`: funciona sin más configuración. Sin los [permisos sugeridos](#permisos-sugeridos), que son opcionales, el agente te pide confirmación antes de ejecutarlo.
+3. Ejecuta `./verify.sh`. Sale con `0` si todo está bien. Después, en Claude Code o Antigravity CLI, escribe `/th-worktree list` desde un repo git con remote `origin` (fuera de un repo o sin `origin`, `th-wt` sale con `4`): funciona sin más configuración. Sin los [permisos sugeridos](#permisos-sugeridos), que son opcionales, el agente te pide confirmación antes de ejecutarlo.
 
 Detalle del paso 2 (`install.sh`):
 
@@ -60,14 +60,14 @@ Agentes (al menos uno): Claude Code 2.1.311 y Antigravity CLI (`agy`) 1.5.3.
 
 ## Permisos sugeridos
 
-Opcionales. `install.sh` no los escribe: cópialos tú en la configuración de cada agente, **fusionados** con lo que el archivo ya tenga (no lo reemplaces). Hacen que `list` corra sin pedir permiso, que `close … --yes` lo pida siempre (la regla `ask` gana a cualquier `allow`) y, en Claude Code, que leer un `.env*` quede bloqueado.
+Opcionales. `install.sh` no los escribe: cópialos tú en la configuración de cada agente, **fusionados** con lo que el archivo ya tenga (no lo reemplaces). Hacen que `list` corra sin pedir permiso, que `close … --yes` lo pida siempre (en agy, mientras no añadas un `allow` que cubra `th-wt` por el PATH; ver las notas) y, en Claude Code, que leer un `.env*` quede bloqueado.
 
 **Claude Code** (`~/.claude/settings.json`):
 
 ```json
 {
   "permissions": {
-    "allow": ["Bash(*th-wt list*)"],
+    "allow": ["Bash(*/.local/share/th-worktools/skills/th-worktree/scripts/th-wt list*)"],
     "ask": ["Bash(*th-wt close*--yes*)"],
     "deny": ["Read(**/.env*)"]
   }
@@ -79,13 +79,16 @@ Opcionales. `install.sh` no los escribe: cópialos tú en la configuración de c
 ```json
 {
   "permissions": {
-    "allow": ["command(regex:.*/th-wt\"? list( .*)?)"],
-    "ask": ["command(regex:.*/th-wt\"? close .*--yes.*)"]
+    "allow": ["command(regex:.*/\\.local/share/th-worktools/skills/th-worktree/scripts/th-wt\"? list( .*)?)"],
+    "ask": ["command(regex:.*th-wt\"? close .*--yes.*)"]
   }
 }
 ```
 
 - Un comando encadenado (`th-wt list && otro`) siempre pide permiso.
+- Las reglas `allow` están ancladas a la ruta del kit: `./tools/th-wt list` (un `th-wt` que traiga un repo) pide permiso en los dos agentes. Límite en Claude Code: un comando que contenga la ruta del kit como argumento (`otro-comando …/.local/share/th-worktools/skills/th-worktree/scripts/th-wt list`) también pasa, por el `*` inicial.
+- En Claude Code el `ask` gana a cualquier `allow`. En agy, un `allow` que cubra `th-wt` por el PATH (p. ej. `command(regex:.*th-wt.*)`) gana al `ask` en `th-wt close … --yes`: no añadas uno.
+- `Read(**/.env*)` también bloquea `.env.example`, `.env.sample` y `.envrc`.
 - El `deny` de Claude Code solo cubre la herramienta de lectura de archivos, no un `cat .env` por la shell. En agy no se probó un bloqueo equivalente.
 - Comprobado en macOS con Claude Code 2.1.311 y agy 1.5.3. Detalle en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) §13.
 
