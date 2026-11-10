@@ -21,7 +21,7 @@ Check, without changing anything, that the kit installed by install.sh is comple
 
 --agents <list>  Comma-separated agents to check (supported: claude, agy). Default: the supported agents found in PATH.
 
-Exit 0 if everything is ok, 3 if a required dependency is missing, 4 if anything else failed.
+Exit 0 if everything is ok, 2 on bad usage or an unsupported agent, 3 if a required dependency or a requested agent is not in PATH, 4 if anything else failed.
 USAGE
 }
 

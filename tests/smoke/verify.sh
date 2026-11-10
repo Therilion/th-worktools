@@ -96,3 +96,18 @@ run_verify "$BOTH"
 case "$out" in *"warning: $HOME/.local/bin is not in PATH; th-wt will not run from the terminal"*) ;; *) fail "$name: falta el aviso: [$out]" ;; esac
 case "$out" in *"all ok"*) ;; *) fail "$name: falta 'all ok': [$out]" ;; esac
 pass "$name"
+
+name="con el kit clonado como carpeta real en la ruta fija, verify.sh da ok y sale con 0"
+reset_home
+KIT="$HOME/.local/share/th-worktools"
+mkdir -p "$KIT"
+cp "$ROOT/install.sh" "$ROOT/lib.sh" "$ROOT/verify.sh" "$KIT/"
+cp -R "$ROOT/skills" "$KIT/skills"
+rc=0
+out="$(PATH="$BOTH" "$KIT/install.sh" --yes 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: la instalación salió con $rc: [$out]"
+rc=0
+out="$(PATH="$BINP" "$KIT/verify.sh" 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+case "$out" in *"ok     $KIT"*"all ok"*) ;; *) fail "$name: falta ok en la ruta fija o 'all ok': [$out]" ;; esac
+pass "$name"
