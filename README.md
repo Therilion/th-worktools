@@ -79,14 +79,16 @@ Opcionales. `install.sh` no los escribe: cópialos tú en la configuración de c
 ```json
 {
   "permissions": {
-    "allow": ["command(regex:.*/\\.local/share/th-worktools/skills/th-worktree/scripts/th-wt\"? list( .*)?)"],
+    "allow": ["command(regex:\"\\$HOME/\\.local/share/th-worktools/skills/th-worktree/scripts/th-wt\" list( --(json|remote))*)"],
     "ask": ["command(regex:.*th-wt\"? close .*--yes.*)"]
   }
 }
 ```
 
 - Un comando encadenado (`th-wt list && otro`) siempre pide permiso.
-- Las reglas `allow` están ancladas a la ruta del kit: `./tools/th-wt list` (un `th-wt` que traiga un repo) pide permiso en los dos agentes. Límite en Claude Code: un comando que contenga la ruta del kit como argumento (`otro-comando …/.local/share/th-worktools/skills/th-worktree/scripts/th-wt list`) también pasa, por el `*` inicial.
+- `./tools/th-wt list` (un `th-wt` que traiga un repo) pide permiso en los dos agentes.
+- agy: el `allow` solo acepta la forma exacta que escribe el `SKILL.md` (`"$HOME/…/th-wt" list`, con `$HOME` literal y comillas), con `--json` y `--remote` como únicas opciones. Bloquea pipes, `;`, `$(…)` y la ruta como argumento de otro comando. `th-wt list` por el PATH pide permiso.
+- Claude Code: el `allow` lleva un `*` inicial, así que un comando que contenga la ruta del kit como argumento (p. ej. `rm -rf ~ …/.local/share/th-worktools/skills/th-worktree/scripts/th-wt list`) coincide con el `allow` y podría pasar sin pedir permiso. `;`, `|` y `$(…)` sí piden permiso. Si no aceptas ese riesgo, no añadas el `allow` de Claude Code.
 - En Claude Code el `ask` gana a cualquier `allow`. En agy, un `allow` que cubra `th-wt` por el PATH (p. ej. `command(regex:.*th-wt.*)`) gana al `ask` en `th-wt close … --yes`: no añadas uno.
 - `Read(**/.env*)` también bloquea `.env.example`, `.env.sample` y `.envrc`.
 - El `deny` de Claude Code solo cubre la herramienta de lectura de archivos, no un `cat .env` por la shell. En agy no se probó un bloqueo equivalente.
