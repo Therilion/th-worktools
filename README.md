@@ -42,7 +42,7 @@ Ejecuta `install.sh` desde la raíz del clon principal, no desde un worktree (al
 - Por defecto instala en los agentes cuyo binario está en el `PATH`: `claude` (`~/.claude/skills/`) y `agy` (`~/.gemini/config/skills/`). `--agents claude` (o `claude,agy`) elige cuáles.
 - Nunca toca una ruta que no sea del kit: la deja, instala el resto y sale con `4`. Repetirlo es seguro: lo que ya está bien sale como `ok`.
 - `th-wt` desde la terminal exige que `~/.local/bin` esté en el `PATH`.
-- Después de `install.sh --yes`, ejecuta `./verify.sh` (con el mismo `--agents`, si lo usaste) para comprobar que cada agente ve los skills; solo lee, sale con `0` si todo está bien, con `3` si falta `git` o `jq` y con `4` si algo está roto.
+- Después de `install.sh --yes`, ejecuta `./verify.sh` (con el mismo `--agents`, si lo usaste) para comprobar que cada agente ve los skills; solo lee, sale con `0` si todo está bien, con `2` si el uso es incorrecto o el agente no está soportado, con `3` si falta en el `PATH` `git`, `jq` o un agente de `--agents`, y con `4` si algo está roto.
 
 La referencia completa (subcomandos, red, códigos de salida y `--json`) está en [`docs/th-worktree.md`](docs/th-worktree.md).
 
