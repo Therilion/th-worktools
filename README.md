@@ -143,6 +143,7 @@ Ideas que quedan fuera de la versión en curso.
 - `new`/`checkout`: el `prepare` del proyecto (p. ej. husky) puede escribir `core.hooksPath` en la config compartida del repo; documentarlo o evaluarlo.
 - Verificar el aviso de descarga de corepack con stdin en `/dev/null` (`new`/`checkout`): si bloquea, fijar `COREPACK_ENABLE_DOWNLOAD_PROMPT`.
 - `.conf`: admitir rutas con espacios (hoy `link` toma una sola palabra; cambia el formato de la línea).
+- Versionar cada skill por separado con release-please cuando haya dos o más skills: un paquete por skill en `release-please-config.json` (tag `<skill>-vX.Y.Z` y changelog propio) y `exclude-paths` en el paquete raíz. Mientras `install.sh` instale el kit completo, esa versión solo informa.
 - `.conf`: rechazar rutas en las que escribe el gestor de dependencias (p. ej. `link node_modules`: `pnpm install` escribiría a través del symlink en el checkout principal), o no instalar si hay enlaces.
 - `.conf`: validar la sintaxis, los solapes y la existencia en el checkout principal antes de crear el worktree (y antes del fetch en `new`), dejando para después solo las comprobaciones que necesitan el worktree (padre y `check-ignore`).
 - `th-wt new`/`checkout`: ramas distintas con el mismo nombre normalizado (`feature/a-b` y `feature-a/b` → `feature-a-b`) chocan; la segunda sale con «destination already exists» sin decir qué rama ocupa la ruta.
