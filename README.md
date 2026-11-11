@@ -46,14 +46,14 @@ Detalle del paso 3 (`verify.sh`):
 
 ## Versiones
 
-Cada versión tiene su tag, su release en [GitHub](https://github.com/Therilion/th-worktools/releases) y su entrada en [`CHANGELOG.md`](CHANGELOG.md), generados con release-please a partir de los commits. Para instalar una versión concreta, clona en su tag (por ejemplo `v0.1.0`) y sigue los pasos 2 y 3 igual:
+Cada versión tiene su tag, su release en [GitHub](https://github.com/Therilion/th-worktools/releases) y su entrada en [`CHANGELOG.md`](CHANGELOG.md), generados con release-please a partir de los commits. Para instalar una versión concreta, en el paso 2 añade `--branch vX.Y.Z` al `git clone` (con la versión de la lista de releases) y sigue igual el resto de los pasos 2 y 3:
 
 ```sh
-git clone --branch v0.1.0 https://github.com/Therilion/th-worktools.git
+git clone --branch vX.Y.Z https://github.com/Therilion/th-worktools.git
 ```
 
 - SemVer 0.x con un solo versionado para todo el kit. Antes de 1.0, `feat` y `fix` suben el patch y un breaking change sube el minor.
-- El minor de cada versión de la [hoja de ruta](#hoja-de-ruta) se fija con el footer `Release-As: X.Y.Z`, que va en el cuerpo del commit squash (release-please lee el commit de `main`, no la descripción del PR).
+- El minor de cada versión de la [hoja de ruta](#hoja-de-ruta) se fija con el footer `Release-As: X.Y.Z`, que va en el cuerpo del commit squash.
 
 ## Requisitos
 
