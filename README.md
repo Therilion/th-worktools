@@ -44,6 +44,17 @@ Detalle del paso 3 (`verify.sh`):
 - Úsalo con el mismo `--agents`, si lo usaste en `install.sh`, para comprobar que cada agente ve los skills.
 - Solo lee. Sale con `0` si todo está bien, con `2` si el uso es incorrecto o el agente no está soportado, con `3` si falta en el `PATH` `git`, `jq` o un agente de `--agents`, y con `4` si algo está roto.
 
+## Versiones
+
+Cada versión tiene su tag, su release en [GitHub](https://github.com/Therilion/th-worktools/releases) y su entrada en [`CHANGELOG.md`](CHANGELOG.md), generados con release-please a partir de los commits. Para instalar una versión concreta, clona en su tag (por ejemplo `v0.1.0`) y sigue los pasos 2 y 3 igual:
+
+```sh
+git clone --branch v0.1.0 https://github.com/Therilion/th-worktools.git
+```
+
+- SemVer 0.x con un solo versionado para todo el kit. Antes de 1.0, `feat` y `fix` suben el patch y un breaking change sube el minor.
+- El minor de cada versión de la [hoja de ruta](#hoja-de-ruta) se fija con el footer `Release-As: X.Y.Z`, que va en el cuerpo del commit squash (release-please lee el commit de `main`, no la descripción del PR).
+
 ## Requisitos
 
 Versiones probadas en macOS (Darwin 25); CI corre en macOS y Ubuntu. Instálalas con el gestor de paquetes de tu sistema.
