@@ -53,7 +53,7 @@ git clone --branch vX.Y.Z https://github.com/Therilion/th-worktools.git
 ```
 
 - SemVer 0.x con un solo versionado para todo el kit. Antes de 1.0, `feat` y `fix` suben el patch y un breaking change sube el minor.
-- El minor de cada versión de la [hoja de ruta](#hoja-de-ruta) se fija con el footer `Release-As: X.Y.Z`, que va en el cuerpo del commit squash.
+- El minor de cada versión de la [hoja de ruta](#hoja-de-ruta) se fija con el footer `Release-As: X.Y.Z`, que va al final del cuerpo del commit squash, como último párrafo y tras una línea en blanco (si va antes de la lista de commits, se ignora).
 
 ## Requisitos
 
