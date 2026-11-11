@@ -44,6 +44,17 @@ Detalle del paso 3 (`verify.sh`):
 - Úsalo con el mismo `--agents`, si lo usaste en `install.sh`, para comprobar que cada agente ve los skills.
 - Solo lee. Sale con `0` si todo está bien, con `2` si el uso es incorrecto o el agente no está soportado, con `3` si falta en el `PATH` `git`, `jq` o un agente de `--agents`, y con `4` si algo está roto.
 
+## Versiones
+
+Cada versión tiene su tag, su release en [GitHub](https://github.com/Therilion/th-worktools/releases) y su entrada en [`CHANGELOG.md`](CHANGELOG.md), generados con release-please a partir de los commits. Para instalar una versión concreta, en el paso 2 añade `--branch vX.Y.Z` al `git clone` (con la versión de la lista de releases) y sigue igual el resto de los pasos 2 y 3:
+
+```sh
+git clone --branch vX.Y.Z https://github.com/Therilion/th-worktools.git
+```
+
+- SemVer 0.x con un solo versionado para todo el kit. Antes de 1.0, `feat` y `fix` suben el patch y un breaking change sube el minor.
+- El minor de cada versión de la [hoja de ruta](#hoja-de-ruta) se fija con el footer `Release-As: X.Y.Z`, que va al final del cuerpo del commit squash, como último párrafo y tras una línea en blanco (si va antes de la lista de commits, se ignora).
+
 ## Requisitos
 
 Versiones probadas en macOS (Darwin 25); CI corre en macOS y Ubuntu. Instálalas con el gestor de paquetes de tu sistema.
@@ -143,6 +154,7 @@ Ideas que quedan fuera de la versión en curso.
 - `new`/`checkout`: el `prepare` del proyecto (p. ej. husky) puede escribir `core.hooksPath` en la config compartida del repo; documentarlo o evaluarlo.
 - Verificar el aviso de descarga de corepack con stdin en `/dev/null` (`new`/`checkout`): si bloquea, fijar `COREPACK_ENABLE_DOWNLOAD_PROMPT`.
 - `.conf`: admitir rutas con espacios (hoy `link` toma una sola palabra; cambia el formato de la línea).
+- Versionar cada skill por separado con release-please cuando haya dos o más skills: un paquete por skill en `release-please-config.json` (tag `<skill>-vX.Y.Z` y changelog propio) y `exclude-paths` en el paquete raíz. Mientras `install.sh` instale el kit completo, esa versión solo informa.
 - `.conf`: rechazar rutas en las que escribe el gestor de dependencias (p. ej. `link node_modules`: `pnpm install` escribiría a través del symlink en el checkout principal), o no instalar si hay enlaces.
 - `.conf`: validar la sintaxis, los solapes y la existencia en el checkout principal antes de crear el worktree (y antes del fetch en `new`), dejando para después solo las comprobaciones que necesitan el worktree (padre y `check-ignore`).
 - `th-wt new`/`checkout`: ramas distintas con el mismo nombre normalizado (`feature/a-b` y `feature-a/b` → `feature-a-b`) chocan; la segunda sale con «destination already exists» sin decir qué rama ocupa la ruta.

@@ -52,6 +52,8 @@ El workflow se ejecuta en cada `push` a `main` y en cada `pull_request`:
 | `shellcheck` | `ubuntu-latest` | Ejecuta `shellcheck -x $(git ls-files '*.sh') skills/*/scripts/th-wt`. |
 | `test` | Matriz `macos-latest` + `ubuntu-latest` (`fail-fast: false`) | En `macos-latest` añade `/bin` a `GITHUB_PATH` y comprueba que `BASH_VERSINFO[0]` sea `3` (Bash 3.2). Luego ejecuta `tests/lint-skills.sh` y `tests/smoke.sh` en ambos sistemas. |
 
+El workflow `.github/workflows/release.yml` se ejecuta en cada `push` a `main`: abre o actualiza el PR de release con release-please (config en `release-please-config.json`) y, al mergearlo, crea el tag, la release y `CHANGELOG.md`. Necesita permisos para escribir contenido, issues (etiquetas) y PRs, y que en Settings › Actions › General esté activado «Allow GitHub Actions to create and approve pull requests».
+
 ---
 
 ## 2. Convenciones de los tests

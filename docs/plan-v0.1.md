@@ -521,7 +521,7 @@ Matriz: `macos-latest` y `ubuntu-latest`.
 - [x] CI en verde en macOS y Ubuntu.
 - [x] README con instalación en tres pasos y dependencias declaradas.
 
-Cuando todo esté marcado: tag `v0.1`, usarlo una semana y anotar lo que moleste. **Esa lista define la v0.2.**
+Cuando todo esté marcado: release `v0.1.0` con release-please (#14), usarlo una semana y anotar lo que moleste. **Esa lista define la v0.2.**
 
 ---
 
