@@ -51,7 +51,10 @@ EOF2
 chmod +x "$shim/git"
 rm -f "$TMP/list-marca"
 rc=0
-err="$(cd "$TMP/repo" && PATH="$shim:$PATH" "$WT" list 2>&1 >/dev/null)" || rc=$?
+out="$(cd "$TMP/repo" && PATH="$shim:$PATH" "$WT" list 2>"$TMP/list-err")" || rc=$?
+err="$(cat "$TMP/list-err")"
 [ "$rc" = 1 ] || fail "$name: exit=$rc, esperado 1: [$err]"
 case "$err" in *"th-wt: git worktree list failed"*) ;; *) fail "$name: falta el mensaje th-wt: [$err]" ;; esac
+case "$err" in *"fatal: worktree list roto"*) ;; *) fail "$name: falta el error de git: [$err]" ;; esac
+[ -z "$out" ] || fail "$name: stdout no está vacío: [$out]"
 pass "$name"
