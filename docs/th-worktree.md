@@ -94,7 +94,41 @@ th-wt new <branch> [--base <branch>] [--json]
 
 Crea un worktree en `~/.worktrees/<owner>/<repo>/<rama-normalizada>` con una rama nueva `<branch>` creada a partir de `origin/<base>` (por defecto, la rama por defecto de `origin`). `<branch>` debe ir como primer argumento, antes de las opciones.
 
-La rama nueva se crea con `--no-track` para que no siga a `origin/<base>` como upstream. Sin `--json`, `new` escribe en stderr, al terminar bien, la línea `  path:   <ruta>` (como `pr`) y stdout queda vacío; el gestor de paquetes y `codegraph` también escriben en stderr (ver «Instalación de dependencias» e «Integración con codegraph»).
+La rama nueva se crea con `--no-track` para que no siga a `origin/<base>` como upstream.
+
+**Progreso:** siempre (con o sin `--json`), `new` escribe en stderr una línea justo antes de cada fase, para que se vea qué está haciendo mientras tarda:
+
+| Línea | Cuándo sale |
+|---|---|
+| `th-wt: fetching origin/<rama>` | antes del fetch de la base (en `checkout`, solo con `--remote`; en `pr`, el de la base) |
+| `th-wt: creating worktree <ruta> (branch <rama>)` | antes de `git worktree add` |
+| `th-wt: applying repo config <ruta del .conf>` | solo si existe el `.conf` del repo; le siguen las líneas `th-wt: linked <ruta>` |
+| `th-wt: installing dependencies (<gestor> <args>)` | solo si de verdad se ejecuta el gestor (hay lockfile soportado, `TH_INSTALL_DEPS` no es `0` y el gestor está en `PATH`) |
+| `th-wt: indexing with codegraph (may take a few minutes)` | solo si de verdad se ejecuta `codegraph init` |
+
+Ninguna línea imprime el contenido del `.conf` ni de los `.env*`. `list --remote` y `close --remote` no escriben líneas de progreso.
+
+**Resumen:** sin `--json`, al terminar bien `new` escribe en stderr un resumen con las etiquetas alineadas, y stdout queda vacío. `linked` lista las rutas enlazadas separadas por `, ` (o `none`), `deps` es el valor de `deps` del JSON y `codegraph` es `indexed` o `not indexed`. El gestor de paquetes y `codegraph` también escriben en stderr (ver «Instalación de dependencias» e «Integración con codegraph»). Con `--json` no hay resumen: el objeto va a stdout y las líneas de progreso siguen en stderr.
+
+```text
+$ th-wt new feature/login
+th-wt: fetching origin/main
+th-wt: creating worktree ~/.worktrees/acme/demo/feature-login (branch feature/login)
+th-wt: applying repo config ~/.config/th-worktools/repos/acme/demo.conf
+th-wt: linked .wiki
+th-wt: linked docs/local
+th-wt: installing dependencies (pnpm install --frozen-lockfile)
+…salida de pnpm…
+th-wt: indexing with codegraph (may take a few minutes)
+…salida de codegraph…
+  path:      ~/.worktrees/acme/demo/feature-login
+  branch:    feature/login
+  linked:    .wiki, docs/local
+  deps:      pnpm
+  codegraph: indexed
+```
+
+(En la salida real las rutas van completas, sin `~`.)
 
 **Flags:**
 
@@ -136,7 +170,7 @@ Crea un worktree en `~/.worktrees/<owner>/<repo>/<rama-normalizada>` para una ra
 - **Si `<branch>` ya existe como rama local (`refs/heads/<branch>`):** abre el worktree directamente en ese commit local, sin consultar `origin` y sin mover la rama (aunque se pase `--remote` y `origin/<branch>` haya avanzado).
 - **Si `<branch>` no existe en local:** busca `refs/remotes/origin/<branch>` (con `--remote`, antes verifica que exista en `origin` y hace fetch de esa rama). Crea la rama local en ese commit y configura su upstream a `origin/<branch>` (`branch.<branch>.remote = origin` y `branch.<branch>.merge = refs/heads/<branch>`).
 
-Después aplica el `.conf` del repo (ver «Enlaces por repo») e instala las dependencias si hay lockfile (ver «Instalación de dependencias»), salvo en una rama `review/pr-*` (copia local de un PR, p. ej. conservada por `close review/pr-<n> --force`): se trata como `pr` y no enlaza ni instala (`linked: []`, `deps: "skipped"`, con el aviso del comando a mano); sí indexa con `codegraph`. Sin `--json`, `checkout` escribe en stderr lo que escriban el gestor de paquetes y `codegraph`, los avisos y, al terminar bien, la línea `  path:   <ruta>` (como `pr`); en stdout no imprime nada.
+Después aplica el `.conf` del repo (ver «Enlaces por repo») e instala las dependencias si hay lockfile (ver «Instalación de dependencias»), salvo en una rama `review/pr-*` (copia local de un PR, p. ej. conservada por `close review/pr-<n> --force`): se trata como `pr` y no enlaza ni instala (`linked: []`, `deps: "skipped"`, con el aviso del comando a mano); sí indexa con `codegraph`. `checkout` escribe en stderr las mismas líneas de progreso que `new` (`fetching origin/<rama>` solo con `--remote` y una rama que no es local; `applying repo config` e `installing dependencies` nunca en `review/pr-*`), lo que escriban el gestor de paquetes y `codegraph` y los avisos. Sin `--json`, al terminar bien escribe en stderr el mismo resumen de cinco líneas que `new` (`path`, `branch`, `linked`, `deps`, `codegraph`); en stdout no imprime nada.
 
 **Flags:**
 
@@ -182,7 +216,20 @@ Si `pr-reviews/pr-<n>/` ya existe con otros archivos (por ejemplo `report.md`) p
 
 **codegraph:** `pr` sí indexa el worktree (ver «Integración con codegraph»): es análisis estático y no ejecuta el código del PR. Si el PR trae su propio `.codegraph/` con un índice, no se indexa ni se usa.
 
-**Salida:** con `--json`, el objeto de `new` más `pr`; sin `--json`, ruta, PR (número y título), rama del PR y base por stderr, con los caracteres de control del título y de las ramas (que escribe el autor del PR) sustituidos por espacios. Para actualizar un worktree de PR cuando recibe commits nuevos, ciérralo y vuelve a abrirlo.
+**Progreso:** siempre (con o sin `--json`), `pr` escribe en stderr `th-wt: fetching origin refs/pull/<n>/head` antes del fetch del PR y, después, las líneas de `new` que le tocan: `fetching origin/<base>`, `creating worktree` e `indexing with codegraph` (nunca `applying repo config` ni `installing dependencies`). La base viene del PR: sus caracteres de control se sustituyen por espacios, como en el resumen.
+
+**Salida:** con `--json`, el objeto de `new` más `pr`; sin `--json`, un resumen por stderr con los caracteres de control del título y de las ramas (que escribe el autor del PR) sustituidos por espacios:
+
+```text
+  path:      ~/.worktrees/acme/demo/pr-reviews/pr-7/code
+  PR:        #7 Arreglar el login
+  branch:    fix/login
+  base:      main
+  deps:      skipped
+  codegraph: indexed
+```
+
+Para actualizar un worktree de PR cuando recibe commits nuevos, ciérralo y vuelve a abrirlo.
 
 **Errores relevantes:**
 
@@ -227,6 +274,7 @@ th-wt list --remote --json
 
 - Opción o argumento desconocido → código `2`.
 - Con `--remote` y sin `gh` en `PATH` → código `3` (`missing dependency: gh`).
+- Falla `git worktree list` → código `1` (`git worktree list failed`, tras el `fatal:` de git).
 - Con `--remote`: `origin` inaccesible (`cannot read origin`), `origin` sin rama por defecto (`cannot determine origin's default branch`), fallo del fetch (`fetch of origin/<base> failed`), fallo de `gh pr list` (`gh pr list failed ...`) o respuesta de `gh` que no sea un array JSON de objetos (`unexpected output from gh pr list`) → código `4` (no hay fallback a lista local).
 
 ---
@@ -348,7 +396,7 @@ Límites conocidos:
 | Código | Significado | Causas típicas por subcomando |
 |---|---|---|
 | `0` | OK | **Todos:** `-h` / `--help`.<br>**`new` / `checkout` / `pr`:** worktree creado.<br>**`list`:** listado completado (haya o no worktrees).<br>**`close`:** plan mostrado (sin `--yes`, incluso si está bloqueado) o worktree eliminado (con `--yes`, se haya borrado o conservado la rama). |
-| `1` | Error de ejecución | **`new` / `checkout`:** falla `git worktree add` tras superar las validaciones previas (conflicto de refs como `conf` con `conf/x`, permisos de escritura en `~/.worktrees`, o rama en rebase/bisect en otro worktree con HEAD `detached`), o falla el enlace de una entrada ya validada del `.conf` (se deshace la creación). |
+| `1` | Error de ejecución | **Todos:** falla `git worktree list` al empezar, al comprobar la raíz de worktrees (`git worktree list failed`).<br>**`list` / `close`:** además, si falla al leer los worktrees.<br>**`new` / `checkout`:** falla `git worktree add` tras superar las validaciones previas (conflicto de refs como `conf` con `conf/x`, permisos de escritura en `~/.worktrees`, o rama en rebase/bisect en otro worktree con HEAD `detached`), o falla el enlace de una entrada ya validada del `.conf` (se deshace la creación). |
 | `2` | Uso incorrecto | **Todos:** sin subcomando, subcomando desconocido, opción desconocida o argumento posicional inesperado.<br>**`new`:** falta `<branch>`, opción antes de `<branch>`, `--base` vacío o sin argumento, `<branch>` es `HEAD` o formato inválido de `<branch>` / `--base` (p. ej. `main~1`, `bad..name`).<br>**`checkout`:** falta `<branch>`, opción antes de `<branch>`, `<branch>` es `HEAD` o formato de rama inválido.<br>**`new` / `checkout`:** además, una rama cuyo nombre normalizado es `pr-reviews`.<br>**`pr`:** `<n>` ausente o que no es un entero positivo sin ceros a la izquierda.<br>**`close`:** falta `<branch>`, más de un argumento posicional o formato de rama inválido. |
 | `3` | Dependencia faltante | **Todos:** falta `git` o `jq` en `PATH`.<br>**`pr` / `list --remote` / `close --remote`:** falta `gh` en `PATH`. |
 | `4` | Precondición no cumplida | **Todos:** fuera de un repositorio git, sin remote `origin` o URL de `origin` con formato no soportado, o configuración inválida (archivo `config` o variables de entorno; ver «Configuración»).<br>**`new`:** destino ya existente, la rama ya existe en local o en `origin`, `origin` inaccesible, `origin` sin rama por defecto (sin `--base`), o `--base` no existe en `origin` / falla el fetch.<br>**`checkout`:** destino ya existente, rama ya abierta en el checkout principal o en otro worktree, rama inexistente en local y en `refs/remotes/origin/<branch>` (sin `--remote`), o con `--remote` `origin` inaccesible / rama inexistente en `origin` / fallo de fetch.<br>**`new` / `checkout`:** además, una entrada inválida del `.conf` del repo (`th-wt: <conf>:<línea>: <motivo>`; se deshace la creación).<br>**`pr`:** la ruta `pr-reviews/pr-<n>/code` o la rama `review/pr-<n>` ya existen, `gh pr view` falla o devuelve algo inesperado, o falla un fetch de `origin` (PR sin `refs/pull/<n>/head`, `origin` inaccesible, base ausente), o el commit traído no es el `headRefOid` de `gh`.<br>**`list --remote`:** `origin` inaccesible, `origin` sin rama por defecto, fallo del fetch, fallo de `gh pr list` (sin autenticar o sin acceso) o salida JSON inesperada de `gh`.<br>**`close`:** la rama no tiene worktree bajo `~/.worktrees/<owner>/<repo>/` (o no existe / es huérfana / está en `detached`), errores de `--remote` (igual que `list --remote`), o con `--yes`: ejecutado desde dentro del worktree a cerrar, bloqueado por cambios sin commitear / commits sin push (en un worktree de PR, commits propios posteriores al PR o desconocidos) / `git status` ilegible (sin `--force`), o fallo de `git worktree remove` (p. ej. worktree bloqueado con `git worktree lock`). |

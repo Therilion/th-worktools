@@ -131,7 +131,7 @@ resolve_repo() {
 # Exits 4 if the worktrees root of $repo and the main checkout contain one another; needs $repo and $wt_root.
 check_root_overlap() {
   local main root="$wt_root/$repo/"
-  main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
+  main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')" || die 1 "git worktree list failed"
   # trailing slash on both sides so /a/b does not match /a/bc
   case "$root" in "$main/"*) die 4 "worktrees root $wt_root/$repo overlaps the main checkout $main" ;; esac
   case "$main/" in "$root"*) die 4 "worktrees root $wt_root/$repo overlaps the main checkout $main" ;; esac
@@ -169,6 +169,7 @@ add_branch_worktree() {
   local start
   start="$(git rev-parse --verify -q "$3^{commit}")" || die 1 "git worktree add failed: no commit $3"
   created_start="$start"
+  echo "th-wt: creating worktree $2 (branch $1)" >&2
   git worktree add --no-track -q -b "$1" "$2" "$start" && return 0
   # git creates the branch before some failures (e.g. the directory cannot be made); drop it so a retry does not hit
   # "branch already exists", but only while it still points at $start, so a branch made meanwhile by someone else survives
@@ -243,6 +244,7 @@ apply_repo_conf() {
   local dest="$1" branch="$2" conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos/$repo.conf" main line action p extra reason n=0 i
   local paths=() nums=()
   [ -f "$conf" ] || return 0
+  echo "th-wt: applying repo config $conf" >&2
   main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
   # the last line may lack a newline
   while IFS= read -r line || [ -n "$line" ]; do
@@ -294,6 +296,7 @@ install_deps() {
     echo "th-wt: warning: $pm not found in PATH; skipping dependency install in $dest" >&2
     return 0
   fi
+  echo "th-wt: installing dependencies ($pm ${sub[*]})" >&2
   # stdout is reserved for --json and there is no terminal to answer prompts
   if (cd "$dest" && "$pm" "${sub[@]}" >&2 </dev/null); then
     deps="$pm"
@@ -322,6 +325,7 @@ index_codegraph() {
     echo "th-wt: warning: .codegraph already exists in $dest; not indexed" >&2
     return 0
   fi
+  echo "th-wt: indexing with codegraph (may take a few minutes)" >&2
   # stdout is reserved for --json and there is no terminal to answer prompts
   # codegraph's telemetry and update check are network access: opt-in only
   # empty NO_WATCH: codegraph installs git hooks in the shared .git only when it is '1'; empty DIR: the kit checks .codegraph
@@ -337,6 +341,14 @@ print_created_json() {
   # ${linked[@]+...}: bash 3.2 fails on an empty or unset array under set -u (pr and review/pr-* never set it)
   # not --args: jq would take a path starting with '-' as an option; paths cannot contain newlines (they come from read lines); with no paths printf emits one empty line, hence the select
   jq -n --arg path "$1" --arg branch "$2" --arg repo "$repo" --arg deps "$deps" --argjson codegraph "$codegraph" --argjson linked "$(printf '%s\n' ${linked[@]+"${linked[@]}"} | jq -nRc '[inputs | select(length > 0)]')" '{path: $path, branch: $branch, repo: $repo, linked: $linked, deps: $deps, codegraph: $codegraph}'
+}
+
+# Prints the created worktree summary to stderr (the text counterpart of print_created_json); needs $deps, $codegraph and $linked.
+print_created_summary() {
+  local l="" p cg="not indexed"
+  for p in ${linked[@]+"${linked[@]}"}; do l="${l:+$l, }$p"; done
+  [ "$codegraph" != true ] || cg=indexed
+  printf '  path:      %s\n  branch:    %s\n  linked:    %s\n  deps:      %s\n  codegraph: %s\n' "$1" "$2" "${l:-none}" "$deps" "$cg" >&2
 }
 
 # Local default branch (e.g. origin/main) from refs/remotes/origin/HEAD; empty if unset. Offline.
@@ -378,7 +390,7 @@ wt_status() {
 # One JSON object per line for each worktree under $1, only the one on branch $5 if given (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
   local root="$1" default="$2" prs="$3" remote="$4" only="${5:-}" path line head dirty missing ref name merged rc out pr oid ahead
-  git worktree list --porcelain | while IFS= read -r line; do
+  { git worktree list --porcelain || die 1 "git worktree list failed"; } | while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
       "HEAD "*) head="${line#HEAD }" ;;
