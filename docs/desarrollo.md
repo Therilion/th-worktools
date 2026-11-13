@@ -117,10 +117,11 @@ Cuando un test necesita simular que `main` avanzó en `origin` sin que el clon l
   ```
 - **Shims de `git` en `PATH`:** cuando hace falta interceptar una llamada concreta a `git` sin afectar al resto, se crea un script `$shim/git` y se antepone al `PATH`:
   - Fallo selectivo de `git ls-remote --heads` tras superar `ls-remote --symref` ([`tests/smoke/new-errors.sh`](../tests/smoke/new-errors.sh)).
-  - Registro de `GIT_TERMINAL_PROMPT` en cada subcomando de `git` ([`tests/smoke/no-prompt.sh`](../tests/smoke/no-prompt.sh)).
+  - Registro de `GIT_TERMINAL_PROMPT` y `GIT_ASKPASS` en cada subcomando de `git` ([`tests/smoke/no-prompt.sh`](../tests/smoke/no-prompt.sh)).
   - Salida masiva en `git worktree list --porcelain` para comprobar que no ocurre `SIGPIPE` / exit `141` ([`tests/smoke/checkout-errors.sh`](../tests/smoke/checkout-errors.sh)).
   - Inyección de un commit justo antes de `git worktree remove` para probar la protección contra carrera en `close --yes` ([`tests/smoke/close.sh`](../tests/smoke/close.sh)).
 - **`gh` falso (`list-remote.sh` y `close-remote.sh`):** se coloca un script `$TMP/bin/gh` al principio del `PATH` que guarda los argumentos recibidos en `$TMP/gh.calls` e imprime el JSON preparado en `$TMP/gh.json` (o devuelve `exit 1` con error en stderr para probar fallos de autenticación).
+- **`ssh` falso (`no-prompt.sh`):** un script que guarda su argv para comprobar que `th-wt` añade `-o BatchMode=yes`; se usa como `core.sshCommand`, como `GIT_SSH_COMMAND` del llamador o como `ssh` al principio del `PATH`, con `origin` apuntando a una URL `git@...` real, sin el `insteadOf` global.
 - **`PATH` mínimo para dependencias faltantes (código `3`):** se crea un directorio temporal con symlinks solo a las utilidades básicas (`bash`, `git`, `jq`, `awk`, `sed`, `cat`, `env`), omitiendo el binario cuya ausencia se quiere verificar (`git` o `jq` en [`tests/smoke/new-errors.sh`](../tests/smoke/new-errors.sh); `gh` en [`tests/smoke/list-remote.sh`](../tests/smoke/list-remote.sh) y [`tests/smoke/close-remote.sh`](../tests/smoke/close-remote.sh)), y se ejecuta con `PATH="$shim"`.
 - **`HOME` temporal y agentes falsos (`install.sh`, `install-errors.sh`, `verify.sh` y `verify-errors.sh`):** los tests de instalación y de `verify.sh` usan un `HOME` temporal y binarios `claude`/`agy` falsos en un directorio temporal dentro del `PATH` (`PATH="$TMP/fakebin:/usr/bin:/bin"`); el test de directorios que no son `th-*` copia el kit a `$TMP/kit` para no escribir nada en el repositorio.
 

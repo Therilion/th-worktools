@@ -161,7 +161,6 @@ Ideas que quedan fuera de la versión en curso.
 - `.conf`: rechazar rutas en las que escribe el gestor de dependencias (p. ej. `link node_modules`: `pnpm install` escribiría a través del symlink en el checkout principal), o no instalar si hay enlaces.
 - `.conf`: validar la sintaxis, los solapes y la existencia en el checkout principal antes de crear el worktree (y antes del fetch en `new`), dejando para después solo las comprobaciones que necesitan el worktree (padre y `check-ignore`).
 - `th-wt new`/`checkout`: ramas distintas con el mismo nombre normalizado (`feature/a-b` y `feature-a/b` → `feature-a-b`) chocan; la segunda sale con «destination already exists» sin decir qué rama ocupa la ruta.
-- Evitar prompts que bloqueen al agente más allá del de la terminal de git (ya desactivado con `GIT_TERMINAL_PROMPT=0`): askpass (`GIT_ASKPASS`, `core.askPass`, `SSH_ASKPASS`) y SSH (clave de host desconocida, passphrase; `BatchMode`), sin pisar el `core.sshCommand` del usuario.
 - Unir las consultas a `origin` (`ls-remote`) en una sola llamada con el estado comprobado.
 - Lint de skills más estricto: `description`, `disable-model-invocation` en los skills con efectos secundarios e invocaciones de scripts sin la ruta completa.
 - `install.sh`: soportar más agentes: Pi y GitHub Copilot (hoy solo `claude` y `agy`).
@@ -183,6 +182,8 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt list --remote`: `ahead` sale `null` cuando el último commit del PR no está en local, algo común si se usó «Update branch» o se aceptó una sugerencia de review en GitHub antes del merge. Resolverlo trayendo `refs/pull/<n>/head` (solo objetos) para esas ramas.
 - `th-wt list --remote`: el texto «PR head not fetched» también sale cuando el PR no trae su último commit (`headRefOid` ausente); usar un mensaje que no sugiera hacer fetch.
 - `th-wt list --remote`: `ls-remote`, `fetch` y `gh pr list` son independientes y hoy corren en serie; lanzar `gh pr list` en segundo plano mientras se hace el fetch.
+- Desactivar también los credential helpers interactivos (p. ej. `GCM_INTERACTIVE=never` para Git Credential Manager), que pueden abrir el navegador aunque `GIT_TERMINAL_PROMPT=0`.
+- Resolver el comando ssh por proceso `git` (p. ej. un wrapper en `GIT_SSH_COMMAND` que lea `core.sshCommand` del directorio actual y añada `BatchMode=yes`), en vez de fijar el valor del repo para toda la ejecución: así los `git` que lanzan `pnpm` / `npm` conservan su propia configuración.
 - `th-wt list`: un proceso `jq` por worktree; unirlos en una sola llamada si hay decenas de worktrees. Con `--remote` suma otros dos por rama no contenida y el aviso del límite relee todas las filas: armar un mapa rama → PR más reciente con una sola llamada a `jq` antes del bucle.
 - `th-wt list --remote` y `close --remote`: solo informan el PR más reciente de cada rama, así que un PR nuevo mergeado puede ocultar otro abierto de la misma rama contra otra base. Mostrar los PRs abiertos aunque haya uno más reciente mergeado.
 - `th-wt list --remote`: consulta `origin` y GitHub aunque no haya worktrees bajo la raíz (y falla con 4 si las credenciales son malas). Comprobar antes si hay filas.
