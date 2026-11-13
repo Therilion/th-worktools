@@ -46,7 +46,9 @@ done
 export GIT_TERMINAL_PROMPT=0
 export GIT_ASKPASS=
 # Same for ssh passphrases: BatchMode makes ssh fail instead of asking; keep the user's own ssh command.
-# shortcut: a caller GIT_SSH program (no GIT_SSH_COMMAND/core.sshCommand) gets no BatchMode, ssh offers no way to inject it there.
+# SSH_ASKPASS_REQUIRE=never also stops ssh from running a graphical askpass (OpenSSH >= 8.4; older ignore it).
+export SSH_ASKPASS_REQUIRE=never
+# shortcut: a caller GIT_SSH program (no GIT_SSH_COMMAND/core.sshCommand) gets no BatchMode, git offers no way to inject options there.
 ssh_base="${GIT_SSH_COMMAND:-$(git config core.sshCommand || true)}"
 if [ -n "$ssh_base" ] || [ -z "${GIT_SSH:-}" ]; then
   export GIT_SSH_COMMAND="${ssh_base:-ssh} -o BatchMode=yes"

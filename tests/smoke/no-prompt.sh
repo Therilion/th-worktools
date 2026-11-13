@@ -87,3 +87,21 @@ GIT_SSH_COMMAND="$TMP/fakeb" expect_exit4 "$name" feature/ssh-env
 grep -qx 'BatchMode=yes' "$TMP/fakeb.log" || fail "$name: falta BatchMode=yes en B: [$(tr '\n' ' ' < "$TMP/fakeb.log" 2>&1)]"
 [ ! -e "$TMP/fakea.log" ] || fail "$name: se llamó a core.sshCommand"
 pass "$name"
+
+name="con solo GIT_SSH del llamador, new lo respeta sin BatchMode y ssh no usa askpass"
+git -C "$TMP/repo" config --unset core.sshCommand || true
+unset GIT_SSH_COMMAND
+cat > "$TMP/gitssh" <<EOF2
+#!/usr/bin/env bash
+printf '%s\n' "\$@" >> "$TMP/gitssh.log"
+printf 'SSH_ASKPASS_REQUIRE=%s\n' "\${SSH_ASKPASS_REQUIRE-unset}" >> "$TMP/gitssh.log"
+exit 255
+EOF2
+chmod +x "$TMP/gitssh"
+GIT_SSH="$TMP/gitssh" expect_exit4 "$name" feature/ssh-gitssh
+[ -s "$TMP/gitssh.log" ] || fail "$name: no se llamó al programa de GIT_SSH"
+if grep -qx 'BatchMode=yes' "$TMP/gitssh.log"; then
+  fail "$name: GIT_SSH recibió BatchMode=yes: [$(tr '\n' ' ' < "$TMP/gitssh.log")]"
+fi
+grep -qx 'SSH_ASKPASS_REQUIRE=never' "$TMP/gitssh.log" || fail "$name: falta SSH_ASKPASS_REQUIRE=never: [$(tr '\n' ' ' < "$TMP/gitssh.log")]"
+pass "$name"
