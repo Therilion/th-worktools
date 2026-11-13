@@ -105,3 +105,13 @@ if grep -qx 'BatchMode=yes' "$TMP/gitssh.log"; then
 fi
 grep -qx 'SSH_ASKPASS_REQUIRE=never' "$TMP/gitssh.log" || fail "$name: falta SSH_ASKPASS_REQUIRE=never: [$(tr '\n' ' ' < "$TMP/gitssh.log")]"
 pass "$name"
+
+name="con GIT_SSH y core.sshCommand, new usa core.sshCommand con BatchMode=yes"
+unset GIT_SSH_COMMAND
+mkfake "$TMP/fakec"
+git -C "$TMP/repo" config core.sshCommand "$TMP/fakec"
+before="$(wc -l < "$TMP/gitssh.log")"
+GIT_SSH="$TMP/gitssh" expect_exit4 "$name" feature/ssh-both
+grep -qx 'BatchMode=yes' "$TMP/fakec.log" || fail "$name: falta BatchMode=yes en core.sshCommand: [$(tr '\n' ' ' < "$TMP/fakec.log" 2>&1)]"
+[ "$(wc -l < "$TMP/gitssh.log")" -eq "$before" ] || fail "$name: se llamó al programa de GIT_SSH"
+pass "$name"
