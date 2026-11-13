@@ -353,7 +353,7 @@ Devuelven el mismo esquema:
 | `branch` | `string` | Nombre real de la rama en git. |
 | `repo` | `string` | `<owner>/<repo>` derivado de `origin`. |
 | `linked` | `string[]` | Rutas enlazadas desde el `.conf` del repo, en el orden del archivo; `[]` si no hay `.conf` (ver «Enlaces por repo»). |
-| `deps` | `string` | Resultado de la instalación de dependencias: `"pnpm"`, `"npm"` (instaladas), `"skipped"` (sin lockfile soportado, el gestor no está en `PATH`, o es `pr`) o `"failed"` (el gestor salió con error). |
+| `deps` | `string` | Resultado de la instalación de dependencias: `"pnpm"`, `"npm"` (instaladas), `"skipped"` (sin lockfile soportado, el gestor o el `deps-prefix` no están en `PATH`, `TH_INSTALL_DEPS=0`, o es `pr`) o `"failed"` (el gestor salió con error). |
 | `codegraph` | `boolean` | `true` si `codegraph init` indexó el worktree; `false` si `codegraph` no está instalado, `TH_CODEGRAPH=off`, el worktree ya traía un `.codegraph` o el `init` falló (ver «Integración con codegraph»). |
 
 ```json
@@ -376,9 +376,10 @@ Tras crear el worktree y antes de instalar las dependencias, `new` y `checkout` 
 link .wiki
 link .env
 link docs/local
+deps-prefix with-token
 ```
 
-El archivo se lee línea a línea, nunca con `source`. La única acción es `link <ruta>` (no hay `copy`). Cada enlace es un symlink con destino absoluto `<checkout principal>/<ruta>` (el checkout principal es la primera entrada de `git worktree list`); los directorios intermedios se crean en el worktree. Sin `--json`, informa `th-wt: linked <ruta>` por stderr, una línea por enlace.
+El archivo se lee línea a línea, nunca con `source`. Las acciones son `link <ruta>` (no hay `copy`) y `deps-prefix <comando>` (ver «Instalación de dependencias»). Cada enlace es un symlink con destino absoluto `<checkout principal>/<ruta>` (el checkout principal es la primera entrada de `git worktree list`); los directorios intermedios se crean en el worktree. Sin `--json`, informa `th-wt: linked <ruta>` por stderr, una línea por enlace.
 
 **Validación:** se validan todas las líneas antes de enlazar nada. Cada `<ruta>` debe cumplir:
 
@@ -393,13 +394,16 @@ El archivo se lee línea a línea, nunca con `source`. La única acción es `lin
 
 | Motivo | Causa |
 |---|---|
-| `unknown action '<a>' (only 'link' is supported)` | Acción distinta de `link` (incluida `copy`). |
+| `unknown action '<a>' (only 'link' and 'deps-prefix' are supported)` | Acción distinta de `link` y `deps-prefix` (incluida `copy`). |
 | `expected 'link <path>'` | Falta la ruta o hay más de una (las rutas con espacios no se admiten). |
 | `path must be relative, without '.', '..' or empty segments and without a trailing slash: <p>` | Ruta absoluta, con `.`, `..`, segmentos vacíos o barra final. |
 | `globs are not supported: <p>` | La ruta contiene `*`, `?` o `[`. |
 | `<p> overlaps <q> (line <n>)` | Duplicada o contenida en otra entrada. |
 | `<p> does not exist in the main checkout (<main>)` | No existe en el checkout principal. |
 | `<p>: parent <dir> in the worktree is not a directory` | Un padre existente en el worktree es un archivo o un symlink. |
+| `expected 'deps-prefix <command>'` | Falta el valor o hay más de una palabra. |
+| `deps-prefix must be a command name in PATH, without '/': <v>` | El valor contiene `/` (una ruta relativa ejecutaría un archivo de la rama). |
+| `duplicate deps-prefix (line <n>)` | Segunda línea `deps-prefix` (`<n>` = la primera). |
 | `<p> is ignored only as a directory ('<p>/'); git sees a symlink as a file, so ignore '<p>' without the trailing slash` | Ignorada con barra final. |
 | `<p> is not ignored by git in the worktree (versioned, or missing from .gitignore)` | Versionada o ausente del `.gitignore` de la rama. |
 
@@ -419,9 +423,12 @@ Tras crear el worktree, `th-wt` busca un lockfile en su raíz (si hay `pnpm-lock
 
 En `checkout`, una rama `review/pr-*` sigue la columna «En `pr`».
 
+**Prefijo (`deps-prefix <comando>` en el `.conf`):** para gestores que necesitan un wrapper (p. ej. uno que carga un token privado), el comando de la tabla se ejecuta precedido por el prefijo: `deps-prefix with-token` + `pnpm-lock.yaml` → `with-token pnpm install --frozen-lockfile`; con `package-lock.json` → `with-token npm ci`. Se ejecuta como argv, nunca con `eval`. El valor es una sola palabra, sin `/` y sin argumentos extra, y solo puede haber una línea `deps-prefix`. Se resuelve en el `PATH` con `type -P`: tiene que ser un ejecutable, no una función ni un alias de `.zshrc` (`th-wt` corre en bash no interactivo y no los ve). Solo se aplica cuando se instala: con lockfile soportado, `TH_INSTALL_DEPS=1` y el gestor en `PATH`; con `TH_INSTALL_DEPS=0` o sin lockfile no se ejecuta nada. `pr` y `checkout` de `review/pr-*` no aplican el `.conf`, así que tampoco el prefijo.
+
 - El gestor se ejecuta con el worktree como directorio de trabajo, con su salida redirigida a **stderr** (stdout queda para el objeto `--json`) y con stdin cerrado (`/dev/null`), así que nunca espera una respuesta.
 - Si el gestor sale con error, `th-wt` conserva el worktree, avisa por stderr y sale con `0`; `deps` vale `"failed"`. Se puede repetir la instalación a mano en el worktree.
 - Si hay lockfile pero `pnpm` / `npm` no está en `PATH`, avisa por stderr, no instala y sale con `0`; `deps` vale `"skipped"`.
+- Si el `deps-prefix` no es un ejecutable del `PATH`, no instala, `deps` vale `"skipped"`, sale con `0` y stderr dice `th-wt: warning: deps-prefix <p> is not an executable in PATH (shell functions and aliases do not count); dependencies not installed in <ruta>`. Si el gestor falla a través del prefijo, es igual que arriba (`"failed"`).
 - Sin `--json`, el gestor escribe igualmente en stderr.
 - El `prepare` del proyecto corre con la instalación. Si configura hooks (p. ej. husky escribe `core.hooksPath = .husky/_`), lo escribe en la config compartida del repo; es una ruta relativa, así que cada worktree usa sus propios hooks, y suele ser el mismo valor que ya dejó la instalación en el checkout principal.
 - La instalación puede tardar minutos; quien invoque `new` o `checkout` debe usar un timeout largo. Si se corta, el worktree ya existe: instala a mano dentro de él en vez de repetir el comando.
