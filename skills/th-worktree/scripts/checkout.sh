@@ -36,11 +36,13 @@ checkout_worktree() {
   if git show-ref --verify --quiet "refs/heads/$branch"; then
     busy_path="$(find_worktree_for_branch "$branch")"
     [ -z "$busy_path" ] || die 4 "branch $branch is already checked out in $busy_path"
+    echo "th-wt: creating worktree $dest (branch $branch)" >&2
     git worktree add -q "$dest" "$branch" || die 1 "git worktree add failed"
   else
     if [ "$remote" = 1 ]; then
       remote_heads="$(git ls-remote --heads origin "refs/heads/$branch")" || die 4 "cannot read origin (unreachable or no access)"
       [ -n "$remote_heads" ] || die 4 "branch not found on origin: $branch"
+      echo "th-wt: fetching origin/$branch" >&2
       fetch_origin_branch "$branch" || die 4 "fetch of origin/$branch failed"
     fi
 
@@ -65,6 +67,6 @@ checkout_worktree() {
   if [ "$json" = 1 ]; then
     print_created_json "$dest" "$branch"
   else
-    printf '  path:   %s\n' "$dest" >&2
+    print_created_summary "$dest" "$branch"
   fi
 }
