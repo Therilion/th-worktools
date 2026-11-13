@@ -315,9 +315,22 @@ El acceso a la red es explícito:
 - No descarga tags del remoto al repositorio local.
 - **Nunca crea ni modifica `refs/remotes/origin/HEAD`**, ni siquiera cuando no existe en local o apunta a otra rama.
 
-### `GIT_TERMINAL_PROMPT=0`
+### Sin prompts: terminal, askpass y SSH
 
-`th-wt` exporta `GIT_TERMINAL_PROMPT=0` al iniciar, antes de ejecutar cualquier comando `git`. Si `origin` requiere credenciales interactivas en la terminal, `git` falla de inmediato (y `th-wt` sale con código `4`) en lugar de quedar esperando entrada en una sesión sin TTY.
+Al iniciar, antes de ejecutar cualquier comando `git`, `th-wt` desactiva todo lo que pueda dejar esperando al agente. Si `origin` no se puede alcanzar sin interacción, `git` falla de inmediato y `th-wt` sale con código `4` (igual que con un `origin` inaccesible).
+
+- **Terminal:** exporta `GIT_TERMINAL_PROMPT=0`, así `git` no pide usuario y contraseña por la terminal.
+- **Askpass:** exporta `GIT_ASKPASS=` (vacío). Con ese valor `git` omite todos los askpass: `GIT_ASKPASS`, `core.askPass` y `SSH_ASKPASS`.
+- **SSH:** exporta `GIT_SSH_COMMAND="<base> -o BatchMode=yes"`. `<base>` es el comando que `git` usaría de todos modos, con su precedencia: `GIT_SSH_COMMAND` del entorno, si no `core.sshCommand`, si no `ssh`. Se conserva el comando del usuario y solo se añade `BatchMode=yes`: `ssh` falla de inmediato en lugar de pedir la passphrase de una clave, una contraseña o confirmar una clave de host desconocida, y no ejecuta su askpass.
+
+Si el comando del usuario ya incluye `-o BatchMode=no`, prevalece el suyo (`ssh` conserva el primer valor de cada opción).
+
+Estas variables las heredan también los procesos `git` que lanzan `pnpm` / `npm` al instalar dependencias.
+
+Límites conocidos:
+
+- **`GIT_SSH`:** si el usuario solo usa `GIT_SSH` (un programa, no un comando) y no define `GIT_SSH_COMMAND` ni `core.sshCommand`, `th-wt` no lo toca y ese caso no recibe `BatchMode`.
+- **Comandos no compatibles con OpenSSH:** un `core.sshCommand` que no acepta `-o` (p. ej. `plink`) fallará, porque `th-wt` le añade `-o BatchMode=yes`.
 
 ### Requisitos de `gh` en `pr`, `list --remote` y `close --remote`
 
