@@ -302,7 +302,7 @@ detect_pm() {
 
 # Installs the dependencies of worktree $1 from its lockfile; sets $deps. A failed install only warns: the worktree is already there.
 install_deps() {
-  local dest="$1" pm sub
+  local dest="$1" pm sub bin=
   deps=skipped
   detect_pm "$dest"
   [ -n "$pm" ] || return 0
@@ -315,12 +315,18 @@ install_deps() {
     return 0
   fi
   # type -P looks only at executables in PATH: th-wt runs non-interactive and never sees shell functions or aliases
-  if [ -n "$deps_prefix" ] && ! type -P "$deps_prefix" >/dev/null; then
-    echo "th-wt: warning: deps-prefix $deps_prefix is not an executable in PATH (shell functions and aliases do not count); dependencies not installed in $dest" >&2
-    return 0
+  if [ -n "$deps_prefix" ]; then
+    bin="$(type -P "$deps_prefix" || true)"
+    # a relative entry in PATH ('.' or empty) gives a relative path: it would resolve in the worktree, i.e. branch code
+    case "$bin" in
+      /*) ;;
+      *)
+        echo "th-wt: warning: deps-prefix $deps_prefix is not an executable in PATH (shell functions and aliases do not count); dependencies not installed in $dest" >&2
+        return 0 ;;
+    esac
   fi
   # stdout is reserved for --json and there is no terminal to answer prompts; argv, never eval
-  if (cd "$dest" && ${deps_prefix:+"$deps_prefix"} "$pm" "${sub[@]}" >&2 </dev/null); then
+  if (cd "$dest" && ${bin:+"$bin"} "$pm" "${sub[@]}" >&2 </dev/null); then
     deps="$pm"
   else
     deps=failed

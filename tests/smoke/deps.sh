@@ -218,44 +218,44 @@ out="$(cd "$TMP/repo" && TH_INSTALL_DEPS=0 "$WT" new feature/nodeps-nolock --jso
 [ ! -s "$TMP/pm.calls" ] || fail "$name: se ejecutó un gestor: [$(cat "$TMP/pm.calls")]"
 pass "$name"
 
-# igp falso: anota "<cwd> igp <args>" en $TMP/pm.calls y ejecuta el resto (el gestor falso).
-cat > "$TMP/bin/igp" <<EOF2
+# with-token falso: anota "<cwd> with-token <args>" en $TMP/pm.calls y ejecuta el resto (el gestor falso).
+cat > "$TMP/bin/with-token" <<EOF2
 #!/usr/bin/env bash
-echo "\$PWD igp \$*" >> "$TMP/pm.calls"
+echo "\$PWD with-token \$*" >> "$TMP/pm.calls"
 exec "\$@"
 EOF2
-chmod +x "$TMP/bin/igp"
+chmod +x "$TMP/bin/with-token"
 DEPS_CONF_DIR="$HOME/.config/th-worktools/repos/acme"
 mkdir -p "$DEPS_CONF_DIR"
 
-name="new con deps-prefix igp y pnpm-lock.yaml ejecuta igp pnpm install --frozen-lockfile en el worktree y devuelve deps: pnpm"
+name="new con deps-prefix with-token y pnpm-lock.yaml ejecuta with-token pnpm install --frozen-lockfile en el worktree y devuelve deps: pnpm"
 : > "$TMP/pm.calls"
-printf 'deps-prefix igp\n' > "$DEPS_CONF_DIR/demo.conf"
+printf 'deps-prefix with-token\n' > "$DEPS_CONF_DIR/demo.conf"
 out="$(cd "$TMP/repo" && "$WT" new feature/prefix-pnpm --base with-pnpm --json 2>/dev/null)" || fail "$name: th-wt new falló"
 dest="$HOME/.worktrees/acme/demo/feature-prefix-pnpm"
-expected="$(printf '%s\n%s' "$dest igp pnpm install --frozen-lockfile" "$dest pnpm install --frozen-lockfile")"
+expected="$(printf '%s\n%s' "$dest with-token pnpm install --frozen-lockfile" "$dest pnpm install --frozen-lockfile")"
 [ "$(cat "$TMP/pm.calls")" = "$expected" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
 [ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: salida=[$out]"
 rm -f "$DEPS_CONF_DIR/demo.conf"
 pass "$name"
 
-name="checkout de una rama local con deps-prefix igp y package-lock.json ejecuta igp npm ci"
+name="checkout de una rama local con deps-prefix with-token y package-lock.json ejecuta with-token npm ci"
 : > "$TMP/pm.calls"
-printf 'deps-prefix igp\n' > "$DEPS_CONF_DIR/demo.conf"
+printf 'deps-prefix with-token\n' > "$DEPS_CONF_DIR/demo.conf"
 git -C "$TMP/repo" branch --no-track local-prefix-npm refs/remotes/origin/with-npm
 out="$(cd "$TMP/repo" && "$WT" checkout local-prefix-npm --json 2>/dev/null)" || fail "$name: th-wt checkout falló"
 dest="$HOME/.worktrees/acme/demo/local-prefix-npm"
-expected="$(printf '%s\n%s' "$dest igp npm ci" "$dest npm ci")"
+expected="$(printf '%s\n%s' "$dest with-token npm ci" "$dest npm ci")"
 [ "$(cat "$TMP/pm.calls")" = "$expected" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
 [ "$(jq -r .deps <<<"$out")" = npm ] || fail "$name: salida=[$out]"
 rm -f "$DEPS_CONF_DIR/demo.conf"
 pass "$name"
 
 name="deps-prefix que no es un ejecutable del PATH (inexistente o función de bash exportada) avisa, no ejecuta el gestor, sale con 0 y devuelve deps: skipped"
-# misma función para ambos casos: igp-func existe solo como función exportada, no como archivo en el PATH
-igp-func() { echo "función igp-func" >> "$TMP/pm.calls"; "$@"; }
-export -f igp-func
-for p in igp-inexistente igp-func; do
+# misma función para ambos casos: with-token-func existe solo como función exportada, no como archivo en el PATH
+with-token-func() { echo "función with-token-func" >> "$TMP/pm.calls"; "$@"; }
+export -f with-token-func
+for p in with-token-missing with-token-func; do
   : > "$TMP/pm.calls"
   printf 'deps-prefix %s\n' "$p" > "$DEPS_CONF_DIR/demo.conf"
   rc=0
@@ -268,4 +268,50 @@ for p in igp-inexistente igp-func; do
   grep -qxF "th-wt: warning: deps-prefix $p is not an executable in PATH (shell functions and aliases do not count); dependencies not installed in $dest" "$TMP/prefix-no.err" || fail "$name: $p: aviso incorrecto: [$(cat "$TMP/prefix-no.err")]"
 done
 rm -f "$DEPS_CONF_DIR/demo.conf"
+pass "$name"
+
+name="deps-prefix ejecuta el binario del PATH aunque haya una función exportada o un builtin con el mismo nombre"
+# función exportada con el mismo nombre que el binario with-token del PATH
+# eval: $TMP no se exporta, la función exportada necesita la ruta ya expandida
+eval "with-token() { echo 'función with-token' >> '$TMP/pm.calls'; \"\$@\"; }"
+export -f with-token
+: > "$TMP/pm.calls"
+printf 'deps-prefix with-token\n' > "$DEPS_CONF_DIR/demo.conf"
+out="$(cd "$TMP/repo" && "$WT" new feature/prefix-shadow-func --base with-pnpm --json 2>/dev/null)" || fail "$name: función: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-prefix-shadow-func"
+expected="$(printf '%s\n%s' "$dest with-token pnpm install --frozen-lockfile" "$dest pnpm install --frozen-lockfile")"
+[ "$(cat "$TMP/pm.calls")" = "$expected" ] || fail "$name: función: llamadas=[$(cat "$TMP/pm.calls")]"
+unset -f with-token
+export -n with-token 2>/dev/null || true
+# binario falso "command" en un directorio propio: command es un builtin, pero el prefijo debe ser el binario
+mkdir -p "$TMP/bin-command"
+cat > "$TMP/bin-command/command" <<EOF2
+#!/usr/bin/env bash
+echo "\$PWD command \$*" >> "$TMP/pm.calls"
+exec "\$@"
+EOF2
+chmod +x "$TMP/bin-command/command"
+: > "$TMP/pm.calls"
+printf 'deps-prefix command\n' > "$DEPS_CONF_DIR/demo.conf"
+out="$(cd "$TMP/repo" && PATH="$TMP/bin-command:$PATH" "$WT" new feature/prefix-shadow-builtin --base with-pnpm --json 2>/dev/null)" || fail "$name: builtin: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-prefix-shadow-builtin"
+expected="$(printf '%s\n%s' "$dest command pnpm install --frozen-lockfile" "$dest pnpm install --frozen-lockfile")"
+[ "$(cat "$TMP/pm.calls")" = "$expected" ] || fail "$name: builtin: llamadas=[$(cat "$TMP/pm.calls")]"
+rm -f "$DEPS_CONF_DIR/demo.conf"
+pass "$name"
+
+name="deps-prefix encontrado solo por una entrada relativa del PATH (.) avisa, no ejecuta nada y devuelve deps: skipped"
+# ejecutable en el checkout principal (cwd de th-wt), sin versionar
+printf '#!/usr/bin/env bash\necho "relativo" >> "%s"\nexec "$@"\n' "$TMP/pm.calls" > "$TMP/repo/with-token-rel"
+chmod +x "$TMP/repo/with-token-rel"
+: > "$TMP/pm.calls"
+printf 'deps-prefix with-token-rel\n' > "$DEPS_CONF_DIR/demo.conf"
+rc=0
+out="$(cd "$TMP/repo" && PATH=".:$PATH" "$WT" new feature/prefix-rel-path --base with-pnpm --json 2>"$TMP/prefix-rel.err")" || rc=$?
+rm -f "$TMP/repo/with-token-rel" "$DEPS_CONF_DIR/demo.conf"
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$(cat "$TMP/prefix-rel.err")]"
+dest="$HOME/.worktrees/acme/demo/feature-prefix-rel-path"
+[ ! -s "$TMP/pm.calls" ] || fail "$name: se ejecutó algo: [$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: salida=[$out]"
+grep -qxF "th-wt: warning: deps-prefix with-token-rel is not an executable in PATH (shell functions and aliases do not count); dependencies not installed in $dest" "$TMP/prefix-rel.err" || fail "$name: aviso incorrecto: [$(cat "$TMP/prefix-rel.err")]"
 pass "$name"
