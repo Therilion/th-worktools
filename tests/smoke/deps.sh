@@ -217,3 +217,55 @@ out="$(cd "$TMP/repo" && TH_INSTALL_DEPS=0 "$WT" new feature/nodeps-nolock --jso
 ! grep -q "dependencies not installed" "$TMP/nolock.err" || fail "$name: stderr=[$(cat "$TMP/nolock.err")]"
 [ ! -s "$TMP/pm.calls" ] || fail "$name: se ejecutó un gestor: [$(cat "$TMP/pm.calls")]"
 pass "$name"
+
+# igp falso: anota "<cwd> igp <args>" en $TMP/pm.calls y ejecuta el resto (el gestor falso).
+cat > "$TMP/bin/igp" <<EOF2
+#!/usr/bin/env bash
+echo "\$PWD igp \$*" >> "$TMP/pm.calls"
+exec "\$@"
+EOF2
+chmod +x "$TMP/bin/igp"
+DEPS_CONF_DIR="$HOME/.config/th-worktools/repos/acme"
+mkdir -p "$DEPS_CONF_DIR"
+
+name="new con deps-prefix igp y pnpm-lock.yaml ejecuta igp pnpm install --frozen-lockfile en el worktree y devuelve deps: pnpm"
+: > "$TMP/pm.calls"
+printf 'deps-prefix igp\n' > "$DEPS_CONF_DIR/demo.conf"
+out="$(cd "$TMP/repo" && "$WT" new feature/prefix-pnpm --base with-pnpm --json 2>/dev/null)" || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-prefix-pnpm"
+expected="$(printf '%s\n%s' "$dest igp pnpm install --frozen-lockfile" "$dest pnpm install --frozen-lockfile")"
+[ "$(cat "$TMP/pm.calls")" = "$expected" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = pnpm ] || fail "$name: salida=[$out]"
+rm -f "$DEPS_CONF_DIR/demo.conf"
+pass "$name"
+
+name="checkout de una rama local con deps-prefix igp y package-lock.json ejecuta igp npm ci"
+: > "$TMP/pm.calls"
+printf 'deps-prefix igp\n' > "$DEPS_CONF_DIR/demo.conf"
+git -C "$TMP/repo" branch --no-track local-prefix-npm refs/remotes/origin/with-npm
+out="$(cd "$TMP/repo" && "$WT" checkout local-prefix-npm --json 2>/dev/null)" || fail "$name: th-wt checkout falló"
+dest="$HOME/.worktrees/acme/demo/local-prefix-npm"
+expected="$(printf '%s\n%s' "$dest igp npm ci" "$dest npm ci")"
+[ "$(cat "$TMP/pm.calls")" = "$expected" ] || fail "$name: llamadas=[$(cat "$TMP/pm.calls")]"
+[ "$(jq -r .deps <<<"$out")" = npm ] || fail "$name: salida=[$out]"
+rm -f "$DEPS_CONF_DIR/demo.conf"
+pass "$name"
+
+name="deps-prefix que no es un ejecutable del PATH (inexistente o función de bash exportada) avisa, no ejecuta el gestor, sale con 0 y devuelve deps: skipped"
+# misma función para ambos casos: igp-func existe solo como función exportada, no como archivo en el PATH
+igp-func() { echo "función igp-func" >> "$TMP/pm.calls"; "$@"; }
+export -f igp-func
+for p in igp-inexistente igp-func; do
+  : > "$TMP/pm.calls"
+  printf 'deps-prefix %s\n' "$p" > "$DEPS_CONF_DIR/demo.conf"
+  rc=0
+  out="$(cd "$TMP/repo" && "$WT" new "feature/prefix-no-$p" --base with-pnpm --json 2>"$TMP/prefix-no.err")" || rc=$?
+  [ "$rc" = 0 ] || fail "$name: $p: exit=$rc, esperado 0: [$(cat "$TMP/prefix-no.err")]"
+  dest="$HOME/.worktrees/acme/demo/feature-prefix-no-$p"
+  [ -d "$dest" ] || fail "$name: $p: no se creó el worktree"
+  [ ! -s "$TMP/pm.calls" ] || fail "$name: $p: se ejecutó algo: [$(cat "$TMP/pm.calls")]"
+  [ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: $p: salida=[$out]"
+  grep -qxF "th-wt: warning: deps-prefix $p is not an executable in PATH (shell functions and aliases do not count); dependencies not installed in $dest" "$TMP/prefix-no.err" || fail "$name: $p: aviso incorrecto: [$(cat "$TMP/prefix-no.err")]"
+done
+rm -f "$DEPS_CONF_DIR/demo.conf"
+pass "$name"
