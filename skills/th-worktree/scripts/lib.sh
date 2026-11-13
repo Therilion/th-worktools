@@ -304,7 +304,7 @@ detect_pm() {
 
 # Installs the dependencies of worktree $1 from its lockfile; sets $deps. A failed install only warns: the worktree is already there.
 install_deps() {
-  local dest="$1" pm sub bin=
+  local dest="$1" pm sub shown bin=
   deps=skipped
   detect_pm "$dest"
   [ -n "$pm" ] || return 0
@@ -327,13 +327,14 @@ install_deps() {
         return 0 ;;
     esac
   fi
-  echo "th-wt: installing dependencies ($pm ${sub[*]})" >&2
+  shown="${deps_prefix:+$deps_prefix }$pm ${sub[*]}"
+  echo "th-wt: installing dependencies ($shown)" >&2
   # stdout is reserved for --json and there is no terminal to answer prompts; argv, never eval
   if (cd "$dest" && ${bin:+"$bin"} "$pm" "${sub[@]}" >&2 </dev/null); then
     deps="$pm"
   else
     deps=failed
-    echo "th-wt: warning: $pm install failed in $dest; run it there manually" >&2
+    echo "th-wt: warning: $pm install failed in $dest; run '$shown' there manually" >&2
   fi
 }
 

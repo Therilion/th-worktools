@@ -315,3 +315,16 @@ dest="$HOME/.worktrees/acme/demo/feature-prefix-rel-path"
 [ "$(jq -r .deps <<<"$out")" = skipped ] || fail "$name: salida=[$out]"
 grep -qxF "th-wt: warning: deps-prefix with-token-rel is not an executable in PATH (shell functions and aliases do not count); dependencies not installed in $dest" "$TMP/prefix-rel.err" || fail "$name: aviso incorrecto: [$(cat "$TMP/prefix-rel.err")]"
 pass "$name"
+
+name="con deps-prefix, la línea de progreso y el aviso de fallo muestran el comando con el prefijo"
+: > "$TMP/pm.calls"
+printf 'deps-prefix with-token\n' > "$DEPS_CONF_DIR/demo.conf"
+rc=0
+out="$(cd "$TMP/repo" && FAKE_PM_FAIL=1 "$WT" new feature/prefix-fail --base with-pnpm --json 2>"$TMP/prefix-fail.err")" || rc=$?
+rm -f "$DEPS_CONF_DIR/demo.conf"
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$(cat "$TMP/prefix-fail.err")]"
+dest="$HOME/.worktrees/acme/demo/feature-prefix-fail"
+[ "$(jq -r .deps <<<"$out")" = failed ] || fail "$name: salida=[$out]"
+grep -qxF "th-wt: installing dependencies (with-token pnpm install --frozen-lockfile)" "$TMP/prefix-fail.err" || fail "$name: línea de progreso incorrecta: [$(cat "$TMP/prefix-fail.err")]"
+grep -qxF "th-wt: warning: pnpm install failed in $dest; run 'with-token pnpm install --frozen-lockfile' there manually" "$TMP/prefix-fail.err" || fail "$name: aviso incorrecto: [$(cat "$TMP/prefix-fail.err")]"
+pass "$name"
