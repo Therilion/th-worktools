@@ -137,7 +137,7 @@ rc=0
 (cd "$TMP/repo" && "$WT" checkout feature/term >"$TMP/co.out" 2>"$TMP/co.err") || rc=$?
 [ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
 [ ! -s "$TMP/co.out" ] || fail "$name: stdout no está vacío: [$(cat "$TMP/co.out")]"
-grep -qxF "  path:   $HOME/.worktrees/acme/demo/feature-term" "$TMP/co.err" || fail "$name: stderr=[$(cat "$TMP/co.err")]"
+grep -qxF "  path:      $HOME/.worktrees/acme/demo/feature-term" "$TMP/co.err" || fail "$name: stderr=[$(cat "$TMP/co.err")]"
 pass "$name"
 
 name="checkout --json devuelve solo path, branch, repo, linked, deps y codegraph"

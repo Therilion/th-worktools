@@ -37,7 +37,7 @@ rc=0
 (cd "$TMP/repo" && "$WT" new feature/term >"$TMP/new.out" 2>"$TMP/new.err") || rc=$?
 [ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0"
 [ ! -s "$TMP/new.out" ] || fail "$name: stdout no está vacío: [$(cat "$TMP/new.out")]"
-grep -qxF "  path:   $HOME/.worktrees/acme/demo/feature-term" "$TMP/new.err" || fail "$name: stderr=[$(cat "$TMP/new.err")]"
+grep -qxF "  path:      $HOME/.worktrees/acme/demo/feature-term" "$TMP/new.err" || fail "$name: stderr=[$(cat "$TMP/new.err")]"
 pass "$name"
 
 name="new --json devuelve solo path, branch, repo, linked, deps y codegraph"

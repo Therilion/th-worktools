@@ -39,6 +39,7 @@ new_worktree() {
     base="$default"
     [ -n "$base" ] || die 4 "cannot determine origin's default branch (pass --base)"
   fi
+  echo "th-wt: fetching origin/$base" >&2
   fetch_origin_branch "$base" || die 4 "base branch not found on origin (or fetch failed): $base"
   add_branch_worktree "$branch" "$dest" "refs/remotes/origin/$base"
   apply_repo_conf "$dest" "$branch"
@@ -48,6 +49,6 @@ new_worktree() {
   if [ "$json" = 1 ]; then
     print_created_json "$dest" "$branch"
   else
-    printf '  path:   %s\n' "$dest" >&2
+    print_created_summary "$dest" "$branch"
   fi
 }
