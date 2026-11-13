@@ -3,7 +3,6 @@
 Public kit of skills (`SKILL.md` standard) and scripts for Claude Code and Antigravity CLI. Current version: v0.1, with the `th-worktree` skill plus `install.sh`, `verify.sh` and CI.
 
 - Before changing anything, read `docs/plan-v0.1.md`. The decisions live there; don't reopen them without asking.
-- Pending work: `BACKLOG.md` (temporary, deleted when v0.1 closes).
 
 ## Stack
 

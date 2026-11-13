@@ -423,6 +423,7 @@ En `checkout`, una rama `review/pr-*` sigue la columna «En `pr`».
 - Si el gestor sale con error, `th-wt` conserva el worktree, avisa por stderr y sale con `0`; `deps` vale `"failed"`. Se puede repetir la instalación a mano en el worktree.
 - Si hay lockfile pero `pnpm` / `npm` no está en `PATH`, avisa por stderr, no instala y sale con `0`; `deps` vale `"skipped"`.
 - Sin `--json`, el gestor escribe igualmente en stderr.
+- El `prepare` del proyecto corre con la instalación. Si configura hooks (p. ej. husky escribe `core.hooksPath = .husky/_`), lo escribe en la config compartida del repo; es una ruta relativa, así que cada worktree usa sus propios hooks, y suele ser el mismo valor que ya dejó la instalación en el checkout principal.
 - La instalación puede tardar minutos; quien invoque `new` o `checkout` debe usar un timeout largo. Si se corta, el worktree ya existe: instala a mano dentro de él en vez de repetir el comando.
 
 #### Integración con codegraph
