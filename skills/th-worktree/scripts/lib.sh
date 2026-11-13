@@ -131,7 +131,7 @@ resolve_repo() {
 # Exits 4 if the worktrees root of $repo and the main checkout contain one another; needs $repo and $wt_root.
 check_root_overlap() {
   local main root="$wt_root/$repo/"
-  main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
+  main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')" || die 1 "git worktree list failed"
   # trailing slash on both sides so /a/b does not match /a/bc
   case "$root" in "$main/"*) die 4 "worktrees root $wt_root/$repo overlaps the main checkout $main" ;; esac
   case "$main/" in "$root"*) die 4 "worktrees root $wt_root/$repo overlaps the main checkout $main" ;; esac
@@ -390,7 +390,7 @@ wt_status() {
 # One JSON object per line for each worktree under $1, only the one on branch $5 if given (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
   local root="$1" default="$2" prs="$3" remote="$4" only="${5:-}" path line head dirty missing ref name merged rc out pr oid ahead
-  git worktree list --porcelain | while IFS= read -r line; do
+  { git worktree list --porcelain || die 1 "git worktree list failed"; } | while IFS= read -r line; do
     case "$line" in
       "worktree "*) path="${line#worktree }" ;;
       "HEAD "*) head="${line#HEAD }" ;;
