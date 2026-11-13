@@ -317,11 +317,12 @@ El acceso a la red es explícito:
 
 ### Sin prompts: terminal, askpass y SSH
 
-Al iniciar, antes de ejecutar cualquier comando `git`, `th-wt` desactiva todo lo que pueda dejar esperando al agente. Si `origin` no se puede alcanzar sin interacción, `git` falla de inmediato y `th-wt` sale con código `4` (igual que con un `origin` inaccesible).
+Al iniciar, antes de ejecutar cualquier comando `git`, `th-wt` desactiva los prompts de terminal, de askpass y de SSH que pueden dejar esperando al agente (los credential helpers no se tocan; ver «Límites conocidos»). Si `origin` no se puede alcanzar sin interacción, `git` falla de inmediato y `th-wt` sale con código `4` (igual que con un `origin` inaccesible).
 
 - **Terminal:** exporta `GIT_TERMINAL_PROMPT=0`, así `git` no pide usuario y contraseña por la terminal.
 - **Askpass:** exporta `GIT_ASKPASS=` (vacío). Con ese valor `git` omite todos los askpass: `GIT_ASKPASS`, `core.askPass` y `SSH_ASKPASS`.
 - **SSH:** exporta `GIT_SSH_COMMAND="<base> -o BatchMode=yes"`. `<base>` es el comando que `git` usaría de todos modos, con su precedencia: `GIT_SSH_COMMAND` del entorno, si no `core.sshCommand`, si no `ssh`. Se conserva el comando del usuario y solo se añade `BatchMode=yes`: `ssh` falla de inmediato en lugar de pedir la passphrase de una clave, una contraseña o confirmar una clave de host desconocida, y no ejecuta su askpass.
+- **Askpass de SSH:** exporta `SSH_ASKPASS_REQUIRE=never`, así `ssh` nunca ejecuta su askpass (OpenSSH 8.4 o posterior).
 
 Si el comando del usuario ya incluye `-o BatchMode=no`, prevalece el suyo (`ssh` conserva el primer valor de cada opción).
 
@@ -329,7 +330,9 @@ Estas variables las heredan también los procesos `git` que lanzan `pnpm` / `npm
 
 Límites conocidos:
 
-- **`GIT_SSH`:** si el usuario solo usa `GIT_SSH` (un programa, no un comando) y no define `GIT_SSH_COMMAND` ni `core.sshCommand`, `th-wt` no lo toca y ese caso no recibe `BatchMode`.
+- **`GIT_SSH`:** si el usuario solo usa `GIT_SSH` (un programa, no un comando) y no define `GIT_SSH_COMMAND` ni `core.sshCommand`, `th-wt` no lo toca y ese caso no recibe `BatchMode`. `SSH_ASKPASS_REQUIRE=never` sí sigue bloqueando el askpass de `ssh`, pero `ssh` aún puede preguntar por la terminal si hay una.
+- **Credential helpers:** no se desactivan. Uno interactivo (p. ej. Git Credential Manager, que puede abrir el navegador) puede dejar esperando al agente aunque `GIT_TERMINAL_PROMPT=0`.
+- **`core.sshCommand` del repo en la instalación de dependencias:** como `GIT_SSH_COMMAND` se exporta con el `core.sshCommand` del repo, los procesos `git` de `pnpm` / `npm` (p. ej. al clonar dependencias de git) también lo usan; antes solo veían la configuración global, sin un `core.sshCommand` local ni el de un `includeIf`. Con dependencias de git de otra cuenta, la instalación puede fallar.
 - **Comandos no compatibles con OpenSSH:** un `core.sshCommand` que no acepta `-o` (p. ej. `plink`) fallará, porque `th-wt` le añade `-o BatchMode=yes`.
 
 ### Requisitos de `gh` en `pr`, `list --remote` y `close --remote`
