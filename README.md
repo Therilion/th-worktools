@@ -2,7 +2,7 @@
 
 Kit personal de skills y scripts para agentes de código, compatible con **Claude Code** y **Antigravity CLI**. Sigue el estándar Agent Skills (`SKILL.md`) y funciona en macOS y Linux.
 
-> **Estado:** en desarrollo, hacia la v0.1. `install.sh` ya instala el kit en Claude Code y Antigravity CLI, y `th-worktree` funciona con `new`, `checkout`, `pr`, `list` y `close`. `verify.sh` comprueba la instalación. La guía de instalación en tres pasos, los requisitos y los permisos sugeridos ya están abajo; del DoD de la v0.1 falta lo marcado como pendiente en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) §15.
+> **Estado:** v0.1 completa. `th-worktree` funciona con `new`, `checkout`, `pr`, `list` y `close` desde Claude Code, Antigravity CLI y la terminal; `install.sh` instala el kit y `verify.sh` comprueba la instalación. Probado en uso real en macOS.
 
 ## Principios
 
@@ -103,7 +103,7 @@ Opcionales. `install.sh` no los escribe: cópialos tú en la configuración de c
 - En Claude Code el `ask` gana a cualquier `allow`. En agy, un `allow` que cubra `th-wt` por el PATH (p. ej. `command(regex:.*th-wt.*)`) gana al `ask` en `th-wt close … --yes`: no añadas uno.
 - `Read(**/.env*)` también bloquea `.env.example`, `.env.sample` y `.envrc`.
 - El `deny` de Claude Code solo cubre la herramienta de lectura de archivos, no un `cat .env` por la shell. En agy no se probó un bloqueo equivalente.
-- Comprobado en macOS con Claude Code 2.1.311 y agy 1.5.3. Detalle en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) §13.
+- Comprobado en macOS con Claude Code 2.1.311 y agy 1.5.3; el `allow` de `list` y el `ask` de `close --yes`, también con agy 1.5.8. Detalle en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) §13.
 
 ## v0.1: `th-worktree`
 
@@ -136,9 +136,11 @@ La referencia completa (subcomandos, red, códigos de salida y `--json`) está e
 | v0.3    | `th-pr-review`: revisión de PRs con mutation testing limitado al diff     |
 | v0.4    | `th-integration-context`: contexto compartido entre repos                 |
 
+Cada versión de la tabla es una línea de releases: la v0.2 empieza en `v0.2.0` (fijada con `Release-As`, ver [Versiones](#versiones)) y las mejoras y correcciones que salgan antes van como `v0.1.x`.
+
 El detalle de las decisiones está en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) y la guía de desarrollo y tests en [`docs/desarrollo.md`](docs/desarrollo.md).
 
-Las ramas de cada historia se integran en `main` con un merge commit hasta la historia 5; a partir de la historia 6 (`#6` del backlog) se integran con squash.
+Las ramas de cada historia se integran en `main` con un merge commit hasta la historia 5; a partir de la historia 6 se integran con squash.
 
 ## Ideas
 
@@ -151,7 +153,9 @@ Ideas que quedan fuera de la versión en curso.
 - Instalar dependencias de otros gestores al crear un worktree (hoy, en #6, solo pnpm y npm): yarn (`--immutable` en Yarn 2+, `--frozen-lockfile` en Yarn 1; distinguir la versión con `.yarnrc.yml` o `packageManager`), bun (`bun.lock`/`bun.lockb`), Rust (`Cargo.lock` → `cargo fetch --locked`, que no ejecuta `build.rs`; no vale para `pr`: lee el `.cargo/config.toml` del PR) y Python (`uv.lock` → `uv sync --locked`; `poetry.lock` → `poetry install`). `requirements.txt` no es un lockfile: omitirlo. Verificar los flags en las versiones instaladas.
 - Instalar dependencias solo si se pide, con un flag (p. ej. `--deps`) en todo comando que crea un worktree (`new`, `checkout`, `pr`), en vez de instalar por defecto. En `pr` (hoy nunca instala: el `.npmrc` y el `packageManager` del PR controlan el gestor), quizá solo para PRs del mismo repo o dentro de un contenedor.
 - Investigar si se puede detectar un riesgo antes de instalar (p. ej. revisar `.npmrc`, `packageManager`, `.pnpmfile.cjs`, scripts de ciclo de vida o dependencias de git, o usar herramientas de auditoría de paquetes), sabiendo que ninguna comprobación cubre los vectores que aparezcan después.
-- `new`/`checkout`: el `prepare` del proyecto (p. ej. husky) puede escribir `core.hooksPath` en la config compartida del repo; documentarlo o evaluarlo.
+- Prefijo para el comando de instalación, por repo en el `.conf` (p. ej. `deps-prefix igp` → `igp pnpm install --frozen-lockfile`), para gestores que necesitan un token privado cargado por un wrapper. Se ejecuta como argv, nunca con `eval`; el prefijo debe ser un ejecutable del `PATH`, porque `th-wt` corre en bash no interactivo y no ve las funciones de `.zshrc`. `pr` sigue sin instalar.
+- Re-aplicar el `.conf` a un worktree ya creado (p. ej. `th-wt link <rama>`): crea los enlaces que falten tras agregar una línea, con las mismas validaciones, sin borrar nada.
+- Configuración multinivel: reglas comunes a una organización (`repos/<owner>.conf`) que se combinan con las del repo (`repos/<owner>/<repo>.conf`), p. ej. `link .wiki` o `link .openspec` en todos los repos de una organización. Necesita enlaces opcionales («solo si existe»): hoy un `link` sin origen falla y deshace el worktree.
 - Verificar el aviso de descarga de corepack con stdin en `/dev/null` (`new`/`checkout`): si bloquea, fijar `COREPACK_ENABLE_DOWNLOAD_PROMPT`.
 - `.conf`: admitir rutas con espacios (hoy `link` toma una sola palabra; cambia el formato de la línea).
 - Versionar cada skill por separado con release-please cuando haya dos o más skills: un paquete por skill en `release-please-config.json` (tag `<skill>-vX.Y.Z` y changelog propio) y `exclude-paths` en el paquete raíz. Mientras `install.sh` instale el kit completo, esa versión solo informa.

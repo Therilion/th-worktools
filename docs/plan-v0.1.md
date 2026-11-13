@@ -495,6 +495,7 @@ Verificado el 2026-11-10 en macOS con Claude Code 2.1.311 y agy 1.5.3 (#13):
 - Un comando encadenado (`… list --json && touch …`) pide permiso en los dos.
 - Claude Code rechaza auto-aprobar cualquier comando con `${…}` («A variable in braces in this command can't be checked before it runs»), sea cual sea la regla. Por eso el `SKILL.md` usa la ruta fija `"$HOME/.local/share/th-worktools/skills/th-worktree/scripts/th-wt"`, sin llaves.
 - En agy, la comilla de cierre de la ruta queda entre `th-wt` y el subcomando; el patrón original `command(regex:.*th-wt close.*--yes.*)` no coincidía. De ahí `th-wt"?` en los patrones de agy.
+- Reverificado el 2026-11-13 con agy 1.5.8 (sesión en modo `accept-edits`; en modo `auto` agy no pide permiso para nada): `list` corre sin pedir permiso y `close … --yes` lo pide. En Claude Code, en el repo del trabajo, `close --yes` lo pide (también con un worktree sucio) y `list` no.
 - `Read(**/.env*)` deniega leer `.env.local` con la herramienta de lectura de Claude Code. Límite: no cubre un `cat .env` por la shell. En agy no se probó bloquear `.env`.
 
 ---
@@ -514,10 +515,10 @@ Matriz: `macos-latest` y `ubuntu-latest`.
 ## 15. Definition of Done — v0.1
 
 - [x] `th-worktree` crea worktrees para una rama nueva, para una rama existente y para un PR.
-- [ ] Al crear: aplica el `.conf` del repo (enlaza `.wiki`), instala dependencias e inicializa codegraph si está disponible (parcial: `.conf` del repo, solo `link` y sin `copy` (#7), instalación de dependencias y codegraph listos).
+- [x] Al crear: aplica el `.conf` del repo (enlaza `.wiki`), instala dependencias e inicializa codegraph si está disponible (`.conf` solo con `link`, sin `copy` (#7); verificado en el repo del trabajo, 2026-11-13).
 - [x] Al cerrar: dry-run por defecto; con `--yes` borra el índice de codegraph, elimina el worktree y borra la rama si está mergeada.
 - [x] Funciona invocado desde Claude Code y desde Antigravity en macOS.
-- [ ] `git status` limpio en un worktree del repo del trabajo (la `.wiki` enlazada no aparece).
+- [x] `git status` limpio en un worktree del repo del trabajo (la `.wiki` enlazada no aparece).
 - [x] CI en verde en macOS y Ubuntu.
 - [x] README con instalación en tres pasos y dependencias declaradas.
 
@@ -535,6 +536,8 @@ Cuando todo esté marcado: release `v0.1.0` con release-please (#14), usarlo una
 | v0.4 | `th-integration-context`: documento de contexto entre repos, fuera de los repos |
 | Después | Skills de desarrollo, empaquetado como plugin (`th:…`), GitLab |
 
+Cada versión de la tabla es una línea de releases: la v0.2 empieza en `v0.2.0` (con `Release-As`) y lo que salga antes va como `v0.1.x`.
+
 ---
 
 ## 17. Por verificar al empezar
@@ -542,8 +545,8 @@ Cuando todo esté marcado: release `v0.1.0` con release-please (#14), usarlo una
 - [x] Ruta global de skills de Antigravity en la versión instalada. `~/.gemini/config/skills/` según la guía integrada de agy 1.5.3 (el plan decía `~/.gemini/antigravity/skills/`); sigue symlinks (2026-11-09).
 - [x] Que Claude Code sustituya `${CLAUDE_SKILL_DIR}` dentro de la forma `${CLAUDE_SKILL_DIR:-…}`. **No:** la variable no existe en el shell de Bash (2026-10-26). Sin el symlink fijo, Claude improvisó la ruta; con `~/.local/share/th-worktools` presente, la ruta del `SKILL.md` funciona. El fallback fijo es obligatorio en la instalación (`install.sh`, hecho en #12a; `verify.sh`, en #12b, lo comprueba). Desde #13 el `SKILL.md` usa directamente la ruta fija `"$HOME/.local/share/th-worktools/skills/<skill>/scripts/…"`, sin `${…}`, porque Claude Code pide permiso siempre ante `${…}` (2026-11-10).
 - [x] Que Antigravity ejecute los comandos en un shell que expanda `$HOME` y `${…:-…}`. Sí, zsh; `CLAUDE_SKILL_DIR` no existe y hasta #13 se usaba el fallback (2026-11-09). Desde #13 el `SKILL.md` usa la ruta fija con `$HOME` (2026-11-10).
-- [ ] Que las búsquedas del agente sigan el symlink `.wiki`.
-- [ ] Cómo está la entrada de `.wiki` en el `.gitignore` del repo del trabajo (con o sin barra).
+- [x] Que las búsquedas del agente sigan el symlink `.wiki`. Sí, en el repo del trabajo (2026-11-13).
+- [x] Cómo está la entrada de `.wiki` en el `.gitignore` del repo del trabajo (con o sin barra). Sin barra: `link .wiki` pasó la validación 6, que rechaza una entrada solo de directorio (2026-11-13).
 - [x] Flags no interactivos de `codegraph init` y comportamiento de `codegraph uninit`. `init -y` salta todos los prompts y toma los valores por defecto; `uninit -f` salta la confirmación (codegraph 1.6.2). Pero `uninit` también quita los hooks de sincronización de git del `.git/hooks` compartido, así que el kit no lo usa: `close` borra `.codegraph/` directamente.
 - [x] Sintaxis de los patrones de permisos en ambos agentes. Verificada en Claude Code 2.1.311 y agy 1.5.3; patrones y hallazgos en §13 (2026-11-10).
 - [x] Cómo recibe argumentos un skill en Antigravity. Con `/th-worktree <pedido>`; el texto llega al modelo y `$ARGUMENTS` queda sin sustituir; sin `$ARGUMENTS`, Claude Code y agy pasan igual el texto (y nada si no lo hay), así que el `SKILL.md` no lo usa. `disable-model-invocation: true` oculta el skill al modelo (2026-11-09).
