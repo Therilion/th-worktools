@@ -216,7 +216,7 @@ Si `pr-reviews/pr-<n>/` ya existe con otros archivos (por ejemplo `report.md`) p
 
 **codegraph:** `pr` sí indexa el worktree (ver «Integración con codegraph»): es análisis estático y no ejecuta el código del PR. Si el PR trae su propio `.codegraph/` con un índice, no se indexa ni se usa.
 
-**Progreso:** siempre (con o sin `--json`), `pr` escribe en stderr `th-wt: fetching origin refs/pull/<n>/head` antes del fetch del PR y, después, las líneas de `new` que le tocan: `fetching origin/<base>`, `creating worktree` e `indexing with codegraph` (nunca `applying repo config` ni `installing dependencies`).
+**Progreso:** siempre (con o sin `--json`), `pr` escribe en stderr `th-wt: fetching origin refs/pull/<n>/head` antes del fetch del PR y, después, las líneas de `new` que le tocan: `fetching origin/<base>`, `creating worktree` e `indexing with codegraph` (nunca `applying repo config` ni `installing dependencies`). La base viene del PR: sus caracteres de control se sustituyen por espacios, como en el resumen.
 
 **Salida:** con `--json`, el objeto de `new` más `pr`; sin `--json`, un resumen por stderr con los caracteres de control del título y de las ramas (que escribe el autor del PR) sustituidos por espacios:
 

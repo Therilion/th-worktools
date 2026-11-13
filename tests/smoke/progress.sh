@@ -167,3 +167,25 @@ want="  path:      $W/pr-reviews/pr-51/code
 [ "$(summary "$TMP/pr.err")" = "$want" ] || fail "$name: resumen=[$(cat "$TMP/pr.err")]"
 [ -z "$out" ] || fail "$name: stdout no vacío: [$out]"
 pass "$name"
+
+name="pr con una base que lleva un carácter C1 (U+009B) lo sustituye por un espacio en el progreso y en el resumen"
+# git check-ref-format acepta C1; el autor del PR no puede crear esta base, pero quien tenga push al repo sí
+c1="$(printf '\302\233')"
+git -C "$TMP/origin.git" update-ref "refs/heads/rel${c1}31m" refs/heads/main
+git -C "$TMP/origin.git" update-ref refs/pull/52/head refs/heads/main
+jq -n --arg o "$(git -C "$TMP/origin.git" rev-parse refs/pull/52/head)" --arg b "rel${c1}31m" '{number: 52, title: "Base rara", headRefName: "feat/y", baseRefName: $b, headRefOid: $o}' > "$TMP/gh.json"
+(cd "$TMP/repo" && "$WT" pr 52 2>"$TMP/c1.err" >/dev/null) || fail "$name: th-wt pr falló: [$(cat "$TMP/c1.err")]"
+grep -qxF "th-wt: fetching origin/rel 31m" "$TMP/c1.err" || fail "$name: progreso sin limpiar: [$(cat "$TMP/c1.err")]"
+grep -qxF "  base:      rel 31m" "$TMP/c1.err" || fail "$name: resumen sin limpiar: [$(cat "$TMP/c1.err")]"
+! grep -qF "$c1" "$TMP/c1.err" || fail "$name: el carácter C1 llegó a stderr"
+pass "$name"
+
+name="checkout de una rama review/pr-* no escribe applying repo config ni installing dependencies"
+printf 'link .wiki\n' > "$CONF"
+: > "$TMP/pm.calls"
+git -C "$TMP/repo" branch --no-track review/pr-60 refs/remotes/origin/with-pnpm
+(cd "$TMP/repo" && "$WT" checkout review/pr-60 2>"$TMP/corev.err" >/dev/null) || fail "$name: th-wt checkout falló: [$(cat "$TMP/corev.err")]"
+grep -q "^th-wt: creating worktree " "$TMP/corev.err" || fail "$name: sin creating: [$(cat "$TMP/corev.err")]"
+! grep -qE "^th-wt: (applying repo config|installing dependencies)" "$TMP/corev.err" || fail "$name: stderr=[$(cat "$TMP/corev.err")]"
+[ ! -s "$TMP/pm.calls" ] || fail "$name: se ejecutó el gestor: [$(cat "$TMP/pm.calls")]"
+pass "$name"
