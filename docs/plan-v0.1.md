@@ -113,7 +113,7 @@ th-worktools/
 - Shebang `#!/usr/bin/env bash` y `set -euo pipefail`.
 - **Sin prompts interactivos** (`read`): los agentes ejecutan sin TTY y el script quedaría colgado.
 - **Efectos secundarios:** sin `--yes` solo se muestra el plan (dry-run); con `--yes` se ejecuta.
-- **Salida:** mensajes para personas a stderr (excepción: `--help`/`-h` y, sin `--json`, las filas de `list` van a stdout para poder filtrarlas con `grep`; sus avisos siguen en stderr). `new` y `checkout` sin `--json` escriben `  path:   <ruta>` por stderr al terminar bien, como `pr`. Con `--json`, un único objeto JSON a stdout, generado con `jq` (`-n` o `-s`), nunca a mano.
+- **Salida:** mensajes para personas a stderr (excepción: `--help`/`-h` y, sin `--json`, las filas de `list` van a stdout para poder filtrarlas con `grep`; sus avisos siguen en stderr). `new`, `checkout` y `pr` escriben siempre (con o sin `--json`) una línea de progreso `th-wt: …` por stderr antes de cada fase lenta (fetch, creación del worktree, `.conf`, instalación de dependencias, codegraph) y, sin `--json`, un resumen con etiquetas alineadas por stderr al terminar bien (§11, paso 9). Con `--json`, un único objeto JSON a stdout, generado con `jq` (`-n` o `-s`), nunca a mano.
 - **Códigos de salida:** `0` OK · `1` error · `2` uso incorrecto · `3` dependencia faltante · `4` precondición no cumplida (cambios sin commitear, destino existente, `origin` o GitHub inaccesibles, etc.).
 - `--help` en cada entrypoint.
 - **Nunca imprimir el contenido** de archivos de entorno o configuración sensible; solo nombres de archivo.
@@ -358,6 +358,16 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
    `{ "path", "branch", "repo", "linked": [], "deps": "pnpm|npm|skipped|failed", "codegraph": true|false }`
    (`codegraph: true` = indexado; `false` = no instalado, `off` o `init` falló.)
    (`linked`: array de rutas enlazadas; siempre `[]` en `pr`. No hay campo `copied`: no existe `copy`.)
+   Antes, con o sin `--json`, cada fase escribe su línea de progreso por stderr, en este orden: `th-wt: fetching origin refs/pull/<n>/head` (solo `pr`), `th-wt: fetching origin/<rama>` (la base; en `checkout`, solo con `--remote`), `th-wt: creating worktree <ruta> (branch <rama>)`, `th-wt: applying repo config <ruta del .conf>` (solo si existe; le siguen los `th-wt: linked <ruta>`), `th-wt: installing dependencies (<gestor> <args>)` y `th-wt: indexing with codegraph (may take a few minutes)` (estas dos, solo si el gestor o `codegraph init` se ejecutan de verdad). En `pr`, la base sale con sus caracteres de control sustituidos por espacios. `list --remote` y `close --remote` no escriben progreso.
+   Sin `--json`, el resumen va por stderr (stdout vacío), con las etiquetas alineadas a 11 columnas tras dos espacios. `new` y `checkout`:
+   ```text
+     path:      <ruta>
+     branch:    <rama>
+     linked:    .wiki, docs/local
+     deps:      pnpm
+     codegraph: indexed
+   ```
+   (`linked`: rutas separadas por `, `, o `none`; `deps`: el valor del JSON; `codegraph`: `indexed` o `not indexed`.) `pr`: `path`, `PR` (`#<n> <título>`), `branch` (la rama del PR), `base`, `deps` y `codegraph`, con los caracteres de control del título y las ramas sustituidos por espacios.
 10. Indicar al usuario que abra **una sesión nueva del agente** en esa ruta.
 
 ### `close`
