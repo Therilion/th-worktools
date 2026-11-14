@@ -340,6 +340,7 @@ Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git
 | `pr <n>` | Worktree de un PR en `pr-reviews/pr-<n>/code` | No |
 | `list [--remote]` | Worktrees del repo actual bajo la raíz, con su estado (`--remote` actualiza la rama por defecto de `origin` y consulta los PRs en GitHub) | No |
 | `close <rama\|ruta> [--remote] [--force]` (un PR: `close review/pr-<n>`) | Cierra el worktree por rama o por ruta, también con `HEAD` desacoplado (`--remote` considera mergeada la rama si su PR en GitHub está `MERGED` sin commits locales posteriores; ver abajo) | **Sí** |
+| `link <rama>` | Re-aplica el `.conf` del repo al worktree ya abierto de `<rama>`: crea los enlaces que faltan, sin borrar nada | No |
 
 Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta directo. Cerrar sí lo es.
 
@@ -393,6 +394,17 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 5. Sin `git worktree prune`: `git worktree remove` ya limpia su propio registro, incluso si el directorio ya no existe, y `prune` borraría también el registro de otros worktrees con el directorio faltante.
 6. PRs: eliminar `pr-reviews/pr-<n>/` solo si quedó vacío. Los demás archivos de `pr-<n>/` (p. ej. `report.md`) los gestionará `th-pr-review` (v0.3); `close` no los toca.
 7. **Cierre por ruta y `HEAD` desacoplado:** si el argumento empieza por `/` o `.`, se hace absoluta (relativa al directorio actual), se quita una `/` final y se resuelven los symlinks del ancestro existente más profundo (como la raíz de worktrees, así que un worktree cuyo directorio ya no existe también se encuentra por ruta relativa o a través de un symlink), y se exige que haya un worktree bajo la raíz (si no, tenga o no rama, código `4` con `no worktree at <ruta> under <root>`). Con rama, cierra ese worktree con el flujo de `close <rama>` (aunque la rama esté abierta en otro worktree con `git worktree add -f`). Con `HEAD` desacoplado (rebase o bisect a medias), `--remote` sale con `2`, bloquean `dirty` y los commits solo en ese `HEAD` (`git rev-list --count <oid> --not --branches --remotes=origin`, en `unpushed`), y nunca se borra rama (`branch: null`, `delete.branch: false`).
+
+### `link`
+
+Historia 2 del backlog v0.1.x. Re-aplica el `.conf` a un worktree ya abierto, con las mismas validaciones que `new` (comprobaciones 1 a 5 de §7 antes de tocar nada; 6 y 7 contra ese worktree). Se validan todas las entradas antes de crear ningún enlace.
+
+- **No requiere `--yes`:** solo agrega symlinks, como `new`.
+- **Destino:** el worktree de `<rama>` bajo la raíz de worktrees. Sin worktree (no está abierta, o solo en el checkout principal) o con su directorio borrado: código `4`. `review/pr-*`: código `4`, el `.conf` nunca se aplica al código de un PR.
+- **Entradas existentes:** un symlink ya apuntando a `<checkout principal>/<ruta>` se omite sin avisar (no entra en `linked`). Cualquier otra cosa en esa ruta del worktree: código `4` antes de enlazar nada.
+- **Sin deshacer:** un fallo de validación nunca elimina el worktree (a diferencia de `new` y `checkout`). Un `ln` que falla a mitad sale con `1` y los enlaces ya creados se quedan.
+- **Sin `.conf`:** código `0`, `linked: []` y un aviso por stderr.
+- **Offline:** sin red, sin instalar dependencias y sin `codegraph`.
 
 ### `list`
 
