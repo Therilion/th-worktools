@@ -237,7 +237,7 @@ Una acción por línea; `#` y las líneas vacías se ignoran. Se parsea línea a
 | Acción | Efecto |
 |---|---|
 | `link <ruta>` | Symlink desde el worktree hacia `<ruta>` en el checkout principal |
-| `link? <ruta>` | Como `link`, pero si `<ruta>` no existe en el checkout principal o está versionada en la rama del worktree se omite sin error ni aviso (y no aparece en `linked`); el resto de validaciones aplican igual |
+| `link? <ruta>` | Como `link`, pero si `<ruta>` no existe en el checkout principal, o está versionada en el checkout principal o en la rama del worktree, se omite sin error ni aviso (y no aparece en `linked`); el resto de validaciones aplican igual |
 | `deps-prefix <comando>` | Prefijo del comando de instalación (`<comando> pnpm install --frozen-lockfile` / `<comando> npm ci`); ver §11 paso 7 |
 | `keep <rama>` | Conserva la rama en `close` (como la rama por defecto de `origin`); admite un único `*` (p. ej. `keep develop`, `keep release/*`) |
 
@@ -251,7 +251,7 @@ No hay `copy`: multiplicaría secretos en disco, y una lista de nombres prohibid
 
 - La misma ruta en ambos (sin distinguir mayúsculas): la entrada del repo reemplaza a la de la organización, en la posición de esta en `linked`, también entre tipos (`link .wiki` en la organización y `link? .wiki` en el repo da una entrada opcional).
 - Un solapamiento no idéntico entre archivos (`link docs` y `link docs/local`) sale con `4`: `<p> overlaps <q> (<otro conf>:<n>)`; dentro de un mismo archivo sigue `(line <n>)`.
-- La existencia en el checkout principal se comprueba tras combinar ambos archivos (el repo puede relajar un `link` de la organización a `link?`).
+- La existencia en el checkout principal se comprueba tras combinar ambos archivos (el repo puede relajar un `link` de la organización a `link?`). Una `link?` omitida (ausente o versionada en el checkout principal) se descarta al leer el `.conf`, antes del solapamiento, así que no cuenta para este (`link? .openspec` en la organización y `link .openspec/local` en un repo que versiona `.openspec/` funciona).
 - `deps-prefix`: el del repo reemplaza al de la organización; dos en el mismo archivo siguen siendo `duplicate deps-prefix (line <n>)`.
 - `keep`: unión de ambos. `linked`: primero las entradas de la organización y luego las del repo, en el orden de cada archivo.
 - Un repo no puede quitar una regla heredada (idea en el README).

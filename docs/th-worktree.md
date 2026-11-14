@@ -484,7 +484,7 @@ Devuelven el mismo esquema:
 | `path` | `string` | Ruta absoluta del worktree creado (`~/.worktrees/<owner>/<repo>/<rama-normalizada>`). |
 | `branch` | `string` | Nombre real de la rama en git. |
 | `repo` | `string` | `<owner>/<repo>` derivado de `origin`. |
-| `linked` | `string[]` | Rutas enlazadas desde los `.conf` (primero las de la organización, luego las del repo, en el orden de cada archivo; sin las `link?` ausentes o versionadas); `[]` si no hay `.conf` (ver «Enlaces por repo»). |
+| `linked` | `string[]` | Rutas enlazadas desde los `.conf` (primero las de la organización, luego las del repo, en el orden de cada archivo; sin las `link?` omitidas: ausentes o versionadas); `[]` si no hay `.conf` (ver «Enlaces por repo»). |
 | `deps` | `string` | Resultado de la instalación de dependencias: `"pnpm"`, `"npm"` (instaladas), `"skipped"` (sin lockfile soportado, el gestor o el `deps-prefix` no están en `PATH`, `TH_INSTALL_DEPS=0`, o es `pr`) o `"failed"` (el gestor salió con error). |
 | `codegraph` | `boolean` | `true` si `codegraph init` indexó el worktree; `false` si `codegraph` no está instalado, `TH_CODEGRAPH=off`, el worktree ya traía un `.codegraph` o el `init` falló (ver «Integración con codegraph»). |
 
@@ -513,7 +513,7 @@ keep develop
 keep release/*
 ```
 
-El archivo se lee línea a línea, nunca con `source`. Las acciones son `link <ruta>` (no hay `copy`), `link? <ruta>` (como `link`, pero si la ruta no existe en el checkout principal o está versionada en la rama del worktree se omite sin error ni aviso y no aparece en `linked`; el resto de validaciones aplican igual), `deps-prefix <comando>` (ver «Instalación de dependencias») y `keep <rama>` (declara ramas de larga vida que `close` conserva como la rama por defecto de `origin`, incluso con `--force`; se permiten varias líneas `keep` y admite opcionalmente un único `*`, validado con `git check-ref-format --refspec-pattern refs/heads/<p>`, que hace match con cualquier cadena incluyendo `/`, de modo que `release/*` también cubre `release/1.0/fix`; `new` y `checkout` la validan antes de crear nada y por lo demás la ignoran). Cada enlace es un symlink con destino absoluto `<checkout principal>/<ruta>` (el checkout principal es la primera entrada de `git worktree list`); los directorios intermedios se crean en el worktree. Sin `--json`, informa `th-wt: linked <ruta>` por stderr, una línea por enlace.
+El archivo se lee línea a línea, nunca con `source`. Las acciones son `link <ruta>` (no hay `copy`), `link? <ruta>` (como `link`, pero si la ruta no existe en el checkout principal, o está versionada en el checkout principal o en la rama del worktree, se omite sin error ni aviso y no aparece en `linked`; el resto de validaciones aplican igual), `deps-prefix <comando>` (ver «Instalación de dependencias») y `keep <rama>` (declara ramas de larga vida que `close` conserva como la rama por defecto de `origin`, incluso con `--force`; se permiten varias líneas `keep` y admite opcionalmente un único `*`, validado con `git check-ref-format --refspec-pattern refs/heads/<p>`, que hace match con cualquier cadena incluyendo `/`, de modo que `release/*` también cubre `release/1.0/fix`; `new` y `checkout` la validan antes de crear nada y por lo demás la ignoran). Cada enlace es un symlink con destino absoluto `<checkout principal>/<ruta>` (el checkout principal es la primera entrada de `git worktree list`); los directorios intermedios se crean en el worktree. Sin `--json`, informa `th-wt: linked <ruta>` por stderr, una línea por enlace.
 
 **Validación:** se validan todas las líneas del `.conf`. Cada `<ruta>` de `link` debe cumplir:
 
@@ -554,7 +554,7 @@ Si el enlace falla después de validar (por ejemplo, por permisos), también se 
 
 - **Misma ruta en ambos** (sin distinguir mayúsculas): la entrada del repo reemplaza a la de la organización y conserva su posición en `linked`, también entre tipos (`link .wiki` en la organización y `link? .wiki` en el repo da una entrada opcional).
 - **Solapamiento no idéntico entre archivos** (`link docs` y `link docs/local`): sale con `4` y `<p> overlaps <q> (<otro conf>:<n>)`.
-- **Existencia:** se comprueba tras combinar ambos archivos, así que el repo puede relajar un `link` de la organización a `link?`.
+- **Existencia:** se comprueba tras combinar ambos archivos, así que el repo puede relajar un `link` de la organización a `link?`. Una `link?` omitida (ausente o versionada en el checkout principal) se descarta al leer el `.conf`, antes del solapamiento, así que no cuenta para este (`link? .openspec` en la organización y `link .openspec/local` en un repo que versiona `.openspec/` funciona).
 - **`deps-prefix`:** el del repo reemplaza al de la organización; dos en el mismo archivo siguen siendo `duplicate deps-prefix (line <n>)`.
 - **`keep`:** unión de ambos.
 - **Orden de `linked`:** primero las entradas de la organización y luego las del repo, en el orden de cada archivo.
