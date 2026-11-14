@@ -191,7 +191,7 @@ undo_creation() {
   [ -z "$created_start" ] || git update-ref -d "refs/heads/$2" "$created_start" 2>/dev/null || true
 }
 
-# Checks one .conf entry against the files only (no worktree needed); on failure sets $reason and returns 1. Reads the caller's (read_repo_conf) locals via dynamic scope.
+# Checks one .conf entry against the files only (no worktree needed); on failure sets $reason and returns 1. Reads the caller's (read_repo_conf) locals and $conf_main via dynamic scope.
 check_conf_entry() {
   local i q
   if [ "$action" = deps-prefix ]; then
@@ -225,9 +225,9 @@ check_conf_entry() {
   case "$p" in
     *[*?[]*) reason="globs are not supported: $p"; return 1 ;;
   esac
-  # a linked node_modules would let pnpm/npm write through the symlink into the main checkout; any letter case, since the default macOS filesystem is case-insensitive
+  # a linked node_modules would let pnpm/npm write through the symlink into the main checkout; letter case is covered by the caller's nocasematch
   case "/$p/" in
-    */[Nn][Oo][Dd][Ee]_[Mm][Oo][Dd][Uu][Ll][Ee][Ss]/*) reason="node_modules cannot be linked (the dependency install would write through the symlink into the main checkout): $p"; return 1 ;;
+    */node_modules/*) reason="node_modules cannot be linked (the dependency install would write through the symlink into the main checkout): $p"; return 1 ;;
   esac
   # an entry equal to or under another would make ln write inside the main checkout
   for ((i = 0; i < ${#conf_paths[@]}; i++)); do
@@ -235,8 +235,8 @@ check_conf_entry() {
     case "$p/" in "$q"/*) reason="$p overlaps $q (line ${conf_nums[$i]})"; return 1 ;; esac
     case "$q/" in "$p"/*) reason="$p overlaps $q (line ${conf_nums[$i]})"; return 1 ;; esac
   done
-  if [ ! -e "$main/$p" ] && [ ! -L "$main/$p" ]; then
-    reason="$p does not exist in the main checkout ($main)"
+  if [ ! -e "$conf_main/$p" ] && [ ! -L "$conf_main/$p" ]; then
+    reason="$p does not exist in the main checkout ($conf_main)"
     return 1
   fi
 }
@@ -269,14 +269,15 @@ check_conf_worktree() {
 # Reads and statically validates this repo's .conf before anything is created or fetched; sets $conf_file (empty if there is no .conf), $conf_paths, $conf_nums and $deps_prefix.
 # A bad line exits 4. Needs $repo.
 read_repo_conf() {
-  local conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos/$repo.conf" main line action p extra reason n=0 dp_line=""
+  local conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos/$repo.conf" line action p extra reason n=0 dp_line=""
   conf_file=""
   conf_paths=()
   conf_nums=()
   conf_main=""
   [ -f "$conf" ] || return 0
-  main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
-  conf_main="$main"
+  conf_main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
+  # case-insensitive matching: macOS filesystems are, so .wiki and .WIKI are the same path (on Linux docs/Docs are rejected as overlapping too, which is fail-safe)
+  shopt -s nocasematch
   # the last line may lack a newline
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
@@ -293,6 +294,7 @@ read_repo_conf() {
     conf_paths+=("$p")
     conf_nums+=("$n")
   done < "$conf"
+  shopt -u nocasematch
   conf_file="$conf"
 }
 
