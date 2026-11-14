@@ -242,10 +242,12 @@ grep -qxF "th-wt: $CONF:2: unknown action 'copy' (only 'link' and 'deps-prefix' 
 [ -z "$(git -C "$TMP/repo" config --get-regexp '^branch\.feature/co-off-remote\.' || true)" ] || fail "$name: quedó config branch.*"
 pass "$name"
 
-name="new con link node_modules, link packages/a/node_modules o link node_modules/.bin sale con 4 con la línea y el motivo, sin worktree ni rama"
+name="new con link node_modules (también con otras mayúsculas), link packages/a/node_modules o link node_modules/.bin sale con 4 con la línea y el motivo, sin worktree ni rama"
 reason_nm="node_modules cannot be linked (the dependency install would write through the symlink into the main checkout)"
 printf 'link .env\nlink node_modules\n' > "$CONF"
 reject_new "$name" feature/nm-root 2 "$reason_nm: node_modules"
+printf 'link Node_Modules\n' > "$CONF"
+reject_new "$name" feature/nm-case 1 "$reason_nm: Node_Modules"
 printf 'link packages/a/node_modules\n' > "$CONF"
 reject_new "$name" feature/nm-nested 1 "$reason_nm: packages/a/node_modules"
 printf 'link .env\nlink node_modules/.bin\n' > "$CONF"
@@ -263,11 +265,11 @@ pass "$name"
 name="checkout de una rama local con una entrada inválida sale con 4, deshace el worktree y conserva la rama en el mismo commit"
 git -C "$TMP/repo" branch feature/co-bad-local
 before="$(git -C "$TMP/repo" rev-parse feature/co-bad-local)"
-printf 'link .env\ncopy .wiki\n' > "$CONF"
+printf 'link .env\nlink .cache\n' > "$CONF"
 rc=0
 (cd "$TMP/repo" && "$WT" checkout feature/co-bad-local 2>"$TMP/co.err" >/dev/null) || rc=$?
 [ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/co.err")]"
-grep -qxF "th-wt: $CONF:2: unknown action 'copy' (only 'link' and 'deps-prefix' are supported)" "$TMP/co.err" || fail "$name: stderr=[$(cat "$TMP/co.err")]"
+grep -qxF "th-wt: $CONF:2: .cache $not_ignored" "$TMP/co.err" || fail "$name: stderr=[$(cat "$TMP/co.err")]"
 [ ! -e "$HOME/.worktrees/acme/demo/feature-co-bad-local" ] || fail "$name: quedó el worktree"
 [ "$(git -C "$TMP/repo" worktree list | grep -c co-bad-local)" = 0 ] || fail "$name: git aún registra el worktree"
 [ "$(git -C "$TMP/repo" rev-parse -q --verify feature/co-bad-local)" = "$before" ] || fail "$name: la rama local cambió o desapareció"
@@ -281,7 +283,7 @@ git -C "$TMP/repo" fetch -q origin
 rc=0
 (cd "$TMP/repo" && "$WT" checkout feature/co-bad-remote 2>"$TMP/co2.err" >/dev/null) || rc=$?
 [ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/co2.err")]"
-grep -qxF "th-wt: $CONF:2: unknown action 'copy' (only 'link' and 'deps-prefix' are supported)" "$TMP/co2.err" || fail "$name: stderr=[$(cat "$TMP/co2.err")]"
+grep -qxF "th-wt: $CONF:2: .cache $not_ignored" "$TMP/co2.err" || fail "$name: stderr=[$(cat "$TMP/co2.err")]"
 [ ! -e "$HOME/.worktrees/acme/demo/feature-co-bad-remote" ] || fail "$name: quedó el worktree"
 ! git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/co-bad-remote || fail "$name: quedó la rama local"
 [ -z "$(git -C "$TMP/repo" config --get-regexp '^branch\.feature/co-bad-remote\.' || true)" ] || fail "$name: quedó config branch.*"
@@ -304,7 +306,7 @@ pass "$name"
 name="checkout de una rama local con un .conf inválido ignora un created_start heredado del entorno y conserva la rama"
 git -C "$TMP/repo" branch feature/co-env
 before="$(git -C "$TMP/repo" rev-parse feature/co-env)"
-printf 'copy .env\n' > "$CONF"
+printf 'link .cache\n' > "$CONF"
 rc=0
 (cd "$TMP/repo" && created_start="$before" "$WT" checkout feature/co-env 2>"$TMP/env.err" >/dev/null) || rc=$?
 [ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/env.err")]"

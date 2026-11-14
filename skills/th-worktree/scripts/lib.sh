@@ -7,6 +7,7 @@ deps_prefix=""
 conf_file=""
 conf_paths=()
 conf_nums=()
+conf_main=""
 # Same for the settings load_config sets (a wt_root, install_deps_on or codegraph_mode or pr_limit in the environment is ignored).
 wt_root=""
 install_deps_on=1
@@ -224,9 +225,9 @@ check_conf_entry() {
   case "$p" in
     *[*?[]*) reason="globs are not supported: $p"; return 1 ;;
   esac
-  # a linked node_modules would let pnpm/npm write through the symlink into the main checkout
+  # a linked node_modules would let pnpm/npm write through the symlink into the main checkout; any letter case, since the default macOS filesystem is case-insensitive
   case "/$p/" in
-    */node_modules/*) reason="node_modules cannot be linked (the dependency install would write through the symlink into the main checkout): $p"; return 1 ;;
+    */[Nn][Oo][Dd][Ee]_[Mm][Oo][Dd][Uu][Ll][Ee][Ss]/*) reason="node_modules cannot be linked (the dependency install would write through the symlink into the main checkout): $p"; return 1 ;;
   esac
   # an entry equal to or under another would make ln write inside the main checkout
   for ((i = 0; i < ${#conf_paths[@]}; i++)); do
@@ -272,8 +273,10 @@ read_repo_conf() {
   conf_file=""
   conf_paths=()
   conf_nums=()
+  conf_main=""
   [ -f "$conf" ] || return 0
   main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
+  conf_main="$main"
   # the last line may lack a newline
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
@@ -296,16 +299,15 @@ read_repo_conf() {
 # Links the paths read_repo_conf stored into the fresh worktree $1 (branch $2) as symlinks to the main checkout; sets $linked.
 # Checks every path against the worktree first and links only if all pass; any failure undoes the creation (exit 4 for a bad path, 1 for a link error).
 apply_repo_conf() {
-  local dest="$1" branch="$2" main p reason i
+  local dest="$1" branch="$2" p reason i
   [ -n "$conf_file" ] || return 0
   echo "th-wt: applying repo config $conf_file" >&2
-  main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
   for ((i = 0; i < ${#conf_paths[@]}; i++)); do
     check_conf_worktree "${conf_paths[$i]}" "$dest" || { undo_creation "$dest" "$branch"; die 4 "$conf_file:${conf_nums[$i]}: $reason"; }
   done
   for ((i = 0; i < ${#conf_paths[@]}; i++)); do
     p="${conf_paths[$i]}"
-    { mkdir -p "$(dirname "$dest/$p")" && ln -s "$main/$p" "$dest/$p"; } || { undo_creation "$dest" "$branch"; die 1 "cannot link $p in $dest"; }
+    { mkdir -p "$(dirname "$dest/$p")" && ln -s "$conf_main/$p" "$dest/$p"; } || { undo_creation "$dest" "$branch"; die 1 "cannot link $p in $dest"; }
     linked+=("$p")
   done
   for p in ${linked[@]+"${linked[@]}"}; do echo "th-wt: linked $p" >&2; done
