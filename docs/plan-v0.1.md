@@ -400,7 +400,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 Historia 2 del backlog v0.1.x. Re-aplica el `.conf` a un worktree ya abierto, con las mismas validaciones que `new` (comprobaciones 1 a 5 de §7 antes de tocar nada; 6 y 7 contra ese worktree). Se validan todas las entradas antes de crear ningún enlace.
 
 - **No requiere `--yes`:** solo agrega symlinks, como `new`.
-- **Destino:** el worktree de `<rama>` bajo la raíz de worktrees. Sin worktree (no está abierta, o solo en el checkout principal) o con su directorio borrado: código `4`. `review/pr-*`: código `4`, el `.conf` nunca se aplica al código de un PR.
+- **Destino:** el worktree de `<rama>` bajo la raíz de worktrees. Sin worktree (no está abierta, o solo en el checkout principal) o con su directorio borrado: código `4`. `review/pr-*` (por nombre) o worktree bajo `<raíz>/pr-reviews/` (p. ej. una rama creada con `git switch -c` dentro de un worktree de PR): código `4`, el `.conf` nunca se aplica al código de un PR. Si la rama está abierta en varios worktrees bajo la raíz (`git worktree add -f`), se aplica solo al primero que lista `git worktree list`.
 - **Entradas existentes:** un symlink ya apuntando a `<checkout principal>/<ruta>` se omite sin avisar (no entra en `linked`). Cualquier otra cosa en esa ruta del worktree: código `4` antes de enlazar nada.
 - **Sin deshacer:** un fallo de validación nunca elimina el worktree (a diferencia de `new` y `checkout`). Un `ln` que falla a mitad sale con `1` y los enlaces ya creados se quedan.
 - **Sin `.conf`:** código `0`, `linked: []` y un aviso por stderr.
