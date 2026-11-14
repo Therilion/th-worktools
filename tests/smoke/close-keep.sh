@@ -150,3 +150,47 @@ grep -qxF "th-wt: $CONF:1: keep must be a branch name or a pattern with a single
 [ -d "$dest" ] || fail "$name: se borró el directorio"
 git -C "$TMP/repo" show-ref --verify --quiet refs/heads/develop || fail "$name: se borró la rama develop"
 pass "$name"
+
+# gh falso: devuelve $TMP/gh.json (solo lo usa `pr`; close no consulta GitHub).
+mkdir -p "$TMP/bin"
+cat > "$TMP/bin/gh" <<EOF2
+#!/usr/bin/env bash
+cat "$TMP/gh.json"
+EOF2
+chmod +x "$TMP/bin/gh"
+export PATH="$TMP/bin:$PATH"
+
+# Abre el PR $1 (un commit hijo de main solo en refs/pull/$1/head) y deja un report.md al lado del código.
+open_pr() {
+  git -C "$TMP/origin.git" update-ref "refs/pull/$1/head" "$(git -C "$TMP/origin.git" commit-tree -p main -m "trabajo del PR $1" "main^{tree}")"
+  jq -n --arg o "$(git -C "$TMP/origin.git" rev-parse "refs/pull/$1/head")" --argjson n "$1" '{number: $n, title: "PR \($n)", headRefName: "feat/x\($n)", baseRefName: "main", headRefOid: $o}' > "$TMP/gh.json"
+  (cd "$TMP/repo" && "$WT" pr "$1" 2>/dev/null) || fail "th-wt pr $1 falló"
+  echo "notas" > "$HOME/.worktrees/acme/demo/pr-reviews/pr-$1/report.md"
+}
+
+name="con keep review/*, close review/pr-<n> --yes borra igual la rama del PR"
+printf 'keep review/*\n' > "$CONF"
+open_pr 7
+dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-7/code"
+rc=0
+(cd "$TMP/repo" && "$WT" close review/pr-7 --yes 2>"$TMP/kpr.err" >"$TMP/kpr.out") || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$(cat "$TMP/kpr.err")]"
+[ ! -s "$TMP/kpr.out" ] || fail "$name: stdout no vacío: [$(cat "$TMP/kpr.out")]"
+[ ! -e "$dest" ] || fail "$name: sigue el directorio $dest"
+! git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-7 || fail "$name: sigue la rama review/pr-7"
+pass "$name"
+
+name="close con un link cuya ruta ya no existe en el checkout principal sale con 4 sin borrar nada"
+printf 'link .env\n' > "$CONF"
+(cd "$TMP/repo" && "$WT" new feature/missing-link >/dev/null 2>&1) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-missing-link"
+rm "$TMP/repo/.env"
+rc=0
+(cd "$TMP/repo" && "$WT" close feature/missing-link --yes 2>"$TMP/ml.err" >"$TMP/ml.out") || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/ml.err")]"
+[ "$(cat "$TMP/ml.err")" = "th-wt: $CONF:1: .env does not exist in the main checkout ($TMP/repo)" ] || fail "$name: stderr=[$(cat "$TMP/ml.err")]"
+[ ! -s "$TMP/ml.out" ] || fail "$name: stdout no vacío: [$(cat "$TMP/ml.out")]"
+[ -d "$dest" ] || fail "$name: se borró el directorio"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/missing-link || fail "$name: se borró la rama"
+echo "SECRETO=1" > "$TMP/repo/.env"
+pass "$name"
