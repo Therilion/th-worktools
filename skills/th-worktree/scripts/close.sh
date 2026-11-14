@@ -45,8 +45,22 @@ worktree_at_path() {
   done
 }
 
+# Sets $keep_match to the first keep pattern in conf_keep matching branch $1; returns 1 if none.
+# Kept out of $(...): bash 3.2 mis-parses case inside command substitution.
+match_keep_branch() {
+  local pat
+  keep_match=""
+  for pat in ${conf_keep[@]+"${conf_keep[@]}"}; do
+    # shellcheck disable=SC2254 # pattern intentionally unquoted so * matches
+    case "$1" in
+      $pat) keep_match="$pat"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
 close_worktree() {
-  local arg="" branch="" path_arg="" detached=false wt_info="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out shown ent unreadable=false kept="" del_wt=true del_br=false what is_pr=false left=[] created="" after_pr=null pr_n=""
+  local arg="" branch="" path_arg="" detached=false wt_info="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out shown ent unreadable=false kept="" keep_match="" del_wt=true del_br=false what is_pr=false left=[] created="" after_pr=null pr_n=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1 ;;
@@ -66,6 +80,7 @@ close_worktree() {
       git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch" ;;
   esac
   resolve_repo
+  read_repo_conf
   root="$(worktrees_root)"
   if [ -n "$path_arg" ]; then
     case "$path_arg" in /*) ;; *) path_arg="${PWD%/}/$path_arg" ;; esac
@@ -132,6 +147,7 @@ close_worktree() {
   # a branch checked out elsewhere must survive: update-ref would leave that worktree on a dangling branch
   elif [ "$(git worktree list --porcelain | grep -cxF "branch refs/heads/$branch" || true)" -gt 1 ]; then kept="still checked out in another worktree"
   elif [ "$branch" = "${default#origin/}" ]; then kept="it is origin's default branch"
+  elif match_keep_branch "$branch"; then kept="it is a long-lived branch (keep $keep_match)"
   else del_br=true; fi
   if [ "$del_wt" = false ]; then
     [ "$dirty" != true ] || why="uncommitted changes"
