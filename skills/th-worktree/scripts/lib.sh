@@ -3,6 +3,7 @@
 # Initialized here so values inherited from the environment cannot change behavior (undo_creation, print_created_json).
 created_start=""
 linked=()
+deps_prefix=""
 # Same for the settings load_config sets (a wt_root, install_deps_on or codegraph_mode or pr_limit in the environment is ignored).
 wt_root=""
 install_deps_on=1
@@ -189,8 +190,22 @@ undo_creation() {
 # Checks one .conf entry; on failure sets $reason and returns 1. Reads the caller's (apply_repo_conf) locals via dynamic scope.
 check_conf_entry() {
   local i q d rest
+  if [ "$action" = deps-prefix ]; then
+    if [ -z "$p" ] || [ -n "$extra" ]; then
+      reason="expected 'deps-prefix <command>'"
+      return 1
+    fi
+    case "$p" in
+      */*) reason="deps-prefix must be a command name in PATH, without '/': $p"; return 1 ;;
+    esac
+    if [ -n "$dp_line" ]; then
+      reason="duplicate deps-prefix (line $dp_line)"
+      return 1
+    fi
+    return 0
+  fi
   if [ "$action" != link ]; then
-    reason="unknown action '$action' (only 'link' is supported)"
+    reason="unknown action '$action' (only 'link' and 'deps-prefix' are supported)"
     return 1
   fi
   if [ -z "$p" ] || [ -n "$extra" ]; then
@@ -241,7 +256,7 @@ check_conf_entry() {
 # Links the paths listed in this repo's .conf into the fresh worktree $1 (branch $2) as symlinks to the main checkout; sets $linked.
 # Validates every line first and links only if all pass; any failure undoes the creation and exits 4. Needs $repo.
 apply_repo_conf() {
-  local dest="$1" branch="$2" conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos/$repo.conf" main line action p extra reason n=0 i
+  local dest="$1" branch="$2" conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos/$repo.conf" main line action p extra reason n=0 i dp_line=""
   local paths=() nums=()
   [ -f "$conf" ] || return 0
   echo "th-wt: applying repo config $conf" >&2
@@ -254,6 +269,11 @@ apply_repo_conf() {
     read -r action p extra <<<"$line"
     case "$action" in ""|"#"*) continue ;; esac
     check_conf_entry || { undo_creation "$dest" "$branch"; die 4 "$conf:$n: $reason"; }
+    if [ "$action" = deps-prefix ]; then
+      deps_prefix="$p"
+      dp_line="$n"
+      continue
+    fi
     paths+=("$p")
     nums+=("$n")
   done < "$conf"
@@ -284,7 +304,7 @@ detect_pm() {
 
 # Installs the dependencies of worktree $1 from its lockfile; sets $deps. A failed install only warns: the worktree is already there.
 install_deps() {
-  local dest="$1" pm sub
+  local dest="$1" pm sub shown bin=
   deps=skipped
   detect_pm "$dest"
   [ -n "$pm" ] || return 0
@@ -296,13 +316,25 @@ install_deps() {
     echo "th-wt: warning: $pm not found in PATH; skipping dependency install in $dest" >&2
     return 0
   fi
-  echo "th-wt: installing dependencies ($pm ${sub[*]})" >&2
-  # stdout is reserved for --json and there is no terminal to answer prompts
-  if (cd "$dest" && "$pm" "${sub[@]}" >&2 </dev/null); then
+  # type -P looks only at executables in PATH: th-wt runs non-interactive and never sees shell functions or aliases
+  if [ -n "$deps_prefix" ]; then
+    bin="$(type -P "$deps_prefix" || true)"
+    # a relative entry in PATH ('.' or empty) gives a relative path: it would resolve in the worktree, i.e. branch code
+    case "$bin" in
+      /*) ;;
+      *)
+        echo "th-wt: warning: deps-prefix $deps_prefix is not an executable in PATH (shell functions and aliases do not count); dependencies not installed in $dest" >&2
+        return 0 ;;
+    esac
+  fi
+  shown="${deps_prefix:+$deps_prefix }$pm ${sub[*]}"
+  echo "th-wt: installing dependencies ($shown)" >&2
+  # stdout is reserved for --json and there is no terminal to answer prompts; argv, never eval
+  if (cd "$dest" && ${bin:+"$bin"} "$pm" "${sub[@]}" >&2 </dev/null); then
     deps="$pm"
   else
     deps=failed
-    echo "th-wt: warning: $pm install failed in $dest; run it there manually" >&2
+    echo "th-wt: warning: $pm install failed in $dest; run '$shown' there manually" >&2
   fi
 }
 

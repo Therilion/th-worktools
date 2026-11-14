@@ -116,9 +116,9 @@ reject_new() {
 
 name="new con una acción distinta de link (copy u otra) sale con 4 con la línea y el motivo, sin worktree ni rama"
 printf '# c\nlink .env\ncopy .env\n' > "$CONF"
-reject_new "$name" feature/bad-copy 3 "unknown action 'copy' (only 'link' is supported)"
+reject_new "$name" feature/bad-copy 3 "unknown action 'copy' (only 'link' and 'deps-prefix' are supported)"
 printf 'move .env\n' > "$CONF"
-reject_new "$name" feature/bad-move 1 "unknown action 'move' (only 'link' is supported)"
+reject_new "$name" feature/bad-move 1 "unknown action 'move' (only 'link' and 'deps-prefix' are supported)"
 printf 'link\n' > "$CONF"
 reject_new "$name" feature/bad-nopath 1 "expected 'link <path>'"
 printf 'link .env .wiki\n' > "$CONF"
@@ -215,7 +215,7 @@ printf 'link .env\ncopy .wiki\n' > "$CONF"
 rc=0
 (cd "$TMP/repo" && "$WT" checkout feature/co-bad-local 2>"$TMP/co.err" >/dev/null) || rc=$?
 [ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/co.err")]"
-grep -qxF "th-wt: $CONF:2: unknown action 'copy' (only 'link' is supported)" "$TMP/co.err" || fail "$name: stderr=[$(cat "$TMP/co.err")]"
+grep -qxF "th-wt: $CONF:2: unknown action 'copy' (only 'link' and 'deps-prefix' are supported)" "$TMP/co.err" || fail "$name: stderr=[$(cat "$TMP/co.err")]"
 [ ! -e "$HOME/.worktrees/acme/demo/feature-co-bad-local" ] || fail "$name: quedó el worktree"
 [ "$(git -C "$TMP/repo" worktree list | grep -c co-bad-local)" = 0 ] || fail "$name: git aún registra el worktree"
 [ "$(git -C "$TMP/repo" rev-parse -q --verify feature/co-bad-local)" = "$before" ] || fail "$name: la rama local cambió o desapareció"
@@ -229,7 +229,7 @@ git -C "$TMP/repo" fetch -q origin
 rc=0
 (cd "$TMP/repo" && "$WT" checkout feature/co-bad-remote 2>"$TMP/co2.err" >/dev/null) || rc=$?
 [ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/co2.err")]"
-grep -qxF "th-wt: $CONF:2: unknown action 'copy' (only 'link' is supported)" "$TMP/co2.err" || fail "$name: stderr=[$(cat "$TMP/co2.err")]"
+grep -qxF "th-wt: $CONF:2: unknown action 'copy' (only 'link' and 'deps-prefix' are supported)" "$TMP/co2.err" || fail "$name: stderr=[$(cat "$TMP/co2.err")]"
 [ ! -e "$HOME/.worktrees/acme/demo/feature-co-bad-remote" ] || fail "$name: quedó el worktree"
 ! git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/co-bad-remote || fail "$name: quedó la rama local"
 [ -z "$(git -C "$TMP/repo" config --get-regexp '^branch\.feature/co-bad-remote\.' || true)" ] || fail "$name: quedó config branch.*"
@@ -278,4 +278,17 @@ out="$(cd "$TMP/repo" && "$WT" close feature/close-links --json 2>/dev/null)" ||
 (cd "$TMP/repo" && "$WT" close feature/close-links --yes >/dev/null 2>&1) || fail "$name: close --yes falló"
 [ ! -e "$dest" ] || fail "$name: quedó el worktree"
 { [ "$(cat "$TMP/repo/.env")" = "SECRETO=1" ] && [ -f "$TMP/repo/.wiki/nota.md" ] && [ -f "$TMP/repo/docs/local/doc.md" ]; } || fail "$name: close borró archivos del checkout principal"
+pass "$name"
+
+name="deps-prefix inválido en el .conf (sin valor, dos palabras, con /, repetido) sale con 4 con la línea y el motivo, sin worktree ni rama"
+printf 'deps-prefix\n' > "$CONF"
+reject_new "$name" feature/bad-dp-empty 1 "expected 'deps-prefix <command>'"
+printf 'link .env\ndeps-prefix with-token extra\n' > "$CONF"
+reject_new "$name" feature/bad-dp-two 2 "expected 'deps-prefix <command>'"
+printf 'deps-prefix ./with-token\n' > "$CONF"
+reject_new "$name" feature/bad-dp-slash 1 "deps-prefix must be a command name in PATH, without '/': ./with-token"
+printf 'deps-prefix /usr/bin/with-token\n' > "$CONF"
+reject_new "$name" feature/bad-dp-abs 1 "deps-prefix must be a command name in PATH, without '/': /usr/bin/with-token"
+printf '# c\ndeps-prefix with-token\nlink .env\ndeps-prefix otro\n' > "$CONF"
+reject_new "$name" feature/bad-dp-dup 4 "duplicate deps-prefix (line 2)"
 pass "$name"
