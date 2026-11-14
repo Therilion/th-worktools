@@ -6,7 +6,7 @@
 is_conf_link() { [ -L "$1" ] && [ "$(readlink "$1")" = "$2" ]; }
 
 link_worktree() {
-  local branch root path i p dest conf_path json reason l
+  local branch root path i p dest conf_path json reason l f
   case "${1:-}" in
     "") bad_usage "missing <branch>" ;;
     -h|--help) usage; exit 0 ;;
@@ -35,22 +35,22 @@ link_worktree() {
   [ -d "$path" ] || die 4 "worktree directory of $branch no longer exists: $path"
 
   read_repo_conf
-  if [ -z "$conf_file" ]; then
+  if [ ${#conf_found[@]} -eq 0 ]; then
     conf_path="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos/$repo.conf"
     echo "th-wt: no repo config ($conf_path); nothing to link" >&2
   else
-    echo "th-wt: applying repo config $conf_file" >&2
+    for f in "${conf_found[@]}"; do echo "th-wt: applying repo config $f" >&2; done
     dest="$path"
     # validate every entry before linking any
     for ((i = 0; i < ${#conf_paths[@]}; i++)); do
       p="${conf_paths[$i]}"
       # An existing path is judged before check_conf_worktree: git cannot check-ignore "$p/" beyond a symlink.
       if is_conf_link "$dest/$p" "$conf_main/$p"; then
-        git -C "$dest" check-ignore -q -- "$p" || die 4 "$conf_file:${conf_nums[$i]}: $p is linked but not ignored by git in the worktree (a symlink needs '$p' in .gitignore, without a trailing slash)"
+        git -C "$dest" check-ignore -q -- "$p" || die 4 "${conf_locs[$i]}: $p is linked but not ignored by git in the worktree (a symlink needs '$p' in .gitignore, without a trailing slash)"
       elif [ -e "$dest/$p" ] || [ -L "$dest/$p" ]; then
-        die 4 "$conf_file:${conf_nums[$i]}: $p already exists in the worktree (not a link to $conf_main/$p)"
+        die 4 "${conf_locs[$i]}: $p already exists in the worktree (not a link to $conf_main/$p)"
       else
-        check_conf_worktree "$p" "$dest" || die 4 "$conf_file:${conf_nums[$i]}: $reason"
+        check_conf_worktree "$p" "$dest" || die 4 "${conf_locs[$i]}: $reason"
       fi
     done
     for ((i = 0; i < ${#conf_paths[@]}; i++)); do
