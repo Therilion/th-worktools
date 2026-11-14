@@ -362,7 +362,7 @@ th-wt link <branch> [--json]
 Re-aplica el `.conf` del repo (ver «Enlaces por repo») al worktree ya abierto de `<branch>` bajo `~/.worktrees/<owner>/<repo>/`: crea los enlaces que faltan tras agregar una línea, sin recrear el worktree. `<branch>` debe ir como primer argumento. Solo agrega symlinks, como `new`, así que no hay dry-run ni `--yes`; nunca borra ni modifica nada existente.
 
 - Aplica las mismas validaciones que `new` (ver «Enlaces por repo»): el formato de la ruta, los globs, los duplicados, `node_modules` y la existencia en el checkout principal se comprueban antes de tocar nada; el padre existente en el worktree y el gitignore de la rama de ese worktree, contra el worktree. Se validan todas las entradas antes de crear ningún enlace.
-- Una entrada que ya es un symlink a `<checkout principal>/<ruta>` se omite sin avisar y no aparece en `linked`. Cualquier otra cosa en esa ruta del worktree (un archivo, un directorio, otro symlink) sale con `4` antes de enlazar nada.
+- Una entrada que ya es un symlink a `<checkout principal>/<ruta>` se omite sin avisar y no aparece en `linked`, pero se comprueba que git lo siga ignorando en el worktree; si no (p. ej. el `.gitignore` de la rama ahora dice `.wiki/`, que no ignora un symlink), sale con `4` y deja el enlace como está. Cualquier otra cosa en esa ruta del worktree (un archivo, un directorio, otro symlink) sale con `4` antes de enlazar nada, con `already exists in the worktree` aunque además no esté ignorada (se comprueba antes que el gitignore).
 - Si la validación falla, el worktree **no** se elimina (a diferencia de `new` y `checkout`, que deshacen la creación). Si un `ln` falla a mitad, sale con `1` y los enlaces ya creados se quedan.
 - Sin `.conf`: sale con `0`, `linked: []` y el aviso `th-wt: no repo config (<conf>); nothing to link`.
 - Es offline: no usa la red, no instala dependencias y no ejecuta `codegraph`.
@@ -538,6 +538,7 @@ El archivo se lee línea a línea, nunca con `source`. Las acciones son `link <r
 | `duplicate deps-prefix (line <n>)` | Segunda línea `deps-prefix` (`<n>` = la primera). |
 | `<p> is ignored only as a directory ('<p>/'); git sees a symlink as a file, so ignore '<p>' without the trailing slash` | Ignorada con barra final. |
 | `<p> is not ignored by git in the worktree (versioned, or missing from .gitignore)` | Versionada o ausente del `.gitignore` de la rama. |
+| `<p> is linked but not ignored by git in the worktree (a symlink needs '<p>' in .gitignore, without a trailing slash)` | Solo `link`: el enlace ya existe, pero el `.gitignore` de la rama ya no lo ignora. No se toca el enlace ni se enlaza nada. |
 
 Si el enlace falla después de validar (por ejemplo, por permisos), también se deshace la creación, pero sale con código `1`. Si `git worktree remove` no puede quitar el worktree al deshacer, la rama no se borra (evita dejar un worktree sobre una rama borrada) y stderr avisa `th-wt: warning: could not remove the worktree <ruta>; branch <rama> kept`; el comando sale igualmente con su código (`4` o `1`).
 

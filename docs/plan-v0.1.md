@@ -401,7 +401,7 @@ Historia 2 del backlog v0.1.x. Re-aplica el `.conf` a un worktree ya abierto, co
 
 - **No requiere `--yes`:** solo agrega symlinks, como `new`.
 - **Destino:** el worktree de `<rama>` bajo la raíz de worktrees. Sin worktree (no está abierta, o solo en el checkout principal) o con su directorio borrado: código `4`. `review/pr-*` (por nombre) o worktree bajo `<raíz>/pr-reviews/` (p. ej. una rama creada con `git switch -c` dentro de un worktree de PR): código `4`, el `.conf` nunca se aplica al código de un PR. Si la rama está abierta en varios worktrees bajo la raíz (`git worktree add -f`), se aplica solo al primero que lista `git worktree list`.
-- **Entradas existentes:** un symlink ya apuntando a `<checkout principal>/<ruta>` se omite sin avisar (no entra en `linked`). Cualquier otra cosa en esa ruta del worktree: código `4` antes de enlazar nada.
+- **Entradas existentes:** un symlink ya apuntando a `<checkout principal>/<ruta>` se omite sin avisar (no entra en `linked`), salvo que git ya no lo ignore en el worktree: código `4`. Cualquier otra cosa en esa ruta del worktree: código `4` antes de enlazar nada.
 - **Sin deshacer:** un fallo de validación nunca elimina el worktree (a diferencia de `new` y `checkout`). Un `ln` que falla a mitad sale con `1` y los enlaces ya creados se quedan.
 - **Sin `.conf`:** código `0`, `linked: []` y un aviso por stderr.
 - **Offline:** sin red, sin instalar dependencias y sin `codegraph`.
