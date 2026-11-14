@@ -40,7 +40,7 @@ Si no se está en un repositorio git, si no existe el remote `origin` o si la UR
 
 ### Límites conocidos
 
-Los siguientes casos están documentados en la sección «Ideas» del `README.md` y aún no se tratan en el código:
+Los siguientes casos están documentados en [`ideas.md`](ideas.md) y aún no se tratan en el código:
 
 - **Colisión de nombres normalizados:** dos ramas distintas con el mismo nombre al reemplazar `/` por `-` (por ejemplo, `feature/a-b` y `feature-a/b` → `feature-a-b`) apuntan al mismo directorio. La segunda falla con código `4` (`destination already exists`) sin indicar qué rama ocupa esa ruta.
 - **Rama local `review`:** una rama llamada `review` impide crear `review/pr-<n>` (git no admite las dos); `pr` sale con `1` y el error de git.
@@ -559,7 +559,7 @@ Si el enlace falla después de validar (por ejemplo, por permisos), también se 
 - **`keep`:** unión de ambos.
 - **Orden de `linked`:** primero las entradas de la organización y luego las del repo, en el orden de cada archivo.
 
-Un repo no puede quitar una regla heredada (idea en el README). Un `repos/<owner>.conf` inválido hace fallar con `4` a `new`, `checkout`, `close` y `link` en todos los repos de esa organización.
+Un repo no puede quitar una regla heredada (idea en [`ideas.md`](ideas.md)). Un `repos/<owner>.conf` inválido hace fallar con `4` a `new`, `checkout`, `close` y `link` en todos los repos de esa organización.
 
 #### Instalación de dependencias
 
