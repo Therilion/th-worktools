@@ -45,8 +45,22 @@ worktree_at_path() {
   done
 }
 
+# Sets $keep_match to the first keep pattern in conf_keep matching branch $1; returns 1 if none.
+# Kept out of $(...): bash 3.2 mis-parses case inside command substitution.
+match_keep_branch() {
+  local pat
+  keep_match=""
+  for pat in ${conf_keep[@]+"${conf_keep[@]}"}; do
+    # shellcheck disable=SC2254 # pattern intentionally unquoted so * matches
+    case "$1" in
+      $pat) keep_match="$pat"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
 close_worktree() {
-  local arg="" branch="" path_arg="" detached=false wt_info="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out shown ent unreadable=false kept="" del_wt=true del_br=false what is_pr=false left=[] created="" after_pr=null pr_n=""
+  local arg="" branch="" path_arg="" detached=false wt_info="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out shown ent unreadable=false kept="" keep_match="" del_wt=true del_br=false what is_pr=false left=[] created="" after_pr=null pr_n=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1 ;;
@@ -66,6 +80,7 @@ close_worktree() {
       git check-ref-format "refs/heads/$branch" || die 2 "invalid branch name: $branch" ;;
   esac
   resolve_repo
+  read_repo_conf
   root="$(worktrees_root)"
   if [ -n "$path_arg" ]; then
     case "$path_arg" in /*) ;; *) path_arg="${PWD%/}/$path_arg" ;; esac
@@ -127,6 +142,7 @@ close_worktree() {
   elif [ "$is_pr" = true ] && [ "$lost" = 0 ]; then del_br=true
   # only reachable with --force: the branch may hold commits of mine that nothing else has
   elif [ "$is_pr" = true ]; then kept="it may have commits of yours after the PR"
+  elif match_keep_branch "$branch"; then kept="it is a long-lived branch (keep $keep_match)"
   elif [ "$covered" = false ] && [ "$merged" = null ]; then kept="default branch unknown (try: git remote set-head origin -a)"
   elif [ "$covered" = false ] && [ "$merged" = false ]; then kept="not contained in $default$([ "$remote" = false ] || jq -r 'if . == null then " and it has no PR" elif .state == "MERGED" and .ahead == true then " and it has local commits after its merged PR #\(.number)" elif .state == "MERGED" then " and the head of its merged PR #\(.number) is not fetched locally" else " and its PR #\(.number) is \(.state)" end' <<<"$pr")"
   # a branch checked out elsewhere must survive: update-ref would leave that worktree on a dangling branch
