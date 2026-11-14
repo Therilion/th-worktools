@@ -237,7 +237,7 @@ Una acción por línea; `#` y las líneas vacías se ignoran. Se parsea línea a
 | Acción | Efecto |
 |---|---|
 | `link <ruta>` | Symlink desde el worktree hacia `<ruta>` en el checkout principal |
-| `link? <ruta>` | Como `link`, pero si `<ruta>` no existe en el checkout principal se omite sin error ni aviso (y no aparece en `linked`); el resto de validaciones aplican igual |
+| `link? <ruta>` | Como `link`, pero si `<ruta>` no existe en el checkout principal o está versionada en la rama del worktree se omite sin error ni aviso (y no aparece en `linked`); el resto de validaciones aplican igual |
 | `deps-prefix <comando>` | Prefijo del comando de instalación (`<comando> pnpm install --frozen-lockfile` / `<comando> npm ci`); ver §11 paso 7 |
 | `keep <rama>` | Conserva la rama en `close` (como la rama por defecto de `origin`); admite un único `*` (p. ej. `keep develop`, `keep release/*`) |
 
@@ -268,7 +268,7 @@ No hay `copy`: multiplicaría secretos en disco, y una lista de nombres prohibid
 4. Debe existir en el checkout principal (la primera entrada de `git worktree list`).
 5. Ningún segmento de la ruta puede ser `node_modules` (`node_modules`, `packages/a/node_modules`, `node_modules/.bin`; sin distinguir mayúsculas, como en la 3), con o sin lockfile y con cualquier `TH_INSTALL_DEPS`: `pnpm install` / `npm ci` escribirían a través del symlink en el checkout principal. Motivo: `node_modules cannot be linked (the dependency install would write through the symlink into the main checkout): <ruta>`. `node_modules` es propio de cada worktree y lo instala `th-wt`.
 6. Si algún padre de la ruta ya existe en el worktree, debe ser un directorio real (no un archivo versionado ni un symlink).
-7. **Debe estar ignorada por git en el worktree nuevo** (`git check-ignore -q <ruta>` antes de crear el enlace: git la ve como archivo, igual que al symlink, y usa el `.gitignore` de la rama abierta). Así nunca se enlaza un archivo versionado y no hay riesgo de commitearlo. Si solo está ignorada como directorio (`.wiki/`), se rechaza con un mensaje que lo explica (ver «Gitignore y symlinks», §8).
+7. **Debe estar ignorada por git en el worktree nuevo** (`git check-ignore -q <ruta>` antes de crear el enlace: git la ve como archivo, igual que al symlink, y usa el `.gitignore` de la rama abierta). Así nunca se enlaza un archivo versionado y no hay riesgo de commitearlo (`link?` omite en silencio una ruta versionada y solo falla si no está versionada ni ignorada). Si solo está ignorada como directorio (`.wiki/`), se rechaza con un mensaje que lo explica (ver «Gitignore y symlinks», §8).
 
 El error es `th-wt: <ruta del .conf>:<línea>: <motivo>`. Un worktree sin `.conf` no enlaza nada y no avisa. Una rama local que ya existía y se abrió con `checkout` se conserva siempre.
 

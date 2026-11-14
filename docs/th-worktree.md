@@ -484,7 +484,7 @@ Devuelven el mismo esquema:
 | `path` | `string` | Ruta absoluta del worktree creado (`~/.worktrees/<owner>/<repo>/<rama-normalizada>`). |
 | `branch` | `string` | Nombre real de la rama en git. |
 | `repo` | `string` | `<owner>/<repo>` derivado de `origin`. |
-| `linked` | `string[]` | Rutas enlazadas desde los `.conf` (primero las de la organización, luego las del repo, en el orden de cada archivo; sin las `link?` ausentes); `[]` si no hay `.conf` (ver «Enlaces por repo»). |
+| `linked` | `string[]` | Rutas enlazadas desde los `.conf` (primero las de la organización, luego las del repo, en el orden de cada archivo; sin las `link?` ausentes o versionadas); `[]` si no hay `.conf` (ver «Enlaces por repo»). |
 | `deps` | `string` | Resultado de la instalación de dependencias: `"pnpm"`, `"npm"` (instaladas), `"skipped"` (sin lockfile soportado, el gestor o el `deps-prefix` no están en `PATH`, `TH_INSTALL_DEPS=0`, o es `pr`) o `"failed"` (el gestor salió con error). |
 | `codegraph` | `boolean` | `true` si `codegraph init` indexó el worktree; `false` si `codegraph` no está instalado, `TH_CODEGRAPH=off`, el worktree ya traía un `.codegraph` o el `init` falló (ver «Integración con codegraph»). |
 
@@ -513,7 +513,7 @@ keep develop
 keep release/*
 ```
 
-El archivo se lee línea a línea, nunca con `source`. Las acciones son `link <ruta>` (no hay `copy`), `link? <ruta>` (como `link`, pero si la ruta no existe en el checkout principal se omite sin error ni aviso y no aparece en `linked`; el resto de validaciones aplican igual), `deps-prefix <comando>` (ver «Instalación de dependencias») y `keep <rama>` (declara ramas de larga vida que `close` conserva como la rama por defecto de `origin`, incluso con `--force`; se permiten varias líneas `keep` y admite opcionalmente un único `*`, validado con `git check-ref-format --refspec-pattern refs/heads/<p>`, que hace match con cualquier cadena incluyendo `/`, de modo que `release/*` también cubre `release/1.0/fix`; `new` y `checkout` la validan antes de crear nada y por lo demás la ignoran). Cada enlace es un symlink con destino absoluto `<checkout principal>/<ruta>` (el checkout principal es la primera entrada de `git worktree list`); los directorios intermedios se crean en el worktree. Sin `--json`, informa `th-wt: linked <ruta>` por stderr, una línea por enlace.
+El archivo se lee línea a línea, nunca con `source`. Las acciones son `link <ruta>` (no hay `copy`), `link? <ruta>` (como `link`, pero si la ruta no existe en el checkout principal o está versionada en la rama del worktree se omite sin error ni aviso y no aparece en `linked`; el resto de validaciones aplican igual), `deps-prefix <comando>` (ver «Instalación de dependencias») y `keep <rama>` (declara ramas de larga vida que `close` conserva como la rama por defecto de `origin`, incluso con `--force`; se permiten varias líneas `keep` y admite opcionalmente un único `*`, validado con `git check-ref-format --refspec-pattern refs/heads/<p>`, que hace match con cualquier cadena incluyendo `/`, de modo que `release/*` también cubre `release/1.0/fix`; `new` y `checkout` la validan antes de crear nada y por lo demás la ignoran). Cada enlace es un symlink con destino absoluto `<checkout principal>/<ruta>` (el checkout principal es la primera entrada de `git worktree list`); los directorios intermedios se crean en el worktree. Sin `--json`, informa `th-wt: linked <ruta>` por stderr, una línea por enlace.
 
 **Validación:** se validan todas las líneas del `.conf`. Cada `<ruta>` de `link` debe cumplir:
 
@@ -543,7 +543,7 @@ El archivo se lee línea a línea, nunca con `source`. Las acciones son `link <r
 | `expected 'keep <branch>'` | Falta la rama/patrón o hay más de una palabra. |
 | `keep must be a branch name or a pattern with a single '*': <p>` | El valor no pasa `git check-ref-format --refspec-pattern refs/heads/<p>` (admite a lo sumo un `*`). |
 | `<p> is ignored only as a directory ('<p>/'); git sees a symlink as a file, so ignore '<p>' without the trailing slash` | Ignorada con barra final. |
-| `<p> is not ignored by git in the worktree (versioned, or missing from .gitignore)` | Versionada o ausente del `.gitignore` de la rama. |
+| `<p> is not ignored by git in the worktree (versioned, or missing from .gitignore)` | Versionada (solo `link`; `link?` la omite) o ausente del `.gitignore` de la rama. |
 | `<p> is linked but not ignored by git in the worktree (a symlink needs '<p>' in .gitignore, without a trailing slash)` | Solo `link`: el enlace ya existe, pero el `.gitignore` de la rama ya no lo ignora. No se toca el enlace ni se enlaza nada. |
 
 Si el enlace falla después de validar (por ejemplo, por permisos), también se deshace la creación, pero sale con código `1`. Si `git worktree remove` no puede quitar el worktree al deshacer, la rama no se borra (evita dejar un worktree sobre una rama borrada) y stderr avisa `th-wt: warning: could not remove the worktree <ruta>; branch <rama> kept`; el comando sale igualmente con su código (`4` o `1`).
