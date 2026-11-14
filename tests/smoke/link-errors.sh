@@ -62,6 +62,26 @@ git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/lke || fail "$na
 git -C "$TMP/repo" worktree list | grep -qF "$dest" || fail "$name: git ya no registra el worktree"
 pass "$name"
 
+name="link con un symlink ajeno en una ruta no ignorada sale con 4 por ruta ocupada, sin fatal: de git"
+printf 'link .cache\n' > "$CONF"
+ln -s /tmp "$dest/.cache"
+reject_link "$name" feature/lke "$CONF:1: .cache already exists in the worktree (not a link to $TMP/repo/.cache)"
+! grep -q 'fatal:' "$TMP/rej.err" || fail "$name: stderr con fatal: de git: [$(cat "$TMP/rej.err")]"
+[ "$(readlink "$dest/.cache")" = /tmp ] || fail "$name: cambió el symlink ajeno"
+rm "$dest/.cache"
+pass "$name"
+
+name="link con un enlace ya creado que la rama deja de ignorar (.wiki/) sale con 4 con su motivo, sin fatal: de git y sin tocar el enlace"
+printf 'link .wiki\n' > "$CONF"
+ln -s "$TMP/repo/.wiki" "$dest/.wiki"
+printf '%s\n' .env .wiki/ docs/local > "$dest/.gitignore"
+reject_link "$name" feature/lke "$CONF:1: .wiki is linked but not ignored by git in the worktree (a symlink needs '.wiki' in .gitignore, without a trailing slash)"
+! grep -q 'fatal:' "$TMP/rej.err" || fail "$name: stderr con fatal: de git: [$(cat "$TMP/rej.err")]"
+[ "$(readlink "$dest/.wiki")" = "$TMP/repo/.wiki" ] || fail "$name: cambió el enlace existente"
+git -C "$dest" checkout -- .gitignore
+rm "$dest/.wiki"
+pass "$name"
+
 name="link a una rama sin worktree bajo la raíz (no abierta, solo en el checkout principal o con el directorio borrado) sale con 4"
 printf 'link .env\n' > "$CONF"
 git -C "$TMP/repo" branch feature/cerrada

@@ -44,9 +44,13 @@ link_worktree() {
     # validate every entry before linking any
     for ((i = 0; i < ${#conf_paths[@]}; i++)); do
       p="${conf_paths[$i]}"
-      check_conf_worktree "$p" "$dest" || die 4 "$conf_file:${conf_nums[$i]}: $reason"
-      if { [ -e "$dest/$p" ] || [ -L "$dest/$p" ]; } && ! is_conf_link "$dest/$p" "$conf_main/$p"; then
+      # An existing path is judged before check_conf_worktree: git cannot check-ignore "$p/" beyond a symlink.
+      if is_conf_link "$dest/$p" "$conf_main/$p"; then
+        git -C "$dest" check-ignore -q -- "$p" || die 4 "$conf_file:${conf_nums[$i]}: $p is linked but not ignored by git in the worktree (a symlink needs '$p' in .gitignore, without a trailing slash)"
+      elif [ -e "$dest/$p" ] || [ -L "$dest/$p" ]; then
         die 4 "$conf_file:${conf_nums[$i]}: $p already exists in the worktree (not a link to $conf_main/$p)"
+      else
+        check_conf_worktree "$p" "$dest" || die 4 "$conf_file:${conf_nums[$i]}: $reason"
       fi
     done
     for ((i = 0; i < ${#conf_paths[@]}; i++)); do
