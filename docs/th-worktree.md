@@ -305,8 +305,8 @@ Muestra el plan de cierre (dry-run por defecto) o cierra (con `--yes`) el worktr
 
 **Cierre por ruta y `HEAD` desacoplado (`<path>`):**
 
-- Un argumento que empieza por `/` o `.` se interpreta como ruta (una rama válida nunca empieza así). La ruta se resuelve a física: si el directorio existe, con `cd -P` y `pwd -P` (funcionan rutas relativas y barra final); si no existe, se usa tal cual quitando una `/` final.
-- Si el worktree en esa ruta tiene rama, se cierra exactamente igual que `close <esa rama>` (mismo plan, mismo JSON y mismo flujo, incluidas las reglas de `pr-reviews/pr-<n>/code`).
+- Un argumento que empieza por `/` o `.` se interpreta como ruta (una rama válida nunca empieza así). La ruta se hace absoluta (relativa al directorio actual), se quita una `/` final y se resuelven los symlinks del ancestro existente más profundo (como la raíz de worktrees), así que un worktree cuyo directorio ya no existe también se encuentra por ruta relativa o a través de un symlink.
+- Si el worktree en esa ruta tiene rama, cierra el worktree de esa ruta con el mismo plan, JSON y flujo que `close <esa rama>` (incluidas las reglas de `pr-reviews/pr-<n>/code`), aunque la rama esté abierta en otro worktree con `git worktree add -f`.
 - Si el worktree tiene el `HEAD` desacoplado (p. ej. a mitad de un `git rebase` o `git bisect`), bloquean sin `--force` los cambios sin commitear (`dirty`), el estado ilegible (`dirty: null`) y los commits alcanzables solo desde ese `HEAD` (`git rev-list --count <oid HEAD> --not --branches --remotes=origin`, informados en `unpushed`; con `--force` se pierden, mientras la rama original sigue intacta en su commit). No hay rama que borrar (`delete.branch: false`; con `--yes` no se imprime ninguna línea `th-wt: branch … kept`).
 - `--remote` no aplica con `HEAD` desacoplado: sale con código `2` (`th-wt: --remote needs a branch: <ruta> has a detached HEAD`).
 - Salida en texto (stderr) para un worktree desacoplado: `  branch:    (detached)`, `  unpushed:  <n> commits only in this HEAD` y `  delete:    worktree only (detached HEAD, no branch)` o `nothing (blocked: …)`. Con `--yes` y sin `--force`, el error usa `<n> commit(s) only in its detached HEAD` (combinado con `uncommitted changes` e `in <ruta>`, terminado en ` (use --force to close anyway)`).
@@ -344,7 +344,7 @@ th-wt close ~/.worktrees/acme/demo/feature-wip
 - Falta `<branch|path>`, se pasa más de un argumento, opción desconocida, nombre de rama inválido o `--remote` con un worktree con `HEAD` desacoplado (`th-wt: --remote needs a branch: <ruta> has a detached HEAD`) → código `2`.
 - Con `--remote` y sin `gh` en `PATH` → código `3` (`missing dependency: gh`).
 - La rama no existe, es huérfana sin commits o su worktree no está bajo `~/.worktrees/<owner>/<repo>/` (también si esa rama está en `HEAD` desacoplado en otro worktree, donde hay que cerrarlo por ruta) → código `4` (`no worktree for branch <branch> under <root>`).
-- La ruta no corresponde a ningún worktree de git o está fuera de `~/.worktrees/<owner>/<repo>/` → código `4` (`no worktree at <ruta resuelta> under <root>`).
+- La ruta no corresponde a ningún worktree de git o está fuera de `~/.worktrees/<owner>/<repo>/` (tenga o no rama) → código `4` (`no worktree at <ruta resuelta> under <root>`).
 - Con `--remote`: errores de acceso a `origin` o a `gh` (mismas causas que `list --remote`) → código `4` (sin borrar nada).
 - Con `--yes` ejecutado desde dentro del directorio del worktree a cerrar (o un subdirectorio suyo) → código `4` (`cannot close <path> from inside it: run close from another directory`).
 - Con `--yes` y sin `--force` cuando el cierre está bloqueado (`dirty: true`, `unpushed > 0` no cubiertos, commits solo en el `HEAD` desacoplado, o `git status` ilegible) → código `4` (`<motivo> (use --force to close anyway)`).
