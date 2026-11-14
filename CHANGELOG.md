@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.3](https://github.com/Therilion/th-worktools/compare/v0.1.2...v0.1.3) (2026-11-14)
+
+
+### Features
+
+* **th-worktree:** add an org-level .conf with optional link? entries ([#35](https://github.com/Therilion/th-worktools/issues/35)) ([15aaedb](https://github.com/Therilion/th-worktools/commit/15aaedb5d58769d3e4cfaabac6e77c017e0043ec))
+* **th-worktree:** add th-wt link to re-apply the repo .conf ([#32](https://github.com/Therilion/th-worktools/issues/32)) ([1479dfc](https://github.com/Therilion/th-worktools/commit/1479dfcd2df9e477af0451491152f17edc8b1d2d))
+* **th-worktree:** keep long-lived branches declared in the repo .conf ([#33](https://github.com/Therilion/th-worktools/issues/33)) ([799666d](https://github.com/Therilion/th-worktools/commit/799666d2cb384de9993071b4b3b3ac718b952fe4))
+
 ## [0.1.2](https://github.com/Therilion/th-worktools/compare/v0.1.1...v0.1.2) (2026-11-14)
 
 
