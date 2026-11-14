@@ -23,7 +23,7 @@ Public kit of skills (`SKILL.md` standard) and scripts for Claude Code and Antig
 - Script paths in `SKILL.md`: always the fixed form `"$HOME/.local/share/th-worktools/skills/<skill>/scripts/…"`, never bare relative paths and never `${…}` (Claude Code always asks permission for commands with braces). `tests/lint-skills.sh` enforces it.
 - Language: script messages (stderr, `--help`) and commit messages in English; `SKILL.md`, README, docs and test names in Spanish.
 - Skills don't share files with each other.
-- Scope: only what the current version's DoD requires. New ideas go to the "Ideas" section of the README, not to the code.
+- Scope: only what the current version's DoD requires. New ideas go to `docs/ideas.md`, not to the code.
 
 ## Git conventions
 
