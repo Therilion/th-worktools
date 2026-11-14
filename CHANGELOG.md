@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.1](https://github.com/Therilion/th-worktools/compare/v0.1.0...v0.1.1) (2026-11-14)
+
+
+### Features
+
+* **th-worktree:** add deps-prefix to the repo .conf ([#28](https://github.com/Therilion/th-worktools/issues/28)) ([749a4ec](https://github.com/Therilion/th-worktools/commit/749a4eccd4576ac1e18c6f3ab8df4f9feac5b5b0))
+* **th-wt:** show progress and a summary when creating worktrees ([#24](https://github.com/Therilion/th-worktools/issues/24)) ([d91b674](https://github.com/Therilion/th-worktools/commit/d91b6743e0d6ee7b62591d546965669297443816))
+
+
+### Bug Fixes
+
+* **list:** exit 1 with a message when git worktree list fails ([#26](https://github.com/Therilion/th-worktools/issues/26)) ([2f8e0d6](https://github.com/Therilion/th-worktools/commit/2f8e0d60a7ec93648ed9780cb7c198d3d488caba))
+* **th-worktree:** never wait for ssh passphrases or askpass in th-wt ([#27](https://github.com/Therilion/th-worktools/issues/27)) ([c324cf7](https://github.com/Therilion/th-worktools/commit/c324cf7408d5cd79cdd66131799d3a46f2f2adea))
+
 ## 0.1.0 (2026-11-13)
 
 
