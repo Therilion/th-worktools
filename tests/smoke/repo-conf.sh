@@ -104,14 +104,22 @@ pass "$name"
 
 # Verifica que `new <rama> --base <base>` con el .conf actual sale con 4 y "th-wt: <conf>:<línea>: <motivo>", sin worktree ni rama.
 reject_new() {
-  local name="$1" b="$2" n="$3" reason="$4" base="${5:-main}" rc=0
-  (cd "$TMP/repo" && "$WT" new "$b" --base "$base" 2>"$TMP/rej.err" >"$TMP/rej.out") || rc=$?
+  local name="$1" b="$2" n="$3" reason="$4" base="${5-main}" rc=0
+  # base vacío: sin --base
+  (cd "$TMP/repo" && "$WT" new "$b" ${base:+--base "$base"} 2>"$TMP/rej.err" >"$TMP/rej.out") || rc=$?
   [ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/rej.err")]"
   grep -qxF "th-wt: $CONF:$n: $reason" "$TMP/rej.err" || fail "$name: stderr=[$(cat "$TMP/rej.err")], esperado la línea $n: $reason"
   [ ! -s "$TMP/rej.out" ] || fail "$name: stdout no vacío: [$(cat "$TMP/rej.out")]"
   [ ! -e "$HOME/.worktrees/acme/demo/${b//\//-}" ] || fail "$name: quedó el worktree de $b"
   ! git -C "$TMP/repo" show-ref --verify --quiet "refs/heads/$b" || fail "$name: quedó la rama $b"
   [ "$(git -C "$TMP/repo" worktree list | grep -c "${b//\//-}")" = 0 ] || fail "$name: git aún registra el worktree de $b"
+}
+
+# Como reject_new pero sin --base y con origin inaccesible: el .conf debe rechazarse antes de consultarlo.
+reject_new_offline() {
+  mv "$TMP/origin.git" "$TMP/origin.off"
+  reject_new "$1" "$2" "$3" "$4" ""
+  mv "$TMP/origin.off" "$TMP/origin.git"
 }
 
 name="new con una acción distinta de link (copy u otra) sale con 4 con la línea y el motivo, sin worktree ni rama"
@@ -206,6 +214,50 @@ printf 'link docs/local\n' > "$CONF"
 reject_new "$name" feature/bad-parent-file 1 "docs/local: parent docs in the worktree is not a directory" with-docs-file
 reject_new "$name" feature/bad-parent-link 1 "docs/local: parent docs in the worktree is not a directory" with-docs-link
 [ -z "$(ls -A "$TMP/afuera")" ] || fail "$name: se escribió fuera del worktree: [$(ls -A "$TMP/afuera")]"
+pass "$name"
+
+name="new con un .conf inválido (acción desconocida, solape, ruta inexistente en el checkout principal) sale con 4 antes de consultar origin, sin worktree ni rama"
+printf 'link .env\ncopy .env\n' > "$CONF"
+reject_new_offline "$name" feature/off-copy 2 "unknown action 'copy' (only 'link' and 'deps-prefix' are supported)"
+printf 'link docs/local\nlink docs/local/doc.md\n' > "$CONF"
+reject_new_offline "$name" feature/off-sub 2 "docs/local/doc.md overlaps docs/local (line 1)"
+printf 'link .env\nlink nope\n' > "$CONF"
+reject_new_offline "$name" feature/off-missing 2 "nope does not exist in the main checkout ($TMP/repo)"
+pass "$name"
+
+name="checkout --remote de una rama solo remota con un .conf inválido sale con 4 y la línea del .conf sin consultar origin, sin worktree ni rama ni branch.<rama>.*"
+git -C "$TMP/other" checkout -q -b feature/co-off-remote origin/main
+git -C "$TMP/other" commit -q --allow-empty -m "rama solo remota"
+git -C "$TMP/other" push -q origin feature/co-off-remote
+printf 'link .env\ncopy .env\n' > "$CONF"
+mv "$TMP/origin.git" "$TMP/origin.off"
+rc=0
+(cd "$TMP/repo" && "$WT" checkout feature/co-off-remote --remote 2>"$TMP/off.err" >"$TMP/off.out") || rc=$?
+mv "$TMP/origin.off" "$TMP/origin.git"
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/off.err")]"
+grep -qxF "th-wt: $CONF:2: unknown action 'copy' (only 'link' and 'deps-prefix' are supported)" "$TMP/off.err" || fail "$name: stderr=[$(cat "$TMP/off.err")]"
+[ ! -s "$TMP/off.out" ] || fail "$name: stdout no vacío: [$(cat "$TMP/off.out")]"
+[ ! -e "$HOME/.worktrees/acme/demo/feature-co-off-remote" ] || fail "$name: quedó el worktree"
+! git -C "$TMP/repo" show-ref --verify --quiet refs/heads/feature/co-off-remote || fail "$name: quedó la rama local"
+[ -z "$(git -C "$TMP/repo" config --get-regexp '^branch\.feature/co-off-remote\.' || true)" ] || fail "$name: quedó config branch.*"
+pass "$name"
+
+name="new con link node_modules, link packages/a/node_modules o link node_modules/.bin sale con 4 con la línea y el motivo, sin worktree ni rama"
+reason_nm="node_modules cannot be linked (the dependency install would write through the symlink into the main checkout)"
+printf 'link .env\nlink node_modules\n' > "$CONF"
+reject_new "$name" feature/nm-root 2 "$reason_nm: node_modules"
+printf 'link packages/a/node_modules\n' > "$CONF"
+reject_new "$name" feature/nm-nested 1 "$reason_nm: packages/a/node_modules"
+printf 'link .env\nlink node_modules/.bin\n' > "$CONF"
+reject_new "$name" feature/nm-under 2 "$reason_nm: node_modules/.bin"
+pass "$name"
+
+name="checkout de una rama review/pr-* con un .conf inválido no lo lee y crea el worktree"
+printf 'copy .env\n' > "$CONF"
+git -C "$TMP/repo" branch review/pr-43 main
+out="$(cd "$TMP/repo" && "$WT" checkout review/pr-43 --json 2>"$TMP/rpr43.err")" || fail "$name: checkout review/pr-43 falló: [$(cat "$TMP/rpr43.err")]"
+[ -d "$HOME/.worktrees/acme/demo/review-pr-43" ] || fail "$name: no se creó el worktree"
+[ "$(jq -c .linked <<<"$out")" = '[]' ] || fail "$name: salida=[$out]"
 pass "$name"
 
 name="checkout de una rama local con una entrada inválida sale con 4, deshace el worktree y conserva la rama en el mismo commit"
