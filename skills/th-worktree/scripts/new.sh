@@ -27,6 +27,7 @@ new_worktree() {
 
   resolve_repo
   worktree_dest "$branch"
+  read_repo_conf
 
   default="$(origin_default_branch)" || die 4 "cannot read origin (unreachable or no access)"
 
