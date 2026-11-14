@@ -154,3 +154,15 @@ rel="../home/.worktrees/acme/demo/feature-mis-rel"
 out="$(cd "$TMP/repo" && "$WT" close "$rel" --json 2>/dev/null)" || fail "$name: close --json falló"
 [ "$(printf '%s' "$out" | jq -c '[.missing, .path]')" = "[true,\"$dest\"]" ] || fail "$name: plan=[$out]"
 pass "$name"
+
+name="close <ruta> --yes de un worktree de PR desacoplado quita pr-reviews/pr-<n>/ vacío, conserva review/pr-<n> y dice cómo reabrirlo"
+dest="$HOME/.worktrees/acme/demo/pr-reviews/pr-9/code"
+git -C "$TMP/repo" worktree add -q -b review/pr-9 "$dest" main
+git -C "$dest" checkout -q --detach
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close "$dest" --yes 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+[ ! -e "$HOME/.worktrees/acme/demo/pr-reviews/pr-9" ] || fail "$name: sigue pr-reviews/pr-9/"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/review/pr-9 || fail "$name: se borró la rama review/pr-9"
+case "$out" in *"git branch -D review/pr-9"*) ;; *) fail "$name: falta 'git branch -D review/pr-9': [$out]" ;; esac
+pass "$name"

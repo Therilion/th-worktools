@@ -46,7 +46,7 @@ worktree_at_path() {
 }
 
 close_worktree() {
-  local arg="" branch="" path_arg="" detached=false wt_info="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out shown ent unreadable=false kept="" del_wt=true del_br=false what is_pr=false left=[] created="" after_pr=null
+  local arg="" branch="" path_arg="" detached=false wt_info="" json=0 yes=0 force=0 remote=false prs=null pr covered lost path root default row oid why="" err here dirty merged missing unpushed ignored=[] out shown ent unreadable=false kept="" del_wt=true del_br=false what is_pr=false left=[] created="" after_pr=null pr_n=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --json) json=1 ;;
@@ -155,6 +155,16 @@ close_worktree() {
     else git worktree remove "$path" || die 4 "git could not remove $path (see git's message above)"; fi
     # rmdir only removes an empty directory: anything else in pr-reviews/pr-<n>/ stays
     [ "$is_pr" = false ] || rmdir "${path%/code}" 2>/dev/null || true
+    if [ "$detached" = true ]; then
+      pr_n="${path%/code}"
+      pr_n="${pr_n##*/pr-}"
+      if is_pr_worktree "review/pr-$pr_n" "$path" "$root"; then
+        rmdir "${path%/code}" 2>/dev/null || true
+        if git show-ref --verify --quiet "refs/heads/review/pr-$pr_n"; then
+          echo "th-wt: branch review/pr-$pr_n kept (detached HEAD); to reopen PR $pr_n with th-wt pr, delete it first: git branch -D review/pr-$pr_n" >&2
+        fi
+      fi
+    fi
     if [ "$del_br" = true ]; then
       # update-ref only deletes if the branch still points at $oid; otherwise a commit arrived meanwhile
       if err="$(git update-ref -d "refs/heads/$branch" "$oid" 2>&1)"; then
