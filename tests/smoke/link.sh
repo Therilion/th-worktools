@@ -60,3 +60,16 @@ out="$(cd "$TMP/repo" && "$WT" link feature/lk --json 2>"$TMP/none.err")" || fai
 [ "$(jq -c .linked <<<"$out")" = '[]' ] || fail "$name: salida=[$out]"
 grep -qxF "th-wt: no repo config ($CONF); nothing to link" "$TMP/none.err" || fail "$name: stderr=[$(cat "$TMP/none.err")]"
 pass "$name"
+
+name="link con la rama abierta en dos worktrees bajo la raíz sale con 0 y enlaza en el primero"
+printf 'link .wiki\n' > "$CONF"
+rm -f "$dest/.wiki"
+other="$HOME/.worktrees/acme/demo/otro-lk"
+git -C "$TMP/repo" worktree add -f -q "$other" feature/lk
+rc=0
+out="$(cd "$TMP/repo" && "$WT" link feature/lk --json 2>"$TMP/two.err")" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc: [$(cat "$TMP/two.err")]"
+[ "$(jq -r .path <<<"$out")" = "$dest" ] || fail "$name: path de la salida: [$out]"
+[ "$(readlink "$dest/.wiki")" = "$TMP/repo/.wiki" ] || fail "$name: .wiki apunta a [$(readlink "$dest/.wiki")]"
+{ [ ! -e "$other/.wiki" ] && [ ! -L "$other/.wiki" ]; } || fail "$name: enlazó en el segundo worktree"
+pass "$name"

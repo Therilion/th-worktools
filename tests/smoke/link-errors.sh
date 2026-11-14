@@ -81,6 +81,13 @@ reject_link "$name" review/pr-7 "review/pr-7 is a PR copy (review/pr-*): the rep
 { [ ! -e "$HOME/.worktrees/acme/demo/review-pr-7/.env" ] && [ ! -L "$HOME/.worktrees/acme/demo/review-pr-7/.env" ]; } || fail "$name: enlazó .env"
 pass "$name"
 
+name="link a una rama creada dentro del worktree de un PR sale con 4 sin enlazar nada"
+prwt="$HOME/.worktrees/acme/demo/pr-reviews/pr-7/code"
+git -C "$TMP/repo" worktree add -q -b fix-typo "$prwt" main
+reject_link "$name" fix-typo "$prwt is a PR worktree (pr-reviews/): the repo .conf is never applied to PR code"
+{ [ ! -e "$prwt/.env" ] && [ ! -L "$prwt/.env" ]; } || fail "$name: enlazó .env"
+pass "$name"
+
 name="link sin rama, con una opción desconocida o con una rama inválida sale con 2"
 expect_2() {
   local rc=0

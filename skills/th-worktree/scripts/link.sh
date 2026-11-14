@@ -6,7 +6,7 @@
 is_conf_link() { [ -L "$1" ] && [ "$(readlink "$1")" = "$2" ]; }
 
 link_worktree() {
-  local branch root row path i p dest conf_path json reason l
+  local branch root path i p dest conf_path json reason l
   case "${1:-}" in
     "") bad_usage "missing <branch>" ;;
     -h|--help) usage; exit 0 ;;
@@ -28,11 +28,11 @@ link_worktree() {
   resolve_repo
   case "$branch" in review/pr-*) die 4 "$branch is a PR copy (review/pr-*): the repo .conf is never applied to PR code" ;; esac
   root="$(worktrees_root)"
-  row="$(list_rows "$root" "" null false "$branch" | head -n 1)"
-  [ -n "$row" ] || die 4 "no worktree for branch $branch under $root"
-  path="$(jq -r .path <<<"$row")"
-
-  [ "$(jq -r .missing <<<"$row")" = false ] || die 4 "worktree directory of $branch no longer exists: $path"
+  # No exit inside awk: it reads all of git's output, so git never gets SIGPIPE.
+  path="$(git worktree list --porcelain | awk -v t="branch refs/heads/$branch" -v r="$root" '/^worktree /{p=substr($0,10)} $0==t && index(p, r) == 1 && !f{print p; f=1}')" || die 1 "git worktree list failed"
+  [ -n "$path" ] || die 4 "no worktree for branch $branch under $root"
+  case "$path" in "${root}pr-reviews/"*) die 4 "$path is a PR worktree (pr-reviews/): the repo .conf is never applied to PR code" ;; esac
+  [ -d "$path" ] || die 4 "worktree directory of $branch no longer exists: $path"
 
   read_repo_conf
   if [ -z "$conf_file" ]; then
