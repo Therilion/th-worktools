@@ -148,6 +148,7 @@ Las ramas de cada historia se integran en `main` con un merge commit hasta la hi
 Ideas que quedan fuera de la versión en curso.
 
 - `th-wt link <ruta>`: re-aplicar el `.conf` por ruta, también a un worktree con `HEAD` desacoplado (rebase o bisect a medias); hoy `link` solo acepta una rama y ese worktree sale con `no worktree for branch`.
+- `th-wt link`: reusar `apply_repo_conf` de `lib.sh` (saltando los enlaces que ya están y sin deshacer el worktree) en vez del bucle propio de `link.sh`, y que `read_repo_conf` guarde la ruta del `.conf` para el aviso «no repo config». Se dejó fuera de la historia 2 para no tocar `lib.sh` en paralelo con la 4.
 - `th-wt list --remote`: con 100 PRs o más, el aviso del límite de PRs sale siempre si hay un worktree `review/pr-<n>` abierto, porque esa rama no tiene PR con ese nombre de origen; tratar `review/pr-<n>` como rama de PR en `list` (mostrar su número de PR).
 - Derivar `<owner>/<repo>` también de remotes `ssh://`, con puerto o con barra final (hoy solo `git@host:` y `https://`).
 - Que `--base` acepte tags y SHAs (hoy es siempre `origin/<rama>`).
