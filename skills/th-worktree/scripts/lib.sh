@@ -193,9 +193,8 @@ undo_creation() {
   [ -z "$created_start" ] || git update-ref -d "refs/heads/$2" "$created_start" 2>/dev/null || true
 }
 
-# Checks one .conf entry against the files only (no worktree needed); on failure sets $reason and returns 1. Reads the caller's (read_conf_file) locals and $conf_main via dynamic scope.
+# Checks one .conf entry against the files only (no worktree needed); on failure sets $reason and returns 1. Reads the caller's (read_conf_file) $action, $p, $extra and $dp_line via dynamic scope.
 check_conf_entry() {
-  local i q where
   if [ "$action" = deps-prefix ]; then
     if [ -z "$p" ] || [ -n "$extra" ]; then
       reason="expected 'deps-prefix <command>'"
@@ -242,18 +241,6 @@ check_conf_entry() {
   case "/$p/" in
     */node_modules/*) reason="node_modules cannot be linked (the dependency install would write through the symlink into the main checkout): $p"; return 1 ;;
   esac
-  # an entry equal to or under another would make ln write inside the main checkout
-  for ((i = 0; i < ${#conf_paths[@]}; i++)); do
-    q="${conf_paths[$i]}"
-    where="${conf_locs[$i]}"
-    if [ "${where%:*}" = "$conf" ]; then
-      where="line ${where##*:}"
-    elif [[ $p == "$q" ]]; then
-      continue # the same path in the other file: read_conf_file replaces it
-    fi
-    case "$p/" in "$q"/*) reason="$p overlaps $q ($where)"; return 1 ;; esac
-    case "$q/" in "$p"/*) reason="$p overlaps $q ($where)"; return 1 ;; esac
-  done
 }
 
 # Checks link path $1 against the fresh worktree $2; on failure sets $reason and returns 1.
@@ -281,7 +268,7 @@ check_conf_worktree() {
   fi
 }
 
-# Reads one .conf file $1 (a bad line exits 4), adding to $conf_paths/$conf_locs/$conf_keep and $deps_prefix. Needs $conf_main; the caller sets nocasematch.
+# Reads one .conf file $1 (a bad line exits 4), adding to $conf_paths/$conf_locs/$conf_keep, $conf_opt (1 for 'link?') and $deps_prefix. The caller sets nocasematch.
 read_conf_file() {
   local conf="$1" line action p extra reason opt i n=0 dp_line=""
   # the last line may lack a newline
@@ -303,9 +290,10 @@ read_conf_file() {
     fi
     opt=0
     [ "$action" != "link?" ] || opt=1
-    # the repo's entry takes the place (and the position) of the org's entry for the same path
+    # the same path twice in one file is an error; the repo's entry takes the place (and the position) of the org's
     for ((i = 0; i < ${#conf_paths[@]}; i++)); do
       [[ $p == "${conf_paths[$i]}" ]] || continue
+      if [[ ${conf_locs[$i]} == "$conf":* ]]; then die 4 "$conf:$n: $p overlaps ${conf_paths[$i]} (line ${conf_locs[$i]##*:})"; fi
       conf_paths[i]="$p"
       conf_locs[i]="$conf:$n"
       conf_opt[i]="$opt"
@@ -317,10 +305,10 @@ read_conf_file() {
   done < "$conf"
 }
 
-# Reads and statically validates the org .conf (repos/<owner>.conf) and then this repo's; sets $conf_found (the files that exist, org first), $conf_paths, $conf_locs (file:line), $conf_keep and $deps_prefix.
+# Reads and statically validates the org .conf (repos/<owner>.conf) and then this repo's; sets $conf_found (the files that exist, org first), $conf_paths, $conf_locs (file:line), $conf_keep, $conf_main and $deps_prefix.
 # A bad line exits 4. Needs $repo.
 read_repo_conf() {
-  local dir="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos" conf paths locs opts i p
+  local dir="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos" conf paths locs opts i j p q hit where
   conf_found=()
   conf_paths=()
   conf_locs=()
@@ -335,7 +323,6 @@ read_repo_conf() {
   # case-insensitive matching: macOS filesystems are, so .wiki and .WIKI are the same path (on Linux docs/Docs are rejected as overlapping too, which is fail-safe)
   shopt -s nocasematch
   for conf in "${conf_found[@]}"; do read_conf_file "$conf"; done
-  shopt -u nocasematch
   # only now, so that a repo 'link?' can relax an org 'link' of the same path; a missing 'link?' path is dropped silently
   paths=(${conf_paths[@]+"${conf_paths[@]}"})
   locs=(${conf_locs[@]+"${conf_locs[@]}"})
@@ -345,13 +332,33 @@ read_repo_conf() {
   conf_opt=()
   for ((i = 0; i < ${#paths[@]}; i++)); do
     p="${paths[$i]}"
-    if [ ! -e "$conf_main/$p" ] && [ ! -L "$conf_main/$p" ]; then
-      if [ "${opts[$i]}" = 1 ]; then continue; fi
-      die 4 "${locs[$i]}: $p does not exist in the main checkout ($conf_main)"
-    fi
+    if [ "${opts[$i]}" = 1 ] && [ ! -e "$conf_main/$p" ] && [ ! -L "$conf_main/$p" ]; then continue; fi
     conf_paths+=("$p")
     conf_locs+=("${locs[$i]}")
     conf_opt+=("${opts[$i]}")
+  done
+  # an entry equal to or under another would make ln write inside the main checkout; dropped entries do not count
+  for ((j = 1; j < ${#conf_paths[@]}; j++)); do
+    p="${conf_paths[$j]}"
+    for ((i = 0; i < j; i++)); do
+      q="${conf_paths[$i]}"
+      hit=0
+      case "$p/" in "$q"/*) hit=1 ;; esac
+      case "$q/" in "$p"/*) hit=1 ;; esac
+      if [ "$hit" = 1 ]; then
+        where="${conf_locs[$i]}"
+        if [ "${where%:*}" = "${conf_locs[$j]%:*}" ]; then where="line ${where##*:}"; fi
+        die 4 "${conf_locs[$j]}: $p overlaps $q ($where)"
+      fi
+    done
+  done
+  shopt -u nocasematch
+  # after the overlap check, so that an overlap is reported before a missing path
+  for ((i = 0; i < ${#conf_paths[@]}; i++)); do
+    p="${conf_paths[$i]}"
+    if [ ! -e "$conf_main/$p" ] && [ ! -L "$conf_main/$p" ]; then
+      die 4 "${conf_locs[$i]}: $p does not exist in the main checkout ($conf_main)"
+    fi
   done
 }
 

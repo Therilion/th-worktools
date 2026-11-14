@@ -145,6 +145,13 @@ grep -qxF "th-wt: $CONF:1: docs overlaps docs/local ($ORG:2)" "$TMP/o9b.err" || 
 [ ! -e "$WTS/feature-o9" ] || fail "$name: quedó un worktree"
 pass "$name"
 
+name="un link? del org ausente en el principal no choca con un link del repo que lo contiene"
+printf 'link? .wiki/falta\n' > "$ORG"
+printf 'link .wiki\n' > "$CONF"
+out="$(cd "$TMP/repo" && "$WT" new feature/o9d --json 2>"$TMP/o9d.err")" || fail "$name: th-wt new falló: [$(cat "$TMP/o9d.err")]"
+[ "$(jq -c .linked <<<"$out")" = '[".wiki"]' ] || fail "$name: salida=[$out]"
+pass "$name"
+
 name="un duplicado dentro del mismo archivo sigue siendo un error con 'line <n>'"
 printf 'link .env\nlink .env\n' > "$CONF"
 rm "$ORG"
