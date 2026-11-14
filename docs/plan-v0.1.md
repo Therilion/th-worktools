@@ -245,7 +245,7 @@ Una acción por línea; `#` y las líneas vacías se ignoran. Se parsea línea a
 
 `keep`: una sola palabra (`keep <rama>`), opcionalmente con un único `*` (`keep develop`, `keep release/*`); se permiten varias líneas `keep`. Se valida con `git check-ref-format --refspec-pattern refs/heads/<p>`, de modo que el único comodín es `*` y hace match con cualquier cadena incluyendo `/` (`release/*` también cubre `release/1.0/fix`). `new` y `checkout` validan las líneas `keep` antes de crear nada (exit `4` si fallan) y por lo demás las ignoran; `pr` nunca lee el `.conf`. `close` lee siempre el `.conf` (también con `--remote`, antes de cualquier acceso a la red) y, si alguna línea es inválida (incluido un `link` cuya ruta ya no existe en el checkout principal), sale con `4` (`th-wt: <conf>:<línea>: <motivo>`) sin borrar nada. Errores de sintaxis (exit `4`): `expected 'keep <branch>'` y `keep must be a branch name or a pattern with a single '*': <p>`.
 
-No hay `copy`: multiplicaría secretos en disco, y una lista de nombres prohibidos nunca está completa (idea en el README).
+No hay `copy`: multiplicaría secretos en disco, y una lista de nombres prohibidos nunca está completa (idea en [`ideas.md`](ideas.md)).
 
 **Configuración de organización:** `repos/<owner>.conf` (`<owner>` es todo menos el último segmento de `<owner>/<repo>`; un origin anidado `grupo/sub/demo` usa `repos/grupo/sub.conf`) lleva reglas comunes a los repos de una organización (p. ej. `link? .wiki`, `link? .openspec`). Mismo formato, acciones y validaciones. Se lee primero y después el del repo; pueden existir ambos, uno o ninguno. Lo leen `new`, `checkout`, `close` y `link`; `pr` y `checkout` de `review/pr-*` nunca lo aplican. Combinación:
 
@@ -254,7 +254,7 @@ No hay `copy`: multiplicaría secretos en disco, y una lista de nombres prohibid
 - La existencia en el checkout principal se comprueba tras combinar ambos archivos (el repo puede relajar un `link` de la organización a `link?`). Una `link?` omitida (ausente o versionada en el checkout principal) se descarta al leer el `.conf`, antes del solapamiento, así que no cuenta para este (`link? .openspec` en la organización y `link .openspec/local` en un repo que versiona `.openspec/` funciona).
 - `deps-prefix`: el del repo reemplaza al de la organización; dos en el mismo archivo siguen siendo `duplicate deps-prefix (line <n>)`.
 - `keep`: unión de ambos. `linked`: primero las entradas de la organización y luego las del repo, en el orden de cada archivo.
-- Un repo no puede quitar una regla heredada (idea en el README).
+- Un repo no puede quitar una regla heredada (idea en [`ideas.md`](ideas.md)).
 - Cada error es `th-wt: <conf>:<línea>: <motivo>` con el archivo que contiene la línea. Un `repos/<owner>.conf` inválido hace fallar con `4` a `new`, `checkout`, `close` y `link` en todos los repos de esa organización.
 
 **Validaciones (se validan todas las líneas antes de enlazar nada, en dos fases; si alguna falla, no se enlaza ninguna y sale con `4`; un fallo al enlazar ya validado deshace la creación y sale con `1`):**
@@ -305,7 +305,7 @@ El error es `th-wt: <ruta del .conf>:<línea>: <motivo>`. Un worktree sin `.conf
 **Decisiones:**
 
 1. **Opt-in por repo.** Por defecto no se toca ningún `.env`.
-2. **Solo `link`, nunca copias:** queda una sola copia del secreto en disco, y al borrar el worktree solo desaparece el enlace (`git worktree remove` no sigue el symlink). Un worktree no puede tener valores propios (otro puerto, otra base de datos); idea en el README.
+2. **Solo `link`, nunca copias:** queda una sola copia del secreto en disco, y al borrar el worktree solo desaparece el enlace (`git worktree remove` no sigue el symlink). Un worktree no puede tener valores propios (otro puerto, otra base de datos); idea en [`ideas.md`](ideas.md).
 3. **`pr` no aplica el `.conf`:** el código de un PR (de un fork, de un tercero) podría leer los secretos enlazados.
 4. **Validación con `git check-ignore`** (§7).
 5. **Los scripts nunca imprimen contenido**; el dry-run lista solo nombres.
@@ -608,6 +608,6 @@ Cada versión de la tabla es una línea de releases: la v0.2 empieza en `v0.2.0`
 - Scripts en bash compatible con 3.2 y portables entre macOS y Linux (§6 del plan).
 - Antes de dar algo por terminado: `shellcheck` sobre los scripts, `tests/lint-skills.sh` y `tests/smoke.sh`.
 - Nunca agregues datos reales del trabajo (organizaciones, repos, rutas, tickets). El repo es público.
-- Alcance: solo lo que pide el DoD de la versión vigente. Las ideas nuevas van a la sección "Ideas" del README, no al código.
+- Alcance: solo lo que pide el DoD de la versión vigente. Las ideas nuevas van a [`ideas.md`](ideas.md), no al código.
 - Rutas a scripts en SKILL.md: siempre con la forma fija `"$HOME/.local/share/th-worktools/skills/<skill>/scripts/…"`, nunca relativas a secas y nunca con `${…}`.
 ```
