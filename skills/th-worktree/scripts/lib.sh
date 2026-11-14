@@ -362,12 +362,30 @@ read_repo_conf() {
   done
 }
 
+# Drops the 'link?' entries whose path is versioned in worktree $1's branch: the org conf cannot know a repo tracks it, and linking would clash with the tracked files.
+drop_tracked_optional() {
+  local dest="$1" paths locs opts i
+  paths=(${conf_paths[@]+"${conf_paths[@]}"})
+  locs=(${conf_locs[@]+"${conf_locs[@]}"})
+  opts=(${conf_opt[@]+"${conf_opt[@]}"})
+  conf_paths=()
+  conf_locs=()
+  conf_opt=()
+  for ((i = 0; i < ${#paths[@]}; i++)); do
+    if [ "${opts[$i]}" = 1 ] && git --literal-pathspecs -C "$dest" ls-files --error-unmatch -- "${paths[$i]}" >/dev/null 2>&1; then continue; fi
+    conf_paths+=("${paths[$i]}")
+    conf_locs+=("${locs[$i]}")
+    conf_opt+=("${opts[$i]}")
+  done
+}
+
 # Links the paths read_repo_conf stored into the fresh worktree $1 (branch $2) as symlinks to the main checkout; sets $linked.
 # Checks every path against the worktree first and links only if all pass; any failure undoes the creation (exit 4 for a bad path, 1 for a link error).
 apply_repo_conf() {
   local dest="$1" branch="$2" p reason i f
   [ ${#conf_found[@]} -gt 0 ] || return 0
   for f in "${conf_found[@]}"; do echo "th-wt: applying repo config $f" >&2; done
+  drop_tracked_optional "$dest"
   for ((i = 0; i < ${#conf_paths[@]}; i++)); do
     check_conf_worktree "${conf_paths[$i]}" "$dest" || { undo_creation "$dest" "$branch"; die 4 "${conf_locs[$i]}: $reason"; }
   done

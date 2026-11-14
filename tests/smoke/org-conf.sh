@@ -260,3 +260,37 @@ dest="$WTS/pr-reviews/pr-42/code"
 [ "$(jq -c .linked <<<"$out")" = '[]' ] || fail "$name: salida=[$out]"
 ! grep -q "applying repo config" "$TMP/o15.err" || fail "$name: stderr=[$(cat "$TMP/o15.err")]"
 pass "$name"
+
+# Una rama que versiona .wiki (que el checkout principal sí tiene): el org no puede saberlo.
+git -C "$TMP/other" checkout -q -b with-wiki origin/main
+mkdir -p "$TMP/other/.wiki"
+echo versionada > "$TMP/other/.wiki/nota.md"
+git -C "$TMP/other" add -f .wiki
+git -C "$TMP/other" commit -q -m "wiki"
+git -C "$TMP/other" push -q origin with-wiki
+rm -f "$CONF"
+
+name="link? de una ruta versionada en la rama se omite en new: sale 0 y no aparece en linked"
+printf 'link? .wiki\nlink .env\n' > "$ORG"
+out="$(cd "$TMP/repo" && "$WT" new feature/o16 --base with-wiki --json 2>"$TMP/o16.err")" || fail "$name: th-wt new falló: [$(cat "$TMP/o16.err")]"
+[ "$(jq -c .linked <<<"$out")" = '[".env"]' ] || fail "$name: salida=[$out]"
+{ [ -d "$WTS/feature-o16/.wiki" ] && [ ! -L "$WTS/feature-o16/.wiki" ]; } || fail "$name: .wiki no es el directorio versionado"
+! grep -q "\.wiki" "$TMP/o16.err" || fail "$name: stderr=[$(cat "$TMP/o16.err")]"
+pass "$name"
+
+name="un link (no opcional) de una ruta versionada sigue fallando con 4"
+printf 'link .wiki\nlink .env\n' > "$ORG"
+rc=0
+(cd "$TMP/repo" && "$WT" new feature/o16b --base with-wiki 2>"$TMP/o16b.err" >/dev/null) || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/o16b.err")]"
+grep -qxF "th-wt: $ORG:1: .wiki is not ignored by git in the worktree (versioned, or missing from .gitignore)" "$TMP/o16b.err" || fail "$name: stderr=[$(cat "$TMP/o16b.err")]"
+pass "$name"
+
+name="th-wt link <rama> omite un link? de una ruta versionada"
+printf 'link .env\n' > "$ORG"
+(cd "$TMP/repo" && "$WT" new feature/o17 --base with-wiki >/dev/null 2>&1) || fail "$name: th-wt new falló"
+printf 'link? .wiki\n' > "$ORG"
+out="$(cd "$TMP/repo" && "$WT" link feature/o17 --json 2>"$TMP/o17.err")" || fail "$name: th-wt link falló: [$(cat "$TMP/o17.err")]"
+[ "$(jq -c .linked <<<"$out")" = '[]' ] || fail "$name: salida=[$out]"
+[ ! -L "$WTS/feature-o17/.wiki" ] || fail "$name: .wiki es un enlace"
+pass "$name"
