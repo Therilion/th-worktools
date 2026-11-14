@@ -7,6 +7,7 @@ deps_prefix=""
 conf_file=""
 conf_paths=()
 conf_nums=()
+conf_keep=()
 conf_main=""
 # Same for the settings load_config sets (a wt_root, install_deps_on or codegraph_mode or pr_limit in the environment is ignored).
 wt_root=""
@@ -208,8 +209,19 @@ check_conf_entry() {
     fi
     return 0
   fi
+  if [ "$action" = keep ]; then
+    if [ -z "$p" ] || [ -n "$extra" ]; then
+      reason="expected 'keep <branch>'"
+      return 1
+    fi
+    if ! git check-ref-format --refspec-pattern "refs/heads/$p" >/dev/null 2>&1; then
+      reason="keep must be a branch name or a pattern with a single '*': $p"
+      return 1
+    fi
+    return 0
+  fi
   if [ "$action" != link ]; then
-    reason="unknown action '$action' (only 'link' and 'deps-prefix' are supported)"
+    reason="unknown action '$action' (only 'link', 'deps-prefix' and 'keep' are supported)"
     return 1
   fi
   if [ -z "$p" ] || [ -n "$extra" ]; then
@@ -266,13 +278,14 @@ check_conf_worktree() {
   fi
 }
 
-# Reads and statically validates this repo's .conf before anything is created or fetched; sets $conf_file (empty if there is no .conf), $conf_paths, $conf_nums and $deps_prefix.
+# Reads and statically validates this repo's .conf before anything is created or fetched; sets $conf_file (empty if there is no .conf), $conf_paths, $conf_nums, $conf_keep and $deps_prefix.
 # A bad line exits 4. Needs $repo.
 read_repo_conf() {
   local conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos/$repo.conf" line action p extra reason n=0 dp_line=""
   conf_file=""
   conf_paths=()
   conf_nums=()
+  conf_keep=()
   conf_main=""
   [ -f "$conf" ] || return 0
   conf_main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
@@ -289,6 +302,10 @@ read_repo_conf() {
     if [ "$action" = deps-prefix ]; then
       deps_prefix="$p"
       dp_line="$n"
+      continue
+    fi
+    if [ "$action" = keep ]; then
+      conf_keep+=("$p")
       continue
     fi
     conf_paths+=("$p")

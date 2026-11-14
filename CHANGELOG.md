@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.2](https://github.com/Therilion/th-worktools/compare/v0.1.1...v0.1.2) (2026-11-14)
+
+
+### Features
+
+* **th-worktree:** close a worktree by path, also with a detached HEAD ([#29](https://github.com/Therilion/th-worktools/issues/29)) ([c87ab1d](https://github.com/Therilion/th-worktools/commit/c87ab1d6c1226c4420937f056698e172f151759f))
+
+
+### Bug Fixes
+
+* **th-worktree:** validate the repo .conf before creating the worktree ([#30](https://github.com/Therilion/th-worktools/issues/30)) ([21b2e5c](https://github.com/Therilion/th-worktools/commit/21b2e5c76f632876617be1f5f6fc3f3e85089328))
+
 ## [0.1.1](https://github.com/Therilion/th-worktools/compare/v0.1.0...v0.1.1) (2026-11-14)
 
 
