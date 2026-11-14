@@ -101,3 +101,52 @@ dest="$HOME/.worktrees/acme/demo/feature-with-keep"
 [ "$(readlink "$dest/.env")" = "$TMP/repo/.env" ] || fail "$name: .env apunta a [$(readlink "$dest/.env")]"
 [ "$(jq -c .linked <<<"$out")" = '[".env"]' ] || fail "$name: salida=[$out]"
 pass "$name"
+
+name="close --yes de una rama keep no contenida en origin/main borra el worktree y la conserva con el motivo keep"
+printf 'keep develop\n' > "$CONF"
+dest="$HOME/.worktrees/acme/demo/develop"
+if [ ! -d "$dest" ]; then
+  (cd "$TMP/repo" && "$WT" checkout develop >/dev/null 2>&1) || fail "$name: th-wt checkout develop falló"
+fi
+echo "dev" > "$dest/dev.txt"
+git -C "$dest" add dev.txt
+git -C "$dest" commit -q -m "commit en develop"
+git -C "$dest" push -q origin HEAD:develop
+rc=0
+(cd "$TMP/repo" && "$WT" close develop --yes 2>"$TMP/knc.err" >"$TMP/knc.out") || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$(cat "$TMP/knc.err")]"
+[ ! -s "$TMP/knc.out" ] || fail "$name: stdout no vacío: [$(cat "$TMP/knc.out")]"
+[ ! -e "$dest" ] || fail "$name: sigue el directorio"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/develop || fail "$name: se borró la rama develop"
+grep -qxF "th-wt: branch develop kept: it is a long-lived branch (keep develop)" "$TMP/knc.err" || fail "$name: falta el aviso exacto: [$(cat "$TMP/knc.err")]"
+pass "$name"
+
+name="close --yes --force de una rama keep con cambios sin commitear borra el worktree y conserva la rama"
+printf 'keep develop\n' > "$CONF"
+(cd "$TMP/repo" && "$WT" checkout develop >/dev/null 2>&1) || fail "$name: th-wt checkout develop falló"
+dest="$HOME/.worktrees/acme/demo/develop"
+echo "dirty" > "$dest/sucio.txt"
+rc=0
+(cd "$TMP/repo" && "$WT" close develop --yes --force 2>"$TMP/kf.err" >"$TMP/kf.out") || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$(cat "$TMP/kf.err")]"
+[ ! -s "$TMP/kf.out" ] || fail "$name: stdout no vacío: [$(cat "$TMP/kf.out")]"
+[ ! -e "$dest" ] || fail "$name: sigue el directorio"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/develop || fail "$name: se borró la rama develop"
+grep -qxF "th-wt: branch develop kept: it is a long-lived branch (keep develop)" "$TMP/kf.err" || fail "$name: falta el aviso exacto: [$(cat "$TMP/kf.err")]"
+pass "$name"
+
+name="close --remote con una línea keep inválida sale con 4 y la línea del .conf sin consultar origin"
+rm -f "$CONF"
+(cd "$TMP/repo" && "$WT" checkout develop >/dev/null 2>&1) || fail "$name: th-wt checkout develop falló"
+dest="$HOME/.worktrees/acme/demo/develop"
+printf 'keep bad..name\n' > "$CONF"
+mv "$TMP/origin.git" "$TMP/origin.off"
+rc=0
+(cd "$TMP/repo" && "$WT" close develop --remote 2>"$TMP/kr.err" >"$TMP/kr.out") || rc=$?
+mv "$TMP/origin.off" "$TMP/origin.git"
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$(cat "$TMP/kr.err")]"
+grep -qxF "th-wt: $CONF:1: keep must be a branch name or a pattern with a single '*': bad..name" "$TMP/kr.err" || fail "$name: stderr=[$(cat "$TMP/kr.err")]"
+[ ! -s "$TMP/kr.out" ] || fail "$name: stdout no vacío: [$(cat "$TMP/kr.out")]"
+[ -d "$dest" ] || fail "$name: se borró el directorio"
+git -C "$TMP/repo" show-ref --verify --quiet refs/heads/develop || fail "$name: se borró la rama develop"
+pass "$name"

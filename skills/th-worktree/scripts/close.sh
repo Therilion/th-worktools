@@ -142,12 +142,12 @@ close_worktree() {
   elif [ "$is_pr" = true ] && [ "$lost" = 0 ]; then del_br=true
   # only reachable with --force: the branch may hold commits of mine that nothing else has
   elif [ "$is_pr" = true ]; then kept="it may have commits of yours after the PR"
+  elif match_keep_branch "$branch"; then kept="it is a long-lived branch (keep $keep_match)"
   elif [ "$covered" = false ] && [ "$merged" = null ]; then kept="default branch unknown (try: git remote set-head origin -a)"
   elif [ "$covered" = false ] && [ "$merged" = false ]; then kept="not contained in $default$([ "$remote" = false ] || jq -r 'if . == null then " and it has no PR" elif .state == "MERGED" and .ahead == true then " and it has local commits after its merged PR #\(.number)" elif .state == "MERGED" then " and the head of its merged PR #\(.number) is not fetched locally" else " and its PR #\(.number) is \(.state)" end' <<<"$pr")"
   # a branch checked out elsewhere must survive: update-ref would leave that worktree on a dangling branch
   elif [ "$(git worktree list --porcelain | grep -cxF "branch refs/heads/$branch" || true)" -gt 1 ]; then kept="still checked out in another worktree"
   elif [ "$branch" = "${default#origin/}" ]; then kept="it is origin's default branch"
-  elif match_keep_branch "$branch"; then kept="it is a long-lived branch (keep $keep_match)"
   else del_br=true; fi
   if [ "$del_wt" = false ]; then
     [ "$dirty" != true ] || why="uncommitted changes"

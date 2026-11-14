@@ -177,6 +177,7 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt close` de una rama huérfana sin commits (`worktree add --orphan`): sale con 4 «no worktree» aunque `list` la muestra.
 - `th-wt close --remote`: hace `ls-remote`, `fetch` y `gh pr list` antes de comprobar que la rama tiene un worktree bajo la raíz; una rama que existe sin worktree gasta la red y, sin red o sin `gh`, falla con ese error en vez de «no worktree». Comprobar el worktree primero.
 - `th-wt close`: lee `git worktree list --porcelain` dos veces (en `list_rows` y para saber si la rama está en otro worktree); devolverlo desde `list_rows` en una sola pasada.
+- `.conf`: `keep refs/heads/<rama>` u `keep origin/<rama>` pasan la validación (son nombres de rama válidos) pero nunca coinciden con la rama que se cierra, que se borra si está contenida. Rechazar o avisar de esos prefijos.
 - `th-wt list --remote`: `ahead` sale `null` cuando el último commit del PR no está en local, algo común si se usó «Update branch» o se aceptó una sugerencia de review en GitHub antes del merge. Resolverlo trayendo `refs/pull/<n>/head` (solo objetos) para esas ramas.
 - `th-wt list --remote`: el texto «PR head not fetched» también sale cuando el PR no trae su último commit (`headRefOid` ausente); usar un mensaje que no sugiera hacer fetch.
 - `th-wt list --remote`: `ls-remote`, `fetch` y `gh pr list` son independientes y hoy corren en serie; lanzar `gh pr list` en segundo plano mientras se hace el fetch.
