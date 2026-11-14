@@ -115,7 +115,7 @@ Crea, abre, lista y cierra git worktrees en `~/.worktrees/<owner>/<repo>/<rama>`
 | `checkout <branch> [--remote] [--json]`                | Worktree de una rama existente, local o de `origin` (`--remote` la trae)                                 | disponible |
 | `pr <n> [--json]`                                      | Worktree de un PR de GitHub (también de un fork) en `pr-reviews/pr-<n>/code`, en la rama `review/pr-<n>` | disponible |
 | `list [--remote] [--json]`                             | Worktrees del repo actual, con su estado (`--remote` consulta `origin` y los PRs de GitHub)              | disponible |
-| `close <branch> [--remote] [--yes] [--force] [--json]` | Cierra el worktree; requiere `--yes`. Para un PR: `close review/pr-<n>`                                  | disponible |
+| `close <branch\|path> [--remote] [--yes] [--force] [--json]` | Cierra el worktree por rama o por ruta (también con `HEAD` desacoplado); requiere `--yes`. Para un PR: `close review/pr-<n>` | disponible |
 
 Hoy, al crear un worktree con `new` o `checkout` se crean el worktree y la rama, se enlazan los archivos ignorados que declares por repo en `~/.config/th-worktools/repos/<owner>/<repo>.conf` (por ejemplo, `link .wiki` o `link .env`, y `deps-prefix <comando>` para anteponer un ejecutable del `PATH` al comando de instalación; ver [`examples/config/repos/mi-org/mi-repo.conf`](examples/config/repos/mi-org/mi-repo.conf)) y se instalan las dependencias según el lockfile: `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json` → `npm ci`. `pr` nunca enlaza ni instala dependencias: el código del PR es de un tercero (con las dependencias, avisa con el comando para hacerlo a mano).
 
@@ -171,7 +171,7 @@ Ideas que quedan fuera de la versión en curso.
 - `th-wt list --remote`: cruzar PRs por rama sin límite, con una sola consulta GraphQL que busque cada rama.
 - Varias cuentas o hosts de GitHub: hoy `list --remote` consulta `gh` con `owner/repo` (github.com, o `GH_HOST` para Enterprise) y no entiende alias SSH. Idea: un configurador propio de multicuentas (una o varias keys por cuenta) en el directorio de configuración, que resuelva cuenta y host por repo (#8).
 - `th-wt list --remote` con un fork como `origin` (los PRs viven en el repo `upstream`): hoy todas las ramas salen con `pr: null` y sin aviso. Resolverlo consultando también `upstream`.
-- `th-wt close` de un worktree con HEAD desacoplado (rebase o bisect a medias): hoy sale con 4 «no worktree», porque `close` busca por rama. Permitir cerrarlo por ruta.
+- `th-wt close <rama>` de una rama que se está rebasando en otro worktree: ese worktree sale `detached` en el porcelain, así que `close` no lo cuenta y puede borrar la rama a mitad del rebase; detectarlo (`rebase-merge/head-name` o `rebase-apply/head-name` del worktree) y conservarla.
 - `th-wt close`: si la rama recibe un commit entre la lectura del `oid` y `list_rows`, el plan puede describir `merged` del commit nuevo y `unpushed` del anterior (el borrado sigue protegido por `update-ref`). Calcular `merged` sobre el `oid`.
 - `th-wt close`: ejecuta `git status` dos veces en el worktree (para `dirty` y para `ignored`); sacar los dos de una sola pasada con `--ignored`.
 - `th-wt close`: el plan no ve worktrees bloqueados (`git worktree lock`) ni con submódulos; promete borrar y `--yes` sale con 4 (con lock, `--force` tampoco basta: git pide `-f -f`). Leer `locked` del porcelain en `list_rows` y mostrarlo en el plan.
