@@ -32,10 +32,10 @@ rc=0
 [ ! -e "$HOME/.worktrees/acme/demo/feature-bad-opt" ] || fail "$name: se creó el destino"
 pass "$name"
 
-name="new/checkout/list/pr/close con --help o -h → exit 0, uso en stdout, stderr vacío, también fuera de un repo, sin crear nada"
+name="new/checkout/list/pr/close/link con --help o -h → exit 0, uso en stdout, stderr vacío, también fuera de un repo, sin crear nada"
 mkdir -p "$TMP/norepo"
 for dir in "$TMP/repo" "$TMP/norepo"; do
-  for sub in new checkout list pr close; do
+  for sub in new checkout list pr close link; do
     for flag in --help -h; do
       rc=0
       out="$(cd "$dir" && "$WT" "$sub" "$flag" 2>"$TMP/help.err")" || rc=$?
@@ -83,6 +83,10 @@ expect_usage_error "unexpected argument: extra" list extra
 expect_usage_error "missing <branch>" close
 expect_usage_error "unknown option: --bogus" close feature/x --bogus
 expect_usage_error "unexpected argument: other" close feature/x other
+expect_usage_error "missing <branch>" link
+expect_usage_error "expected <branch> first, got option: --json" link --json
+expect_usage_error "unknown option: --bogus" link feature/x --bogus
+expect_usage_error "unexpected argument: extra" link feature/x extra
 expect_usage_error "unknown option: --bogus" new feature/x --bogus --help
 expect_usage_error "unexpected argument: b" close a b --help
 expect_usage_error "unexpected argument: extra" list extra --help
