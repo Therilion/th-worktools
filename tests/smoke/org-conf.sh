@@ -123,10 +123,13 @@ mv "$TMP/repo/.wiki.off" "$TMP/repo/.wiki"
 pass "$name"
 
 name="la misma ruta en org y repo (distinta mayúscula incluida): el repo reemplaza al org en su posición"
-printf 'link .wiki\nlink .env\n' > "$ORG"
-printf 'link .WIKI\n' > "$CONF"
+# solo existe la grafía del repo (.Notas): en Linux .notas sería otra ruta, inexistente
+mkdir "$TMP/repo/.Notas"
+echo .Notas >> "$TMP/repo/.git/info/exclude"
+printf 'link .notas\nlink .env\n' > "$ORG"
+printf 'link .Notas\n' > "$CONF"
 out="$(cd "$TMP/repo" && "$WT" new feature/o8d --json 2>"$TMP/o8d.err")" || fail "$name: th-wt new falló: [$(cat "$TMP/o8d.err")]"
-[ "$(jq -c .linked <<<"$out")" = '[".WIKI",".env"]' ] || fail "$name: salida=[$out]"
+[ "$(jq -c .linked <<<"$out")" = '[".Notas",".env"]' ] || fail "$name: salida=[$out]"
 pass "$name"
 
 name="un solape no idéntico entre org y repo sale con 4 y nombra '<org conf>:<línea>' (en ambas direcciones)"
