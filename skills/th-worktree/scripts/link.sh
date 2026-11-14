@@ -41,7 +41,7 @@ link_worktree() {
   else
     for f in "${conf_found[@]}"; do echo "th-wt: applying repo config $f" >&2; done
     dest="$path"
-    drop_tracked_optional "$dest"
+    drop_optional "$dest"
     # validate every entry before linking any
     for ((i = 0; i < ${#conf_paths[@]}; i++)); do
       p="${conf_paths[$i]}"

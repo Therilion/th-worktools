@@ -308,7 +308,7 @@ read_conf_file() {
 # Reads and statically validates the org .conf (repos/<owner>.conf) and then this repo's; sets $conf_found (the files that exist, org first), $conf_paths, $conf_locs (file:line), $conf_keep, $conf_main and $deps_prefix.
 # A bad line exits 4. Needs $repo.
 read_repo_conf() {
-  local dir="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos" conf paths locs opts i j p q hit where
+  local dir="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos" conf i j p q hit where
   conf_found=()
   conf_paths=()
   conf_locs=()
@@ -323,20 +323,8 @@ read_repo_conf() {
   # case-insensitive matching: macOS filesystems are, so .wiki and .WIKI are the same path (on Linux docs/Docs are rejected as overlapping too, which is fail-safe)
   shopt -s nocasematch
   for conf in "${conf_found[@]}"; do read_conf_file "$conf"; done
-  # only now, so that a repo 'link?' can relax an org 'link' of the same path; a missing 'link?' path is dropped silently
-  paths=(${conf_paths[@]+"${conf_paths[@]}"})
-  locs=(${conf_locs[@]+"${conf_locs[@]}"})
-  opts=(${conf_opt[@]+"${conf_opt[@]}"})
-  conf_paths=()
-  conf_locs=()
-  conf_opt=()
-  for ((i = 0; i < ${#paths[@]}; i++)); do
-    p="${paths[$i]}"
-    if [ "${opts[$i]}" = 1 ] && [ ! -e "$conf_main/$p" ] && [ ! -L "$conf_main/$p" ]; then continue; fi
-    conf_paths+=("$p")
-    conf_locs+=("${locs[$i]}")
-    conf_opt+=("${opts[$i]}")
-  done
+  # only now, so that a repo 'link?' can relax an org 'link' of the same path
+  drop_optional "$conf_main"
   # an entry equal to or under another would make ln write inside the main checkout; dropped entries do not count
   for ((j = 1; j < ${#conf_paths[@]}; j++)); do
     p="${conf_paths[$j]}"
@@ -362,9 +350,9 @@ read_repo_conf() {
   done
 }
 
-# Drops the 'link?' entries whose path is versioned in worktree $1's branch: the org conf cannot know a repo tracks it, and linking would clash with the tracked files.
-drop_tracked_optional() {
-  local dest="$1" paths locs opts i
+# Drops the 'link?' entries whose path is missing in the main checkout or versioned in directory $1: the org conf cannot know either, and a dropped entry must not count in the overlap check or clash with tracked files.
+drop_optional() {
+  local dir="$1" paths locs opts i
   paths=(${conf_paths[@]+"${conf_paths[@]}"})
   locs=(${conf_locs[@]+"${conf_locs[@]}"})
   opts=(${conf_opt[@]+"${conf_opt[@]}"})
@@ -372,7 +360,10 @@ drop_tracked_optional() {
   conf_locs=()
   conf_opt=()
   for ((i = 0; i < ${#paths[@]}; i++)); do
-    if [ "${opts[$i]}" = 1 ] && git --literal-pathspecs -C "$dest" ls-files --error-unmatch -- "${paths[$i]}" >/dev/null 2>&1; then continue; fi
+    if [ "${opts[$i]}" = 1 ]; then
+      if [ ! -e "$conf_main/${paths[$i]}" ] && [ ! -L "$conf_main/${paths[$i]}" ]; then continue; fi
+      if git --literal-pathspecs -C "$dir" ls-files --error-unmatch -- "${paths[$i]}" >/dev/null 2>&1; then continue; fi
+    fi
     conf_paths+=("${paths[$i]}")
     conf_locs+=("${locs[$i]}")
     conf_opt+=("${opts[$i]}")
@@ -385,7 +376,7 @@ apply_repo_conf() {
   local dest="$1" branch="$2" p reason i f
   [ ${#conf_found[@]} -gt 0 ] || return 0
   for f in "${conf_found[@]}"; do echo "th-wt: applying repo config $f" >&2; done
-  drop_tracked_optional "$dest"
+  drop_optional "$dest"
   for ((i = 0; i < ${#conf_paths[@]}; i++)); do
     check_conf_worktree "${conf_paths[$i]}" "$dest" || { undo_creation "$dest" "$branch"; die 4 "${conf_locs[$i]}: $reason"; }
   done

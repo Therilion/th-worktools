@@ -294,3 +294,20 @@ out="$(cd "$TMP/repo" && "$WT" link feature/o17 --json 2>"$TMP/o17.err")" || fai
 [ "$(jq -c .linked <<<"$out")" = '[]' ] || fail "$name: salida=[$out]"
 [ ! -L "$WTS/feature-o17/.wiki" ] || fail "$name: .wiki es un enlace"
 pass "$name"
+
+# El checkout principal versiona .spec/x e ignora .spec/local (que existe): el org no puede saberlo.
+mkdir -p "$TMP/repo/.spec/local"
+echo x > "$TMP/repo/.spec/x"
+echo l > "$TMP/repo/.spec/local/l"
+echo .spec/local >> "$TMP/repo/.gitignore"
+git -C "$TMP/repo" add .gitignore .spec/x
+git -C "$TMP/repo" commit -q -m "spec"
+git -C "$TMP/repo" push -q origin main
+
+name="un link? del org versionado no choca con un link del repo a una subruta ignorada"
+printf 'link? .spec\n' > "$ORG"
+printf 'link .spec/local\n' > "$CONF"
+out="$(cd "$TMP/repo" && "$WT" new feature/o18 --json 2>"$TMP/o18.err")" || fail "$name: th-wt new falló: [$(cat "$TMP/o18.err")]"
+[ "$(jq -c .linked <<<"$out")" = '[".spec/local"]' ] || fail "$name: salida=[$out]"
+(cd "$TMP/repo" && "$WT" close feature/o18 >/dev/null 2>"$TMP/o18c.err") || fail "$name: th-wt close falló: [$(cat "$TMP/o18c.err")]"
+pass "$name"
