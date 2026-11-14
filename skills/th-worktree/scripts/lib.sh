@@ -4,6 +4,10 @@
 created_start=""
 linked=()
 deps_prefix=""
+conf_file=""
+conf_paths=()
+conf_nums=()
+conf_main=""
 # Same for the settings load_config sets (a wt_root, install_deps_on or codegraph_mode or pr_limit in the environment is ignored).
 wt_root=""
 install_deps_on=1
@@ -187,9 +191,9 @@ undo_creation() {
   [ -z "$created_start" ] || git update-ref -d "refs/heads/$2" "$created_start" 2>/dev/null || true
 }
 
-# Checks one .conf entry; on failure sets $reason and returns 1. Reads the caller's (apply_repo_conf) locals via dynamic scope.
+# Checks one .conf entry against the files only (no worktree needed); on failure sets $reason and returns 1. Reads the caller's (read_repo_conf) locals and $conf_main via dynamic scope.
 check_conf_entry() {
-  local i q d rest
+  local i q
   if [ "$action" = deps-prefix ]; then
     if [ -z "$p" ] || [ -n "$extra" ]; then
       reason="expected 'deps-prefix <command>'"
@@ -221,16 +225,25 @@ check_conf_entry() {
   case "$p" in
     *[*?[]*) reason="globs are not supported: $p"; return 1 ;;
   esac
+  # a linked node_modules would let pnpm/npm write through the symlink into the main checkout; letter case is covered by the caller's nocasematch
+  case "/$p/" in
+    */node_modules/*) reason="node_modules cannot be linked (the dependency install would write through the symlink into the main checkout): $p"; return 1 ;;
+  esac
   # an entry equal to or under another would make ln write inside the main checkout
-  for ((i = 0; i < ${#paths[@]}; i++)); do
-    q="${paths[$i]}"
-    case "$p/" in "$q"/*) reason="$p overlaps $q (line ${nums[$i]})"; return 1 ;; esac
-    case "$q/" in "$p"/*) reason="$p overlaps $q (line ${nums[$i]})"; return 1 ;; esac
+  for ((i = 0; i < ${#conf_paths[@]}; i++)); do
+    q="${conf_paths[$i]}"
+    case "$p/" in "$q"/*) reason="$p overlaps $q (line ${conf_nums[$i]})"; return 1 ;; esac
+    case "$q/" in "$p"/*) reason="$p overlaps $q (line ${conf_nums[$i]})"; return 1 ;; esac
   done
-  if [ ! -e "$main/$p" ] && [ ! -L "$main/$p" ]; then
-    reason="$p does not exist in the main checkout ($main)"
+  if [ ! -e "$conf_main/$p" ] && [ ! -L "$conf_main/$p" ]; then
+    reason="$p does not exist in the main checkout ($conf_main)"
     return 1
   fi
+}
+
+# Checks link path $1 against the fresh worktree $2; on failure sets $reason and returns 1.
+check_conf_worktree() {
+  local p="$1" dest="$2" rest d
   # a parent that is a tracked file or symlink would let mkdir/ln escape the worktree
   rest="$p"
   d=""
@@ -253,14 +266,18 @@ check_conf_entry() {
   fi
 }
 
-# Links the paths listed in this repo's .conf into the fresh worktree $1 (branch $2) as symlinks to the main checkout; sets $linked.
-# Validates every line first and links only if all pass; any failure undoes the creation and exits 4. Needs $repo.
-apply_repo_conf() {
-  local dest="$1" branch="$2" conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos/$repo.conf" main line action p extra reason n=0 i dp_line=""
-  local paths=() nums=()
+# Reads and statically validates this repo's .conf before anything is created or fetched; sets $conf_file (empty if there is no .conf), $conf_paths, $conf_nums and $deps_prefix.
+# A bad line exits 4. Needs $repo.
+read_repo_conf() {
+  local conf="${XDG_CONFIG_HOME:-$HOME/.config}/th-worktools/repos/$repo.conf" line action p extra reason n=0 dp_line=""
+  conf_file=""
+  conf_paths=()
+  conf_nums=()
+  conf_main=""
   [ -f "$conf" ] || return 0
-  echo "th-wt: applying repo config $conf" >&2
-  main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
+  conf_main="$(git worktree list --porcelain | awk 'NR == 1 { print substr($0, 10) }')"
+  # case-insensitive matching: macOS filesystems are, so .wiki and .WIKI are the same path (on Linux docs/Docs are rejected as overlapping too, which is fail-safe)
+  shopt -s nocasematch
   # the last line may lack a newline
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
@@ -268,18 +285,31 @@ apply_repo_conf() {
     action="" p="" extra=""
     read -r action p extra <<<"$line"
     case "$action" in ""|"#"*) continue ;; esac
-    check_conf_entry || { undo_creation "$dest" "$branch"; die 4 "$conf:$n: $reason"; }
+    check_conf_entry || die 4 "$conf:$n: $reason"
     if [ "$action" = deps-prefix ]; then
       deps_prefix="$p"
       dp_line="$n"
       continue
     fi
-    paths+=("$p")
-    nums+=("$n")
+    conf_paths+=("$p")
+    conf_nums+=("$n")
   done < "$conf"
-  for ((i = 0; i < ${#paths[@]}; i++)); do
-    p="${paths[$i]}"
-    { mkdir -p "$(dirname "$dest/$p")" && ln -s "$main/$p" "$dest/$p"; } || { undo_creation "$dest" "$branch"; die 1 "cannot link $p in $dest"; }
+  shopt -u nocasematch
+  conf_file="$conf"
+}
+
+# Links the paths read_repo_conf stored into the fresh worktree $1 (branch $2) as symlinks to the main checkout; sets $linked.
+# Checks every path against the worktree first and links only if all pass; any failure undoes the creation (exit 4 for a bad path, 1 for a link error).
+apply_repo_conf() {
+  local dest="$1" branch="$2" p reason i
+  [ -n "$conf_file" ] || return 0
+  echo "th-wt: applying repo config $conf_file" >&2
+  for ((i = 0; i < ${#conf_paths[@]}; i++)); do
+    check_conf_worktree "${conf_paths[$i]}" "$dest" || { undo_creation "$dest" "$branch"; die 4 "$conf_file:${conf_nums[$i]}: $reason"; }
+  done
+  for ((i = 0; i < ${#conf_paths[@]}; i++)); do
+    p="${conf_paths[$i]}"
+    { mkdir -p "$(dirname "$dest/$p")" && ln -s "$conf_main/$p" "$dest/$p"; } || { undo_creation "$dest" "$branch"; die 1 "cannot link $p in $dest"; }
     linked+=("$p")
   done
   for p in ${linked[@]+"${linked[@]}"}; do echo "th-wt: linked $p" >&2; done

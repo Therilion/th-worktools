@@ -32,6 +32,9 @@ checkout_worktree() {
 
   resolve_repo
   worktree_dest "$branch"
+  # review/pr-* is a local copy of a PR (kept by close --force): same rule as pr
+  case "$branch" in review/pr-*) pr_copy=1 ;; esac
+  [ "$pr_copy" = 1 ] || read_repo_conf
 
   if git show-ref --verify --quiet "refs/heads/$branch"; then
     busy_path="$(find_worktree_for_branch "$branch")"
@@ -53,8 +56,6 @@ checkout_worktree() {
       die 4 "branch not found: $branch (try --remote)"
     fi
   fi
-  # review/pr-* is a local copy of a PR (kept by close --force): same rule as pr
-  case "$branch" in review/pr-*) pr_copy=1 ;; esac
   [ "$pr_copy" = 1 ] || apply_repo_conf "$dest" "$branch"
   # upstream config only after the conf passed, so a rejected worktree leaves nothing behind
   if [ "$track" = 1 ]; then

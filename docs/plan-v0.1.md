@@ -243,14 +243,18 @@ Una acción por línea; `#` y las líneas vacías se ignoran. Se parsea línea a
 
 No hay `copy`: multiplicaría secretos en disco, y una lista de nombres prohibidos nunca está completa (idea en el README).
 
-**Validaciones (se validan todas las líneas antes de enlazar nada; si alguna falla, no se enlaza ninguna, se deshace el worktree recién creado, y la rama si la creó el comando y sigue en su commit de inicio, y sale con `4`; un fallo al enlazar ya validado también lo deshace, con código `1`):**
+**Validaciones (se validan todas las líneas antes de enlazar nada, en dos fases; si alguna falla, no se enlaza ninguna y sale con `4`; un fallo al enlazar ya validado deshace la creación y sale con `1`):**
+
+- **Antes de crear el worktree** (1 a 5, y antes de cualquier consulta a `origin`: `ls-remote` y fetch): un fallo sale con `4` sin haber creado nada (ni worktree, ni rama, ni fetch).
+- **Después de crear el worktree** (6 y 7, necesitan el worktree): un fallo deshace el worktree recién creado, y la rama si la creó el comando y sigue en su commit de inicio, y sale con `4`.
 
 1. Acción `link` con exactamente una ruta; ruta relativa: sin `/` inicial, sin segmentos `.`, `..` ni vacíos (`a//b`) y sin barra final.
 2. Rutas exactas, sin globs (`*`, `?`, `[`) (v0.1).
-3. Sin duplicados ni entradas que se solapen (`docs` y `docs/local`).
+3. Sin duplicados ni entradas que se solapen (`docs` y `docs/local`), sin distinguir mayúsculas (`.wiki` y `.WIKI` se solapan): macOS las ignora por defecto y el segundo enlace se crearía dentro del checkout principal; en Linux también, por seguridad.
 4. Debe existir en el checkout principal (la primera entrada de `git worktree list`).
-5. Si algún padre de la ruta ya existe en el worktree, debe ser un directorio real (no un archivo versionado ni un symlink).
-6. **Debe estar ignorada por git en el worktree nuevo** (`git check-ignore -q <ruta>` antes de crear el enlace: git la ve como archivo, igual que al symlink, y usa el `.gitignore` de la rama abierta). Así nunca se enlaza un archivo versionado y no hay riesgo de commitearlo. Si solo está ignorada como directorio (`.wiki/`), se rechaza con un mensaje que lo explica (ver «Gitignore y symlinks», §8).
+5. Ningún segmento de la ruta puede ser `node_modules` (`node_modules`, `packages/a/node_modules`, `node_modules/.bin`; sin distinguir mayúsculas, como en la 3), con o sin lockfile y con cualquier `TH_INSTALL_DEPS`: `pnpm install` / `npm ci` escribirían a través del symlink en el checkout principal. Motivo: `node_modules cannot be linked (the dependency install would write through the symlink into the main checkout): <ruta>`. `node_modules` es propio de cada worktree y lo instala `th-wt`.
+6. Si algún padre de la ruta ya existe en el worktree, debe ser un directorio real (no un archivo versionado ni un symlink).
+7. **Debe estar ignorada por git en el worktree nuevo** (`git check-ignore -q <ruta>` antes de crear el enlace: git la ve como archivo, igual que al symlink, y usa el `.gitignore` de la rama abierta). Así nunca se enlaza un archivo versionado y no hay riesgo de commitearlo. Si solo está ignorada como directorio (`.wiki/`), se rechaza con un mensaje que lo explica (ver «Gitignore y symlinks», §8).
 
 El error es `th-wt: <ruta del .conf>:<línea>: <motivo>`. Un worktree sin `.conf` no enlaza nada y no avisa. Una rama local que ya existía y se abrió con `checkout` se conserva siempre.
 
@@ -295,7 +299,7 @@ El error es `th-wt: <ruta del .conf>:<línea>: <motivo>`. Un worktree sin `.conf
 
 ### Gitignore y symlinks
 
-Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git un symlink es un archivo. Para los directorios enlazados, la entrada va **sin barra** (en el `.gitignore` o en el `.git/info/exclude` del repo, que es local y se comparte entre todos los worktrees). Lo agrega el usuario: el script no lo escribe, solo rechaza la entrada (§7, validación 6) y el agente sugiere la línea (la `<ruta>` sin barra).
+Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git un symlink es un archivo. Para los directorios enlazados, la entrada va **sin barra** (en el `.gitignore` o en el `.git/info/exclude` del repo, que es local y se comparte entre todos los worktrees). Lo agrega el usuario: el script no lo escribe, solo rechaza la entrada (§7, validación 7) y el agente sugiere la línea (la `<ruta>` sin barra).
 
 ### Repo público
 
@@ -343,13 +347,13 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 
 1. Verificar dependencias (`git`, `jq`; `gh` solo para `pr`).
 2. Con `origin`, no hace falta `--git-common-dir`: `<owner>/<repo>` sale de `remote.origin.url`, que es la misma config en el checkout principal y en sus worktrees. `--git-common-dir` solo se usará en el fallback `_local/<directorio>`; mientras tanto, sin `origin` sale con código `4`.
-3. Derivar `<owner>/<repo>`, calcular la ruta destino y abortar (código `4`) si ya existe.
+3. Derivar `<owner>/<repo>`, calcular la ruta destino y abortar (código `4`) si ya existe. En `new` y `checkout` (salvo `review/pr-*`), validar también el `.conf` del repo (validaciones 1 a 5 de §7): si falla, sale con `4` sin consultar `origin` (`ls-remote`, fetch) ni crear nada.
 4. `git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>` (explícito, para que funcione en clones `--single-branch` o con refspec personalizado; si falla, código `4`; en `checkout` el fetch solo ocurre con `--remote`).
 5. Crear el worktree:
    - `new`: `git worktree add --no-track -b <rama> <ruta> origin/<base>` (`--no-track`: la rama nueva no debe seguir a `origin/<base>`, o un `git push` iría a la rama base)
    - `checkout`: si la rama es local, `git worktree add <ruta> <rama>` sin red. Si no, sale de `origin/<rama>` (con `--remote`, primero `ls-remote` y el mismo fetch explícito; sin `--remote`, la copia ya traída): `git worktree add --no-track -b <rama> <ruta> origin/<rama>` y el upstream (`branch.<rama>.remote`/`.merge`) se escribe a mano, porque `--track` falla en clones `--single-branch`.
    - `pr`: `git fetch -q --no-tags origin refs/pull/<n>/head` (solo `FETCH_HEAD`) y `git worktree add --no-track -b review/pr-<n> <ruta> <oid>`. Metadatos con `gh pr view <n> -R <owner>/<repo> --json number,title,headRefName,baseRefName`.
-6. Aplicar el `.conf` del repo (`link` y `deps-prefix`, validados, §7), salvo en `pr` y en `checkout` de `review/pr-*`. Si una entrada es inválida, se deshace la creación (worktree y, si la creó el comando, rama) y sale con `4`; el stderr lleva `th-wt: <conf>:<línea>: <motivo>`, y en texto cada enlace se informa como `th-wt: linked <ruta>`.
+6. Aplicar el `.conf` del repo (ya validado en el paso 3; ahora las validaciones 6 y 7 de §7, que necesitan el worktree, y el enlace de cada `link`), salvo en `pr` y en `checkout` de `review/pr-*`. Si una entrada es inválida, se deshace la creación (worktree y, si la creó el comando, rama) y sale con `4`; el stderr lleva `th-wt: <conf>:<línea>: <motivo>`, y en texto cada enlace se informa como `th-wt: linked <ruta>`.
 7. Si `TH_INSTALL_DEPS=1`, instalar dependencias según el lockfile:
    - `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`
    - `package-lock.json` → `npm ci`
@@ -561,7 +565,7 @@ Cada versión de la tabla es una línea de releases: la v0.2 empieza en `v0.2.0`
 - [x] Que Claude Code sustituya `${CLAUDE_SKILL_DIR}` dentro de la forma `${CLAUDE_SKILL_DIR:-…}`. **No:** la variable no existe en el shell de Bash (2026-10-26). Sin el symlink fijo, Claude improvisó la ruta; con `~/.local/share/th-worktools` presente, la ruta del `SKILL.md` funciona. El fallback fijo es obligatorio en la instalación (`install.sh`, hecho en #12a; `verify.sh`, en #12b, lo comprueba). Desde #13 el `SKILL.md` usa directamente la ruta fija `"$HOME/.local/share/th-worktools/skills/<skill>/scripts/…"`, sin `${…}`, porque Claude Code pide permiso siempre ante `${…}` (2026-11-10).
 - [x] Que Antigravity ejecute los comandos en un shell que expanda `$HOME` y `${…:-…}`. Sí, zsh; `CLAUDE_SKILL_DIR` no existe y hasta #13 se usaba el fallback (2026-11-09). Desde #13 el `SKILL.md` usa la ruta fija con `$HOME` (2026-11-10).
 - [x] Que las búsquedas del agente sigan el symlink `.wiki`. Sí, en el repo del trabajo (2026-11-13).
-- [x] Cómo está la entrada de `.wiki` en el `.gitignore` del repo del trabajo (con o sin barra). Sin barra: `link .wiki` pasó la validación 6, que rechaza una entrada solo de directorio (2026-11-13).
+- [x] Cómo está la entrada de `.wiki` en el `.gitignore` del repo del trabajo (con o sin barra). Sin barra: `link .wiki` pasó la validación 7, que rechaza una entrada solo de directorio (2026-11-13).
 - [x] Flags no interactivos de `codegraph init` y comportamiento de `codegraph uninit`. `init -y` salta todos los prompts y toma los valores por defecto; `uninit -f` salta la confirmación (codegraph 1.6.2). Pero `uninit` también quita los hooks de sincronización de git del `.git/hooks` compartido, así que el kit no lo usa: `close` borra `.codegraph/` directamente.
 - [x] Sintaxis de los patrones de permisos en ambos agentes. Verificada en Claude Code 2.1.311 y agy 1.5.3; patrones y hallazgos en §13 (2026-11-10).
 - [x] Cómo recibe argumentos un skill en Antigravity. Con `/th-worktree <pedido>`; el texto llega al modelo y `$ARGUMENTS` queda sin sustituir; sin `$ARGUMENTS`, Claude Code y agy pasan igual el texto (y nada si no lo hay), así que el `SKILL.md` no lo usa. `disable-model-invocation: true` oculta el skill al modelo (2026-11-09).
