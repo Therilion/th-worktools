@@ -80,7 +80,7 @@ Usage: th-wt new <branch> [--base <branch>] [--json]
        th-wt checkout <branch> [--remote] [--json]
        th-wt list [--remote] [--json]
        th-wt pr <n> [--json]
-       th-wt close <branch> [--remote] [--yes] [--force] [--json]
+       th-wt close <branch|path> [--remote] [--yes] [--force] [--json]
        th-wt [new|checkout|list|pr|close] -h | --help
 ```
 
@@ -282,10 +282,10 @@ th-wt list --remote --json
 ### `close`
 
 ```text
-th-wt close <branch> [--remote] [--yes] [--force] [--json]
+th-wt close <branch|path> [--remote] [--yes] [--force] [--json]
 ```
 
-Muestra el plan de cierre (dry-run por defecto) o cierra (con `--yes`) el worktree de `<branch>` bajo `~/.worktrees/<owner>/<repo>/`, y borra la rama local si su trabajo ya está integrado.
+Muestra el plan de cierre (dry-run por defecto) o cierra (con `--yes`) el worktree de `<branch>` o el situado en `<path>` bajo `~/.worktrees/<owner>/<repo>/`, y borra la rama local si tiene rama y su trabajo ya está integrado.
 
 **Reglas de bloqueo y borrado de rama:**
 
@@ -302,6 +302,14 @@ Muestra el plan de cierre (dry-run por defecto) o cierra (con `--yes`) el worktr
 - La rama `review/pr-<n>` se borra (es solo una copia local del PR): no se mira `merged` ni `unpushed`. El plan lo dice. Excepción: con `--force` y `after_pr` distinto de `0` (o `null`) se cierra el worktree pero se conserva la rama, porque puede tener commits tuyos que nada más contiene (`kept: it may have commits of yours after the PR`). Bórrala tú con `git branch -D review/pr-<n>`; mientras exista, `pr <n>` sale con `4`.
 - Bloquean sin `--force`: cambios sin commitear (`dirty`) y commits tuyos posteriores al PR (`after_pr > 0`). Se cuentan desde la creación de la rama (primera entrada de su reflog), sin los que ya están en alguna rama de `origin` (un merge de la base dentro del worktree solo cuenta tu commit de merge; lo que pusheaste deja de contar). Los commits que traigas a mano (por ejemplo las novedades de un PR de fork con `git pull origin pull/<n>/head`) nunca llegan a `origin/*` y cuentan como tuyos: el cierre se bloquea y hace falta `--force`, que en ese caso conserva la rama; sin reflog, o si la primera entrada ya no es la de creación, `after_pr` es `null` y también bloquea. En vez de `unpushed`, el plan muestra esos commits (hasta 10).
 - Tras `git worktree remove` se borra `pr-reviews/pr-<n>/` solo si quedó vacío (`rmdir`, nunca `rm -r`). El plan y el `--json` listan en `kept` los nombres que se conservan.
+
+**Cierre por ruta y `HEAD` desacoplado (`<path>`):**
+
+- Un argumento que empieza por `/` o `.` se interpreta como ruta (una rama válida nunca empieza así). La ruta se hace absoluta (relativa al directorio actual), se quita una `/` final y se resuelven los symlinks del ancestro existente más profundo (como la raíz de worktrees), así que un worktree cuyo directorio ya no existe también se encuentra por ruta relativa o a través de un symlink.
+- Si el worktree en esa ruta tiene rama, cierra el worktree de esa ruta con el mismo plan, JSON y flujo que `close <esa rama>` (incluidas las reglas de `pr-reviews/pr-<n>/code`), aunque la rama esté abierta en otro worktree con `git worktree add -f`.
+- Si el worktree tiene el `HEAD` desacoplado (p. ej. a mitad de un `git rebase` o `git bisect`), bloquean sin `--force` los cambios sin commitear (`dirty`), el estado ilegible (`dirty: null`) y los commits alcanzables solo desde ese `HEAD` (`git rev-list --count <oid HEAD> --not --branches --remotes=origin`, informados en `unpushed`; con `--force` se pierden, mientras la rama original sigue intacta en su commit). No hay rama que borrar (`delete.branch: false`; con `--yes` no se imprime ninguna línea `th-wt: branch … kept`, salvo en un worktree de PR (`pr-reviews/pr-<n>/code`): ahí se quita `pr-reviews/pr-<n>/` si quedó vacío, la rama `review/pr-<n>` se conserva y stderr dice `th-wt: branch review/pr-<n> kept (detached HEAD); to reopen PR <n> with th-wt pr, delete it first: git branch -D review/pr-<n>`).
+- `--remote` no aplica con `HEAD` desacoplado: sale con código `2` (`th-wt: --remote needs a branch: <ruta> has a detached HEAD`).
+- Salida en texto (stderr) para un worktree desacoplado: `  branch:    (detached)`, `  unpushed:  <n> commits only in this HEAD` y `  delete:    worktree only (detached HEAD, no branch)` o `nothing (blocked: …)`. Con `--yes` y sin `--force`, el error usa `<n> commit(s) only in its detached HEAD` (combinado con `uncommitted changes` e `in <ruta>`, terminado en ` (use --force to close anyway)`).
 
 **Flags:**
 
@@ -326,16 +334,20 @@ th-wt close feature/squash --remote --yes
 
 # Forzar el cierre descartando cambios sin commitear o commits sin push
 th-wt close feature/wip --yes --force
+
+# Cerrar por ruta un worktree con HEAD desacoplado (p. ej. rebase a medias)
+th-wt close ~/.worktrees/acme/demo/feature-wip
 ```
 
 **Errores relevantes:**
 
-- Falta `<branch>`, se pasa más de una rama, opción desconocida o nombre de rama inválido → código `2`.
+- Falta `<branch|path>`, se pasa más de un argumento, opción desconocida, nombre de rama inválido o `--remote` con un worktree con `HEAD` desacoplado (`th-wt: --remote needs a branch: <ruta> has a detached HEAD`) → código `2`.
 - Con `--remote` y sin `gh` en `PATH` → código `3` (`missing dependency: gh`).
-- La rama no existe, es huérfana sin commits, tiene el `HEAD` desacoplado o su worktree no está bajo `~/.worktrees/<owner>/<repo>/` → código `4` (`no worktree for branch <branch> under <root>`).
+- La rama no existe, es huérfana sin commits o su worktree no está bajo `~/.worktrees/<owner>/<repo>/` (también si esa rama está en `HEAD` desacoplado en otro worktree, donde hay que cerrarlo por ruta) → código `4` (`no worktree for branch <branch> under <root>`).
+- La ruta no corresponde a ningún worktree de git o está fuera de `~/.worktrees/<owner>/<repo>/` (tenga o no rama) → código `4` (`no worktree at <ruta resuelta> under <root>`).
 - Con `--remote`: errores de acceso a `origin` o a `gh` (mismas causas que `list --remote`) → código `4` (sin borrar nada).
 - Con `--yes` ejecutado desde dentro del directorio del worktree a cerrar (o un subdirectorio suyo) → código `4` (`cannot close <path> from inside it: run close from another directory`).
-- Con `--yes` y sin `--force` cuando el cierre está bloqueado (`dirty: true`, `unpushed > 0` no cubiertos, o `git status` ilegible) → código `4` (`<motivo> (use --force to close anyway)`).
+- Con `--yes` y sin `--force` cuando el cierre está bloqueado (`dirty: true`, `unpushed > 0` no cubiertos, commits solo en el `HEAD` desacoplado, o `git status` ilegible) → código `4` (`<motivo> (use --force to close anyway)`).
 - Con `--yes` cuando `git worktree remove` falla (por ejemplo, worktree bloqueado con `git worktree lock` o con submódulos) → código `4` (`git could not remove <path> (see git's message above)`).
 
 ---
@@ -397,9 +409,9 @@ Límites conocidos:
 |---|---|---|
 | `0` | OK | **Todos:** `-h` / `--help`.<br>**`new` / `checkout` / `pr`:** worktree creado.<br>**`list`:** listado completado (haya o no worktrees).<br>**`close`:** plan mostrado (sin `--yes`, incluso si está bloqueado) o worktree eliminado (con `--yes`, se haya borrado o conservado la rama). |
 | `1` | Error de ejecución | **Todos:** falla `git worktree list` al empezar, al comprobar la raíz de worktrees (`git worktree list failed`).<br>**`list` / `close`:** además, si falla al leer los worktrees.<br>**`new` / `checkout`:** falla `git worktree add` tras superar las validaciones previas (conflicto de refs como `conf` con `conf/x`, permisos de escritura en `~/.worktrees`, o rama en rebase/bisect en otro worktree con HEAD `detached`), o falla el enlace de una entrada ya validada del `.conf` (se deshace la creación). |
-| `2` | Uso incorrecto | **Todos:** sin subcomando, subcomando desconocido, opción desconocida o argumento posicional inesperado.<br>**`new`:** falta `<branch>`, opción antes de `<branch>`, `--base` vacío o sin argumento, `<branch>` es `HEAD` o formato inválido de `<branch>` / `--base` (p. ej. `main~1`, `bad..name`).<br>**`checkout`:** falta `<branch>`, opción antes de `<branch>`, `<branch>` es `HEAD` o formato de rama inválido.<br>**`new` / `checkout`:** además, una rama cuyo nombre normalizado es `pr-reviews`.<br>**`pr`:** `<n>` ausente o que no es un entero positivo sin ceros a la izquierda.<br>**`close`:** falta `<branch>`, más de un argumento posicional o formato de rama inválido. |
+| `2` | Uso incorrecto | **Todos:** sin subcomando, subcomando desconocido, opción desconocida o argumento posicional inesperado.<br>**`new`:** falta `<branch>`, opción antes de `<branch>`, `--base` vacío o sin argumento, `<branch>` es `HEAD` o formato inválido de `<branch>` / `--base` (p. ej. `main~1`, `bad..name`).<br>**`checkout`:** falta `<branch>`, opción antes de `<branch>`, `<branch>` es `HEAD` o formato de rama inválido.<br>**`new` / `checkout`:** además, una rama cuyo nombre normalizado es `pr-reviews`.<br>**`pr`:** `<n>` ausente o que no es un entero positivo sin ceros a la izquierda.<br>**`close`:** falta `<branch\|path>`, más de un argumento posicional, formato de rama inválido o `--remote` con un worktree con `HEAD` desacoplado. |
 | `3` | Dependencia faltante | **Todos:** falta `git` o `jq` en `PATH`.<br>**`pr` / `list --remote` / `close --remote`:** falta `gh` en `PATH`. |
-| `4` | Precondición no cumplida | **Todos:** fuera de un repositorio git, sin remote `origin` o URL de `origin` con formato no soportado, o configuración inválida (archivo `config` o variables de entorno; ver «Configuración»).<br>**`new`:** destino ya existente, la rama ya existe en local o en `origin`, `origin` inaccesible, `origin` sin rama por defecto (sin `--base`), o `--base` no existe en `origin` / falla el fetch.<br>**`checkout`:** destino ya existente, rama ya abierta en el checkout principal o en otro worktree, rama inexistente en local y en `refs/remotes/origin/<branch>` (sin `--remote`), o con `--remote` `origin` inaccesible / rama inexistente en `origin` / fallo de fetch.<br>**`new` / `checkout`:** además, una entrada inválida del `.conf` del repo (`th-wt: <conf>:<línea>: <motivo>`; se deshace la creación).<br>**`pr`:** la ruta `pr-reviews/pr-<n>/code` o la rama `review/pr-<n>` ya existen, `gh pr view` falla o devuelve algo inesperado, o falla un fetch de `origin` (PR sin `refs/pull/<n>/head`, `origin` inaccesible, base ausente), o el commit traído no es el `headRefOid` de `gh`.<br>**`list --remote`:** `origin` inaccesible, `origin` sin rama por defecto, fallo del fetch, fallo de `gh pr list` (sin autenticar o sin acceso) o salida JSON inesperada de `gh`.<br>**`close`:** la rama no tiene worktree bajo `~/.worktrees/<owner>/<repo>/` (o no existe / es huérfana / está en `detached`), errores de `--remote` (igual que `list --remote`), o con `--yes`: ejecutado desde dentro del worktree a cerrar, bloqueado por cambios sin commitear / commits sin push (en un worktree de PR, commits propios posteriores al PR o desconocidos) / `git status` ilegible (sin `--force`), o fallo de `git worktree remove` (p. ej. worktree bloqueado con `git worktree lock`). |
+| `4` | Precondición no cumplida | **Todos:** fuera de un repositorio git, sin remote `origin` o URL de `origin` con formato no soportado, o configuración inválida (archivo `config` o variables de entorno; ver «Configuración»).<br>**`new`:** destino ya existente, la rama ya existe en local o en `origin`, `origin` inaccesible, `origin` sin rama por defecto (sin `--base`), o `--base` no existe en `origin` / falla el fetch.<br>**`checkout`:** destino ya existente, rama ya abierta en el checkout principal o en otro worktree, rama inexistente en local y en `refs/remotes/origin/<branch>` (sin `--remote`), o con `--remote` `origin` inaccesible / rama inexistente en `origin` / fallo de fetch.<br>**`new` / `checkout`:** además, una entrada inválida del `.conf` del repo (`th-wt: <conf>:<línea>: <motivo>`; se deshace la creación).<br>**`pr`:** la ruta `pr-reviews/pr-<n>/code` o la rama `review/pr-<n>` ya existen, `gh pr view` falla o devuelve algo inesperado, o falla un fetch de `origin` (PR sin `refs/pull/<n>/head`, `origin` inaccesible, base ausente), o el commit traído no es el `headRefOid` de `gh`.<br>**`list --remote`:** `origin` inaccesible, `origin` sin rama por defecto, fallo del fetch, fallo de `gh pr list` (sin autenticar o sin acceso) o salida JSON inesperada de `gh`.<br>**`close`:** la rama no tiene worktree bajo `~/.worktrees/<owner>/<repo>/` (o no existe / es huérfana), o la ruta no tiene worktree bajo esa raíz (`no worktree at <ruta> under <root>`), errores de `--remote` (igual que `list --remote`), o con `--yes`: ejecutado desde dentro del worktree a cerrar, bloqueado por cambios sin commitear / commits sin push (o commits solo en el `HEAD` desacoplado; en un worktree de PR, commits propios posteriores al PR o desconocidos) / `git status` ilegible (sin `--force`), o fallo de `git worktree remove` (p. ej. worktree bloqueado con `git worktree lock`). |
 
 ---
 
@@ -592,15 +604,15 @@ Devuelven el mismo esquema en dry-run (sin `--yes`) y al ejecutar (con `--yes`):
 | Campo | Tipo | Descripción |
 |---|---|---|
 | `path` | `string` | Ruta absoluta del worktree. |
-| `branch` | `string` | Nombre de la rama. |
+| `branch` | `string \| null` | Nombre de la rama, o `null` si el `HEAD` está desacoplado. |
 | `merged` | `boolean \| null` | Igual que en `list`. |
 | `dirty` | `boolean \| null` | Igual que en `list`. |
 | `missing` | `boolean` | Igual que en `list`. |
 | `ignored` | `string[] \| null` | Nombres de archivos y directorios ignorados por git en el worktree (directorios colapsados con `/` final; sin symlinks ni directorios que solo los contienen); `[]` si no hay ninguno o si `missing` es `true`; `null` si falló `git status`. |
-| `unpushed` | `number` | Cantidad de commits de la rama que no están en ninguna ref `refs/remotes/origin/*`. |
+| `unpushed` | `number` | Cantidad de commits de la rama que no están en ninguna ref `refs/remotes/origin/*`; con `HEAD` desacoplado, commits alcanzables solo desde ese `HEAD` (ni en ramas locales ni en `origin/*`). |
 | `delete.worktree` | `boolean` | `true` si el worktree se borra (o se puede borrar); `false` si está bloqueado en el dry-run. |
-| `delete.branch` | `boolean` | `true` si la rama se borra (o se borraría); `false` si se conserva. |
-| `pr` | `object \| null` | **Solo presente con `--remote`.** Mismo formato `{number, state, base, ahead}` que en `list --remote`, o `null`. |
+| `delete.branch` | `boolean` | `true` si la rama se borra (o se borraría); `false` si se conserva o si el `HEAD` está desacoplado. |
+| `pr` | `object \| null` | **Solo presente con `--remote`** (y con rama; `--remote` no aplica si el `HEAD` está desacoplado). Mismo formato `{number, state, base, ahead}` que en `list --remote`, o `null`. |
 
 **Ejemplo de `close --json` (sin `--remote`):**
 
@@ -647,6 +659,24 @@ Devuelven el mismo esquema en dry-run (sin `--yes`) y al ejecutar (con `--yes`):
 }
 ```
 
+**Ejemplo con `HEAD` desacoplado** (sin `pr`; `branch: null`, `delete.branch: false`, `unpushed` = commits solo en ese `HEAD`):
+
+```json
+{
+  "path": "/Users/alice/.worktrees/acme/demo/feature-login",
+  "branch": null,
+  "merged": false,
+  "dirty": false,
+  "missing": false,
+  "ignored": [],
+  "unpushed": 0,
+  "delete": {
+    "worktree": true,
+    "branch": false
+  }
+}
+```
+
 **En un worktree de PR** (`pr-reviews/pr-<n>/code`), `unpushed` no aparece y se añaden:
 
 | Campo | Tipo | Descripción |
@@ -658,7 +688,7 @@ Devuelven el mismo esquema en dry-run (sin `--yes`) y al ejecutar (con `--yes`):
 
 ### Significado de cada `null` y de `missing`
 
-- **`branch: null`** (en `list`): el worktree tiene el `HEAD` desacoplado (`detached`), por ejemplo tras hacer checkout de un commit o durante un `git rebase` / `git bisect`. En `close` no aparece porque `close` exige un worktree asociado a `<branch>`.
+- **`branch: null`** (en `list` y en `close` por ruta): el worktree tiene el `HEAD` desacoplado (`detached`), por ejemplo tras hacer checkout de un commit o durante un `git rebase` / `git bisect`. En `close`, no hay rama que borrar (`delete.branch: false`) y `unpushed` cuenta los commits alcanzables solo desde ese `HEAD`.
 - **`dirty: null`**: no se pudo determinar si el árbol de trabajo está limpio, ya sea porque el directorio no existe (`missing: true`) o porque `git status` falló en ese directorio (por ejemplo, un archivo `.git` dañado). No equivale a limpio: si `missing` es `false`, `dirty: null` bloquea `close --yes` salvo que se use `--force`.
 - **`merged: null`**: no se pudo comprobar la contención contra la rama por defecto de `origin`. Ocurre cuando sin `--remote` falta `refs/remotes/origin/HEAD` o apunta a una ref remota inexistente (se corrige con `git remote set-head origin -a`), o cuando la rama es huérfana y no tiene commits. Con `merged: null` (y sin PR mergeado que cubra la rama vía `--remote`), `close` conserva la rama (`delete.branch: false`).
 - **`pr: null`** (con `--remote`):

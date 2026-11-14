@@ -339,7 +339,7 @@ Una entrada con barra final (`.wiki/`) **no ignora un symlink**, porque para git
 | `checkout <rama> [--remote]` | Worktree de una rama existente, local o remota | No |
 | `pr <n>` | Worktree de un PR en `pr-reviews/pr-<n>/code` | No |
 | `list [--remote]` | Worktrees del repo actual bajo la raíz, con su estado (`--remote` actualiza la rama por defecto de `origin` y consulta los PRs en GitHub) | No |
-| `close <rama> [--remote] [--force]` (un PR: `close review/pr-<n>`) | Cierra el worktree (`--remote` considera mergeada la rama si su PR en GitHub está `MERGED` sin commits locales posteriores; ver abajo) | **Sí** |
+| `close <rama\|ruta> [--remote] [--force]` (un PR: `close review/pr-<n>`) | Cierra el worktree por rama o por ruta, también con `HEAD` desacoplado (`--remote` considera mergeada la rama si su PR en GitHub está `MERGED` sin commits locales posteriores; ver abajo) | **Sí** |
 
 Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta directo. Cerrar sí lo es.
 
@@ -380,7 +380,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
 
 ### `close`
 
-**Sin `--yes` (dry-run)** muestra: ruta, rama, si está mergeada, si hay cambios sin commitear o commits sin push, y qué se va a eliminar.
+**Sin `--yes` (dry-run)** muestra: ruta, rama (o `(detached)`), si está mergeada, si hay cambios sin commitear o commits sin push (o solo en el `HEAD` desacoplado), y qué se va a eliminar.
 
 **Con `--yes`:**
 
@@ -392,6 +392,7 @@ Crear un worktree no es destructivo y es fácil de revertir, por eso se ejecuta 
    - Worktree de PR (`pr-reviews/pr-<n>/code`, por la ruta): se borra `review/pr-<n>` (es solo una copia local del PR remoto), salvo con `--force` y commits propios posteriores al PR (o desconocidos): ahí se conserva. Bloquean `dirty` y los commits propios posteriores a la creación de la rama (primera entrada de su reflog; sin reflog, desconocido).
 5. Sin `git worktree prune`: `git worktree remove` ya limpia su propio registro, incluso si el directorio ya no existe, y `prune` borraría también el registro de otros worktrees con el directorio faltante.
 6. PRs: eliminar `pr-reviews/pr-<n>/` solo si quedó vacío. Los demás archivos de `pr-<n>/` (p. ej. `report.md`) los gestionará `th-pr-review` (v0.3); `close` no los toca.
+7. **Cierre por ruta y `HEAD` desacoplado:** si el argumento empieza por `/` o `.`, se hace absoluta (relativa al directorio actual), se quita una `/` final y se resuelven los symlinks del ancestro existente más profundo (como la raíz de worktrees, así que un worktree cuyo directorio ya no existe también se encuentra por ruta relativa o a través de un symlink), y se exige que haya un worktree bajo la raíz (si no, tenga o no rama, código `4` con `no worktree at <ruta> under <root>`). Con rama, cierra ese worktree con el flujo de `close <rama>` (aunque la rama esté abierta en otro worktree con `git worktree add -f`). Con `HEAD` desacoplado (rebase o bisect a medias), `--remote` sale con `2`, bloquean `dirty` y los commits solo en ese `HEAD` (`git rev-list --count <oid> --not --branches --remotes=origin`, en `unpushed`), y nunca se borra rama (`branch: null`, `delete.branch: false`).
 
 ### `list`
 

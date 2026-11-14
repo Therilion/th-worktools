@@ -449,7 +449,7 @@ wt_status() {
   git --no-optional-locks -C "$path" status --porcelain -z "$@" | tr '\0' '\1' | awk 'BEGIN { RS = ORS = "\001" } !/^([?][?] \.codegraph\/|!! \.codegraph(\/.*)?)$/'
 }
 
-# One JSON object per line for each worktree under $1, only the one on branch $5 if given (kept out of $(...): bash 3.2 mis-parses case inside it).
+# One JSON object per line for each worktree under $1, only the one matching branch or path $5 if given (kept out of $(...): bash 3.2 mis-parses case inside it).
 list_rows() {
   local root="$1" default="$2" prs="$3" remote="$4" only="${5:-}" path line head dirty missing ref name merged rc out pr oid ahead
   { git worktree list --porcelain || die 1 "git worktree list failed"; } | while IFS= read -r line; do
@@ -465,7 +465,7 @@ list_rows() {
           ref="${line#branch }"
           name="${ref#refs/heads/}"
         fi
-        [ -z "$only" ] || [ "$name" = "$only" ] || continue
+        [ -z "$only" ] || [ "$name" = "$only" ] || [ "$path" = "$only" ] || continue
         dirty=false
         missing=false
         if [ -d "$path" ]; then
