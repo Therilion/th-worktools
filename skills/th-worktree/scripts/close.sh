@@ -68,11 +68,9 @@ close_worktree() {
   resolve_repo
   root="$(worktrees_root)"
   if [ -n "$path_arg" ]; then
-    if [ -d "$path_arg" ]; then
-      path_arg="$(cd -P "$path_arg" && pwd -P)" || die 4 "cannot resolve path: $path_arg"
-    else
-      path_arg="${path_arg%/}"
-    fi
+    case "$path_arg" in /*) ;; *) path_arg="${PWD%/}/$path_arg" ;; esac
+    [ "$path_arg" = / ] || path_arg="${path_arg%/}"
+    path_arg="$(canonical_dir "$path_arg")" || die 4 "cannot resolve path: $arg"
     wt_info="$(worktree_at_path "$path_arg")"
     [ -n "$wt_info" ] || die 4 "no worktree at $path_arg under $root"
     IFS=$'\t' read -r oid branch <<<"$wt_info"
@@ -82,13 +80,15 @@ close_worktree() {
     [ "$remote" = false ] || die 2 "--remote needs a branch: $path_arg has a detached HEAD"
     default="$(local_default_branch)"
     row="$(list_rows "$root" "$default" "$prs" "$remote" "$path_arg")"
-    [ -n "$row" ] || die 4 "no worktree at $path_arg under $root"
   else
     # read before anything else: a commit that lands later must not be deleted with the branch
     oid="$(git rev-parse --verify -q "refs/heads/$branch")" || die 4 "no worktree for branch $branch under $root"
     if [ "$remote" = true ]; then load_remote 1000 "$branch"; else default="$(local_default_branch)"; fi
-    row="$(list_rows "$root" "$default" "$prs" "$remote" "$branch")"
-    [ -n "$row" ] || die 4 "no worktree for branch $branch under $root"
+    row="$(list_rows "$root" "$default" "$prs" "$remote" "${path_arg:-$branch}")"
+  fi
+  if [ -z "$row" ]; then
+    if [ -n "$path_arg" ]; then die 4 "no worktree at $path_arg under $root"
+    else die 4 "no worktree for branch $branch under $root"; fi
   fi
   # path goes last: read splits on tabs, so a path with spaces stays whole
   # covered: the PR was merged and no local commit came after it, so unpushed commits are in the PR

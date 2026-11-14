@@ -119,3 +119,38 @@ out="$(cd "$TMP/repo" && "$WT" close "$dest" --yes 2>&1)" || rc=$?
 wts="$(git -C "$TMP/repo" worktree list --porcelain)"
 case "$wts" in *"$dest"*) fail "$name: git worktree list aún muestra el worktree" ;; esac
 pass "$name"
+
+name="close <ruta> de una rama abierta en dos worktrees cierra el de esa ruta"
+(cd "$TMP/repo" && "$WT" new feature/dup) || fail "$name: th-wt new falló"
+dup_a="$HOME/.worktrees/acme/demo/feature-dup"
+dup_b="$HOME/.worktrees/acme/demo/dup-b"
+git -C "$TMP/repo" worktree add -q -f "$dup_b" feature/dup
+out="$(cd "$TMP/repo" && "$WT" close "$dup_a" --json 2>/dev/null)" || fail "$name: close A --json falló"
+[ "$(printf '%s' "$out" | jq -r '.path')" = "$dup_a" ] || fail "$name: A .path=[$(printf '%s' "$out" | jq -r '.path')], esperado [$dup_a]"
+out="$(cd "$TMP/repo" && "$WT" close "$dup_b" --json 2>/dev/null)" || fail "$name: close B --json falló"
+[ "$(printf '%s' "$out" | jq -r '.path')" = "$dup_b" ] || fail "$name: B .path=[$(printf '%s' "$out" | jq -r '.path')], esperado [$dup_b]"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close "$dup_b" --yes 2>&1)" || rc=$?
+[ "$rc" = 0 ] || fail "$name: exit=$rc, esperado 0: [$out]"
+[ -d "$dup_a" ] || fail "$name: se borró el primer worktree ($dup_a)"
+[ ! -e "$dup_b" ] || fail "$name: sigue el segundo worktree ($dup_b)"
+pass "$name"
+
+name="close <ruta> fuera de la raíz de un worktree con rama → exit 4 con no worktree at"
+git -C "$TMP/repo" worktree add -q -b fuera-rama "$TMP/fuera-rama"
+rc=0
+out="$(cd "$TMP/repo" && "$WT" close "$TMP/fuera-rama" 2>&1)" || rc=$?
+[ "$rc" = 4 ] || fail "$name: exit=$rc, esperado 4: [$out]"
+case "$out" in *"no worktree at"*) ;; *) fail "$name: falta 'no worktree at': [$out]" ;; esac
+[ -d "$TMP/fuera-rama" ] || fail "$name: se borró el worktree fuera de la raíz"
+pass "$name"
+
+name="close <ruta> relativa de un worktree desacoplado cuyo directorio ya no existe lo encuentra"
+(cd "$TMP/repo" && "$WT" new feature/mis-rel) || fail "$name: th-wt new falló"
+dest="$HOME/.worktrees/acme/demo/feature-mis-rel"
+git -C "$dest" checkout -q --detach
+rm -rf "$dest"
+rel="../home/.worktrees/acme/demo/feature-mis-rel"
+out="$(cd "$TMP/repo" && "$WT" close "$rel" --json 2>/dev/null)" || fail "$name: close --json falló"
+[ "$(printf '%s' "$out" | jq -c '[.missing, .path]')" = "[true,\"$dest\"]" ] || fail "$name: plan=[$out]"
+pass "$name"
