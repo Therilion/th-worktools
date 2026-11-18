@@ -61,3 +61,5 @@ Ideas que quedan fuera de la versión en curso.
   - Incluir en la lista de tests inicial los casos de borde (directorio borrado, estado desconocido, archivos ignorados, rama en dos worktrees); en la story 3 aparecieron recién en los reviews y costaron dos rondas extra.
   - Tras cada review, mostrar el triage (corregir ahora o mandar a Ideas) y esperar la aprobación del usuario antes de delegar los fixes.
   - Los subagentes son una extensión de Claude Code: el skill debe seguir funcionando en Antigravity si la ignora (§4 del plan), por ejemplo haciendo el ciclo el propio agente.
+- `th-ctx index`: leer el `.conf` de `th-worktree` (también el de la organización) para indexar sus enlaces aunque estén fuera de las rutas habituales. Hay que decidir cómo se comparte el formato, porque los skills no comparten archivos (fuera de la v0.2, ver `plan-v0.2.md`).
+- `th-ctx index --query <términos>`: ordenar el índice por relevancia (p. ej. `grep -c` por término) en vez de dejar toda la selección al agente.
