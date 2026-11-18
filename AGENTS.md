@@ -1,8 +1,8 @@
 # th-worktools — agent instructions
 
-Public kit of skills (`SKILL.md` standard) and scripts for Claude Code and Antigravity CLI. Current version: v0.1, with the `th-worktree` skill plus `install.sh`, `verify.sh` and CI.
+Public kit of skills (`SKILL.md` standard) and scripts for Claude Code and Antigravity CLI. v0.1 shipped the `th-worktree` skill plus `install.sh`, `verify.sh` and CI. Current version: v0.2 (in progress), with the `th-repo-context` skill.
 
-- Before changing anything, read `docs/plan-v0.1.md`. The decisions live there; don't reopen them without asking.
+- Before changing anything, read `docs/plan-v0.1.md` (principles and conventions for every skill) and `docs/plan-v0.2.md` (`th-repo-context`). The decisions live there; don't reopen them without asking. Bare `§n` references below are to `plan-v0.1.md`.
 
 ## Stack
 
@@ -29,5 +29,6 @@ Public kit of skills (`SKILL.md` standard) and scripts for Claude Code and Antig
 
 - Don't commit or push on your own initiative; only when asked.
 - Commit messages follow Conventional Commits (`feat`, `fix`, `refactor`, `docs`, `test`, `chore`), in English, with a subject of 72 characters max.
-- Story branches are merged into `main` with a merge commit up to story 5; from story 6 (backlog #6) on, with squash (so keep the PR title in Conventional Commits format).
+- Story branches are merged into `main` with a merge commit up to v0.1 story 5; from v0.1 story 6 (backlog #6) on, including every v0.2 story, with squash (so keep the PR title in Conventional Commits format).
+- v0.2: don't merge the release-please PR until story 3, whose squash commit carries `Release-As: 0.2.0` (§2 of `plan-v0.2.md`).
 - Never add `Co-Authored-By` or any AI attribution, in commits or PRs.

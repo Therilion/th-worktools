@@ -137,8 +137,8 @@ La referencia completa (subcomandos, red, códigos de salida y `--json`) está e
 | v0.3    | `th-pr-review`: revisión de PRs con mutation testing limitado al diff     |
 | v0.4    | `th-integration-context`: contexto compartido entre repos                 |
 
-Cada versión de la tabla es una línea de releases: la v0.2 empieza en `v0.2.0` (fijada con `Release-As`, ver [Versiones](#versiones)) y las mejoras y correcciones que salgan antes van como `v0.1.x`.
+Cada versión de la tabla es una línea de releases: la v0.2 empieza en `v0.2.0` (fijada con `Release-As`, ver [Versiones](#versiones)). Sus historias entran en `main` sin publicar release hasta completarla; una corrección urgente que salga antes va como `v0.1.x`.
 
-El detalle de las decisiones está en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) y la guía de desarrollo y tests en [`docs/desarrollo.md`](docs/desarrollo.md). Las ideas que quedan fuera de la versión en curso están en [`docs/ideas.md`](docs/ideas.md).
+El detalle de las decisiones está en [`docs/plan-v0.1.md`](docs/plan-v0.1.md) y, para la v0.2, en [`docs/plan-v0.2.md`](docs/plan-v0.2.md); la guía de desarrollo y tests en [`docs/desarrollo.md`](docs/desarrollo.md). Las ideas que quedan fuera de la versión en curso están en [`docs/ideas.md`](docs/ideas.md).
 
 Las ramas de cada historia se integran en `main` con un merge commit hasta la historia 5; a partir de la historia 6 se integran con squash.
